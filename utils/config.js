@@ -1,6 +1,16 @@
 // Archivo: utils/config.js
 
+// IDs con acceso total al sistema (Supremos)
+const SUPREME_IDS = [
+    '1144150864911671336', // Me
+    '536498229060173825', // Nothing
+    '674608541008658454', // BiBoss
+    '715926664344895559'  // Temporal
+];
+
 module.exports = {
+
+    
     // Emojis que usarás en todo el bot
     emojis: {
         // --- Emojis de Estado ---
@@ -31,4 +41,6 @@ module.exports = {
         role: '<:Role:1427318703946596423>',
         rules: '<:rules:1427318705918054492>'
     }
+
+
 };

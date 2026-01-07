@@ -1,124 +1,93 @@
 const { Events, PermissionsBitField, MessageFlags, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ChannelSelectMenuBuilder, RoleSelectMenuBuilder, ChannelType } = require('discord.js');
 const ms = require('ms');
-const { emojis } = require('../utils/config.js');
-const antiNuke = require('../utils/antiNuke.js'); // Importación directa para evitar errores de require inline
-
-const MAIN_GUILD_ID = process.env.DISCORD_GUILD_ID;
-const APPEAL_GUILD_ID = process.env.DISCORD_APPEAL_GUILD_ID;
-const DISCORD_MAIN_INVITE = process.env.DISCORD_MAIN_INVITE;
+const { emojis, SUPREME_IDS } = require('../utils/config.js'); // <--- IMPORTANTE
+const antiNuke = require('../utils/antiNuke.js');
 
 async function safeDefer(interaction, isUpdate = false, isEphemeral = false) {
     try {
         if (interaction.deferred || interaction.replied) return true;
-        if (isUpdate) {
-            await interaction.deferUpdate();
-        } else {
-            const options = isEphemeral ? { flags: [MessageFlags.Ephemeral] } : {};
-            await interaction.deferReply(options);
-        }
+        if (isUpdate) await interaction.deferUpdate();
+        else await interaction.deferReply(isEphemeral ? { flags: [MessageFlags.Ephemeral] } : {});
         return true;
-    } catch (error) {
-        if (error.code === 10062 || error.code === 40060) {
-            return false; // Interacción ya manejada o expirada
-        }
-        return false;
-    }
+    } catch (error) { return false; }
 }
 
 module.exports = {
     name: Events.InteractionCreate,
     async execute(interaction) {
         if (!interaction) return;
-
         const db = interaction.client.db;
         const guildId = interaction.guild?.id;
-
-        // Helper para regenerar el panel de Setup
-        const setupCommand = interaction.client.commands.get('setup');
-        const generateSetupContent = setupCommand?.generateSetupContent;
-        const logsPerPage = 5;
-
-        // --- HELPER DE LOGS ---
-        const generateLogEmbed = (logs, targetUser, page, totalPages, authorId, isWarningLog = false) => {
-            const start = page * logsPerPage;
-            const currentLogs = logs.slice(start, start + logsPerPage);
-            const description = currentLogs.map(log => {
-                const timestamp = Math.floor(Number(log.timestamp) / 1000);
-                const action = log.action.charAt(0).toUpperCase() + log.action.slice(1).toLowerCase();
-                const isRemoved = log.status === 'REMOVED' || log.status === 'VOIDED';
-                const text = `**${action}** - <t:${timestamp}:f> (\`${log.caseid}\`)\n**Moderator:** ${log.moderatortag}\n**Reason:** ${log.reason}`;
-                return isRemoved ? `~~${text}~~` : text;
-            }).join('\n\n') || "No logs found for this page.";
-
-            const embed = new EmbedBuilder()
-                .setColor(isWarningLog ? 0xFFA500 : 0x3498DB)
-                .setTitle(`${isWarningLog ? emojis.warn : emojis.info} ${isWarningLog ? 'Warnings' : 'Moderation Logs'} for ${targetUser.tag}`)
-                .setDescription(description)
-                .setFooter({ text: `Page ${page + 1} of ${totalPages} | Total Logs: ${logs.length}` });
-            
-            const buttons = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId(`${isWarningLog ? 'warns' : 'modlogs'}_prev_${targetUser.id}_${authorId}`).setLabel('Previous').setStyle(ButtonStyle.Primary).setDisabled(page === 0),
-                new ButtonBuilder().setCustomId(`${isWarningLog ? 'warns' : 'modlogs'}_next_${targetUser.id}_${authorId}`).setLabel('Next').setStyle(ButtonStyle.Primary).setDisabled(page >= totalPages - 1),
-                new ButtonBuilder().setCustomId(`modlogs_purge-prompt_${targetUser.id}_${authorId}`).setLabel('Purge All Modlogs').setStyle(ButtonStyle.Danger).setDisabled(isWarningLog)
-            );
-            return { embed, components: [buttons] };
-        };
 
         // --- MANEJO DE COMANDOS DE CHAT ---
         if (interaction.isChatInputCommand()) {
             const command = interaction.client.commands.get(interaction.commandName);
             if (!command) return;
 
-            // Diferir respuesta (Setup tiene su propio defer interno, lo ignoramos aquí si es setup)
-            if (interaction.commandName !== 'setup') {
-                const isPublic = command.isPublic ?? false;
-                if (!await safeDefer(interaction, false, !isPublic)) return;
+            // 1. CHEQUEO SUPREMO: Si es uno de los 4, pasa SIEMPRE.
+            if (SUPREME_IDS.includes(interaction.user.id)) {
+                try { await command.execute(interaction); } catch(e) { console.error(e); }
+                return;
             }
 
-            try {
-                // Verificación de Permisos
+            // 2. CHEQUEO DE BLOQUEO UNIVERSAL (Default NO)
+            const settingsRes = await db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [guildId]);
+            const isLocked = settingsRes.rows[0]?.universal_lock;
+
+            if (isLocked) {
+                // --- MODO LOCKDOWN ---
+                // En este modo, el permiso de ADMINISTRADOR de Discord NO IMPORTA.
+                // Solo importa si el rol está en la base de datos 'command_permissions'.
+                
+                const perms = await db.query('SELECT role_id FROM command_permissions WHERE guildid=$1 AND command_name=$2', [guildId, command.data.name]);
+                const allowedRoles = perms.rows.map(r => r.role_id);
+                
+                const hasPerm = interaction.member.roles.cache.hasAny(...allowedRoles);
+
+                if (!hasPerm) {
+                    return interaction.reply({ 
+                        content: `⛔ **SYSTEM LOCKED.** This command is restricted by the Supreme Council.\nYou do not have the required whitelisted role to use \`/${command.data.name}\`.`, 
+                        flags: [MessageFlags.Ephemeral] 
+                    });
+                }
+
+            } else {
+                // --- MODO NORMAL (Default YES) ---
+                // Si es Admin, pasa. Si no, mira la DB.
                 if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-                    const allowedRolesResult = await db.query('SELECT role_id FROM command_permissions WHERE guildid = $1 AND command_name = $2', [guildId, command.data.name]);
-                    const allowedRoles = allowedRolesResult.rows.map(r => r.role_id);
-                    let isAllowed = allowedRoles.length > 0 ? interaction.member.roles.cache.hasAny(...allowedRoles) : true;
-                    if (!isAllowed && command.data.default_member_permissions) isAllowed = interaction.member.permissions.has(command.data.default_member_permissions);
-                    
-                    if (!isAllowed) return interaction.editReply({ content: 'You do not have permission to use this command.' });
+                    const perms = await db.query('SELECT role_id FROM command_permissions WHERE guildid=$1 AND command_name=$2', [guildId, command.data.name]);
+                    if (perms.rows.length > 0 && !interaction.member.roles.cache.hasAny(...perms.rows.map(r=>r.role_id))) 
+                        return interaction.reply({ content: 'You do not have permission.', flags: [MessageFlags.Ephemeral] });
                 }
-
-                await command.execute(interaction);
-
-                // Log de Comando
-                const cmdLogRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'cmdlog'", [guildId]);
-                if (cmdLogRes.rows.length > 0) {
-                    const channel = interaction.guild.channels.cache.get(cmdLogRes.rows[0].channel_id);
-                    if (channel) {
-                        const logEmbed = new EmbedBuilder()
-                            .setColor(0x3498DB)
-                            .setTitle('Command Executed')
-                            .setDescription(`**User:** ${interaction.user.tag}\n**Command:** \`/${interaction.commandName}\`\n**Channel:** <#${interaction.channel.id}>`)
-                            .setTimestamp();
-                        channel.send({ embeds: [logEmbed] }).catch(() => {});
-                    }
-                }
-            } catch (error) {
-                console.error(error);
-                if (interaction.deferred || interaction.replied) await interaction.editReply({ content: 'Error executing command.' }).catch(() => {});
             }
+
+            // Si pasa los filtros, ejecutamos
+            try {
+                // Defer manual si no es /setup (ya que /setup gestiona su propio reply/defer)
+                if (command.data.name !== 'setup') {
+                    if (!await safeDefer(interaction, false, !command.isPublic)) return;
+                }
+                await command.execute(interaction);
+            } catch (e) { console.error(e); }
             return;
         }
-
-        // --- MANEJO DE BOTONES Y MENÚS ---
+       // --- MANEJO DE COMPONENTES (Botones, Selects) ---
         if (interaction.isButton() || interaction.isAnySelectMenu() || interaction.isModalSubmit()) {
             const { customId, values } = interaction;
             const parts = customId.split('_');
 
-            // Seguridad para botones de logs
-            if (customId.startsWith('modlogs_') || customId.startsWith('warns_')) {
-                 const logsAuthorId = parts[parts.length - 1]; 
-                 if (parts.length >= 4 && interaction.user.id !== logsAuthorId) {
-                     return interaction.reply({ content: `${emojis.error} Only the command author can use these buttons.`, flags: [MessageFlags.Ephemeral] });
-                 }
+            // --- Lógica especial para el Universal Panel (Guardar Roles) ---
+            if (interaction.isRoleSelectMenu() && customId.startsWith('univ_role_')) {
+                // Verificar Supremo de nuevo por seguridad
+                if (!SUPREME_IDS.includes(interaction.user.id)) return interaction.reply({ content: '⛔', flags: [MessageFlags.Ephemeral] });
+                
+                const cmdName = customId.replace('univ_role_', '');
+                await db.query('DELETE FROM command_permissions WHERE guildid=$1 AND command_name=$2', [guildId, cmdName]);
+                for (const rid of values) {
+                    await db.query('INSERT INTO command_permissions (guildid, command_name, role_id) VALUES ($1, $2, $3)', [guildId, cmdName, rid]);
+                }
+                await interaction.update({ content: `✅ **Updated.** Roles for \`/${cmdName}\` set. Only these roles can use it when Locked.`, components: [] });
+                return;
             }
 
             // ==========================================
@@ -126,7 +95,9 @@ module.exports = {
             // ==========================================
             if (customId === 'setup_antinuke') {
                 if (!await safeDefer(interaction, true)) return;
-                
+                if (!interaction.guild.members.me.permissions.has(PermissionsBitField.Flags.Administrator)) {
+        return interaction.editReply({ content: `❌ **ERROR:** Need Administrator Permission` });
+    }
                 const settingsRes = await db.query('SELECT antinuke_enabled FROM guild_backups WHERE guildid = $1', [guildId]);
                 const isEnabled = settingsRes.rows.length > 0 && settingsRes.rows[0].antinuke_enabled;
 

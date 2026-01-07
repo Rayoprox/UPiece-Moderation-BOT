@@ -1,38 +1,57 @@
-const { AuditLogEvent, PermissionFlagsBits, ChannelType, EmbedBuilder } = require('discord.js');
+const { AuditLogEvent, PermissionFlagsBits, ChannelType, EmbedBuilder, UserFlags, OverwriteType } = require('discord.js');
 const db = require('./db.js');
 
-// Cache en memoria para velocidad máxima (evita consultar DB en cada borrado)
-// Map<GuildID, Map<UserID, { count: number, timer: NodeJS.Timeout }>>
-const deletionCache = new Map();
+const limitCache = new Map(); 
+const triggeredUsers = new Set(); 
+const restoringGuilds = new Set();
+const backingUpGuilds = new Set(); // <--- NUEVO: Freno para backups
 
+// --- 1. BACKUP & RESTORE (SISTEMA AVANZADO) ---
 async function createBackup(guild) {
-    if (!guild) return;
+    if (!guild) return false;
+    
+    // 🔒 FRENO DE BACKUP: Evitar spam de guardado
+    if (backingUpGuilds.has(guild.id)) {
+        console.log(`[BACKUP] ⚠️ Backup already in progress for ${guild.name}.`);
+        return 'IN_PROGRESS';
+    }
+    backingUpGuilds.add(guild.id);
+
     try {
         const channels = guild.channels.cache.map(c => ({
-            name: c.name,
-            type: c.type,
-            parentId: c.parentId, // ID de la categoría (necesitará remapeo al restaurar)
-            parentName: c.parent ? c.parent.name : null, // Guardamos el nombre por si la categoría cambia de ID
-            position: c.position,
-            permissionOverwrites: c.permissionOverwrites.cache.map(p => ({
-                id: p.id, // Rol o Usuario ID (Ojo: si el rol se borra, esto falla. Mejor guardar nombre del rol si es posible, pero ID es estándar)
-                allow: p.allow.bitfield.toString(),
-                deny: p.deny.bitfield.toString(),
-                type: p.type
-            }))
+            id: c.id, 
+            name: c.name, 
+            type: c.type, 
+            parentId: c.parentId, 
+            parentName: c.parent ? c.parent.name : null, 
+            position: c.position, 
+            permissionOverwrites: c.permissionOverwrites.cache.map(p => {
+                let roleName = null;
+                if (p.type === OverwriteType.Role) {
+                    const role = guild.roles.cache.get(p.id);
+                    if (role) roleName = role.name;
+                }
+                return { 
+                    id: p.id, 
+                    type: p.type, 
+                    allow: p.allow.bitfield.toString(), 
+                    deny: p.deny.bitfield.toString(),
+                    roleName: roleName 
+                };
+            })
         }));
 
         const roles = guild.roles.cache.filter(r => r.name !== '@everyone' && !r.managed).map(r => ({
-            name: r.name,
-            color: r.color,
-            hoist: r.hoist,
-            permissions: r.permissions.bitfield.toString(),
-            position: r.position
+            id: r.id, 
+            name: r.name, 
+            color: r.color, 
+            hoist: r.hoist, 
+            permissions: r.permissions.bitfield.toString(), 
+            position: r.position 
         }));
 
         const backupData = { channels, roles, timestamp: Date.now() };
 
-        // Guardar en DB
         await db.query(`
             INSERT INTO guild_backups (guildid, data, last_backup) 
             VALUES ($1, $2, $3) 
@@ -40,23 +59,43 @@ async function createBackup(guild) {
             SET data = $2, last_backup = $3
         `, [guild.id, backupData, Date.now()]);
 
-        console.log(`[BACKUP] Guild ${guild.name} backup completed.`);
+        return 'SUCCESS';
     } catch (e) {
         console.error(`[BACKUP ERROR] Guild ${guild.id}:`, e);
+        return 'ERROR';
+    } finally {
+        backingUpGuilds.delete(guild.id); // Liberar el freno
     }
 }
 
 async function restoreGuild(guild) {
+    if (restoringGuilds.has(guild.id)) return 'IN_PROGRESS';
+    restoringGuilds.add(guild.id);
+
     try {
         const result = await db.query('SELECT data FROM guild_backups WHERE guildid = $1', [guild.id]);
-        if (result.rows.length === 0) return console.log('[RESTORE] No backup found.');
+        if (result.rows.length === 0) return 'NO_DATA';
         
-        const { roles, channels } = result.rows[0].data;
-        console.log(`[RESTORE] Starting restoration for ${guild.name}...`);
+        const { roles: backupRoles, channels: backupChannels } = result.rows[0].data;
+        console.log(`[RESTORE] 🛡️ Starting DEEP restoration for ${guild.name}...`);
 
-        // 1. Restaurar Roles (Primero, para poder asignar permisos a canales)
-        // Mapeo de OldID -> NewID sería ideal, pero complejo. Restauramos por nombre.
-        for (const r of roles) {
+        // --- FASE 1: LIMPIEZA ---
+        const currentRoles = guild.roles.cache.filter(r => r.name !== '@everyone' && !r.managed && r.editable);
+        for (const role of currentRoles.values()) {
+            const isInBackup = backupRoles.some(br => br.name === role.name); 
+            if (!isInBackup) await role.delete('Anti-Nuke Cleanup').catch(() => {});
+        }
+
+        const currentChannels = guild.channels.cache.filter(c => c.deletable);
+        for (const channel of currentChannels.values()) {
+            const isInBackup = backupChannels.some(bc => bc.name === channel.name && bc.type === channel.type);
+            if (!isInBackup) await channel.delete('Anti-Nuke Cleanup').catch(() => {});
+        }
+
+        // --- FASE 2: RESTAURAR ROLES ---
+        backupRoles.sort((a, b) => b.position - a.position);
+
+        for (const r of backupRoles) {
             const exists = guild.roles.cache.find(role => role.name === r.name);
             if (!exists) {
                 await guild.roles.create({
@@ -64,106 +103,180 @@ async function restoreGuild(guild) {
                     color: r.color,
                     hoist: r.hoist,
                     permissions: BigInt(r.permissions),
-                    reason: 'Anti-Nuke Restoration'
+                    position: r.position, 
+                    reason: 'Anti-Nuke Restore'
                 }).catch(() => {});
             }
         }
 
-        // 2. Restaurar Categorías primero
-        const categories = channels.filter(c => c.type === ChannelType.GuildCategory);
+        // --- FASE 3: RESTAURAR CANALES ---
+        const resolveOverwrites = (savedOverwrites) => {
+            return savedOverwrites.map(o => {
+                let targetId = o.id; 
+                
+                if (o.type === OverwriteType.Role) {
+                    if (o.roleName === '@everyone') {
+                        targetId = guild.roles.everyone.id;
+                    } else if (o.roleName) {
+                        const newRole = guild.roles.cache.find(r => r.name === o.roleName);
+                        if (newRole) targetId = newRole.id;
+                        else return null; 
+                    }
+                }
+                return {
+                    id: targetId,
+                    type: o.type,
+                    allow: BigInt(o.allow),
+                    deny: BigInt(o.deny)
+                };
+            }).filter(o => o !== null); 
+        };
+
+        const categories = backupChannels.filter(c => c.type === ChannelType.GuildCategory);
         for (const c of categories) {
             if (!guild.channels.cache.find(ch => ch.name === c.name && ch.type === c.type)) {
-                await guild.channels.create({ name: c.name, type: c.type, reason: 'Anti-Nuke Restoration' }).catch(() => {});
+                await guild.channels.create({
+                    name: c.name,
+                    type: c.type,
+                    position: c.position,
+                    permissionOverwrites: resolveOverwrites(c.permissionOverwrites),
+                    reason: 'Anti-Nuke Restore'
+                }).catch(() => {});
             }
         }
 
-        // 3. Restaurar Canales normales
-        const textVoiceChannels = channels.filter(c => c.type !== ChannelType.GuildCategory);
-        for (const c of textVoiceChannels) {
+        const channels = backupChannels.filter(c => c.type !== ChannelType.GuildCategory);
+        for (const c of channels) {
             if (!guild.channels.cache.find(ch => ch.name === c.name && ch.type === c.type)) {
-                // Intentar encontrar la categoría padre nueva
                 const parent = c.parentName ? guild.channels.cache.find(cat => cat.name === c.parentName && cat.type === ChannelType.GuildCategory) : null;
-                
                 await guild.channels.create({
                     name: c.name,
                     type: c.type,
                     parent: parent ? parent.id : null,
-                    reason: 'Anti-Nuke Restoration'
+                    position: c.position,
+                    permissionOverwrites: resolveOverwrites(c.permissionOverwrites),
+                    reason: 'Anti-Nuke Restore'
                 }).catch(() => {});
-                // Pequeña pausa para evitar Rate Limits agresivos
-                await new Promise(r => setTimeout(r, 500)); 
+                await new Promise(r => setTimeout(r, 200)); 
             }
         }
-        console.log('[RESTORE] Process finished.');
+
+        console.log('[RESTORE] ✅ Process finished.');
+        return 'SUCCESS';
+
     } catch (e) {
         console.error('[RESTORE ERROR]', e);
+        return 'ERROR';
+    } finally {
+        restoringGuilds.delete(guild.id);
     }
 }
 
-async function handleDeletion(guild, type) {
-    // 1. Verificar si Anti-Nuke está activado
+// --- 2. SISTEMA DE DETECCIÓN INTELIGENTE ---
+async function handleAction(guild, executorId, actionType) {
+    const triggerKey = `${guild.id}_${executorId}`;
+    if (triggeredUsers.has(triggerKey)) return; 
+
     const settings = await db.query('SELECT antinuke_enabled, threshold_count, threshold_time FROM guild_backups WHERE guildid = $1', [guild.id]);
     if (settings.rows.length === 0 || !settings.rows[0].antinuke_enabled) return;
 
     const { threshold_count, threshold_time } = settings.rows[0];
-
-    // 2. Buscar al culpable en Audit Logs
-    const auditType = type === 'CHANNEL' ? AuditLogEvent.ChannelDelete : AuditLogEvent.RoleDelete;
-    const logs = await guild.fetchAuditLogs({ limit: 1, type: auditType }).catch(() => null);
-    if (!logs) return;
+    const key = `${guild.id}_${executorId}_${actionType}`;
     
-    const entry = logs.entries.first();
-    if (!entry || Date.now() - entry.createdTimestamp > 5000) return; // Si el log es muy viejo, ignorar
-    
-    const executor = entry.executor;
-    if (!executor || executor.bot) return; // Ignorar bots para evitar bucles (aunque cuidado con self-bots)
-
-    // 3. Lógica de Conteo (Rate Limit Check)
-    if (!deletionCache.has(guild.id)) deletionCache.set(guild.id, new Map());
-    const guildCache = deletionCache.get(guild.id);
-
-    if (!guildCache.has(executor.id)) {
-        guildCache.set(executor.id, { 
-            count: 1, 
-            timer: setTimeout(() => guildCache.delete(executor.id), threshold_time * 1000) 
-        });
+    if (!limitCache.has(key)) {
+        limitCache.set(key, { count: 1, timer: setTimeout(() => limitCache.delete(key), threshold_time * 1000) });
+        console.log(`[ANTINUKE] Monitor ${actionType} for ${executorId}`);
     } else {
-        const userData = guildCache.get(executor.id);
-        userData.count++;
+        const data = limitCache.get(key);
+        data.count++;
         
-        if (userData.count >= threshold_count) {
-            // 🚨 NUKE DETECTADO 🚨
-            clearTimeout(userData.timer);
-            guildCache.delete(executor.id);
-            await triggerProtection(guild, executor);
+        if (data.count >= threshold_count) {
+            clearTimeout(data.timer);
+            limitCache.delete(key);
+            triggeredUsers.add(triggerKey);
+            setTimeout(() => triggeredUsers.delete(triggerKey), 5 * 60 * 1000);
+
+            const user = await guild.client.users.fetch(executorId).catch(() => null);
+            await triggerProtection(guild, user, actionType);
         }
     }
 }
 
-async function triggerProtection(guild, user) {
-    console.log(`[ANTI-NUKE] Triggered by ${user.tag} in ${guild.name}`);
-
-    // 1. BAN HAMMER
-    if (guild.members.me.permissions.has(PermissionFlagsBits.BanMembers)) {
-        await guild.members.ban(user.id, { reason: 'Anti-Nuke System Triggered: Mass Deletion Detected' }).catch(e => console.error("Failed to ban nuker:", e));
+async function triggerProtection(guild, user, type) {
+    console.log(`[ANTI-NUKE] 🚨 TRIGGERED by ${user?.tag} (${type})`);
+    
+    if (guild.members.me.permissions.has(PermissionFlagsBits.BanMembers) && user) {
+        await guild.members.ban(user.id, { 
+            deleteMessageSeconds: 604800, 
+            reason: `Anti-Nuke: Mass ${type} Detected` 
+        }).catch(e => console.error("Ban failed:", e.message));
     }
 
-    // 2. LOGGING
-    const logChannelRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'antinuke'", [guild.id]);
-    if (logChannelRes.rows.length > 0) {
-        const channel = guild.channels.cache.get(logChannelRes.rows[0].channel_id);
-        if (channel) {
-            const embed = new EmbedBuilder()
-                .setTitle('🛡️ ANTI-NUKE TRIGGERED')
-                .setColor(0xFF0000)
-                .setDescription(`**User:** ${user.tag} (\`${user.id}\`)\n**Action:** Mass Deletion\n**Status:** User Banned. Starting Server Restoration...`)
-                .setTimestamp();
-            await channel.send({ embeds: [embed] }).catch(() => {});
+    const logRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid=$1 AND log_type='antinuke'", [guild.id]);
+    if (logRes.rows.length > 0) {
+        const ch = guild.channels.cache.get(logRes.rows[0].channel_id);
+        if (ch) {
+            ch.send({ 
+                embeds: [new EmbedBuilder()
+                    .setTitle('☢️ SERVER NUKE ATTEMPT BLOCKED')
+                    .setDescription(`**User:** ${user?.tag}\n**Action:** Mass ${type}\n**Result:** Banned (7 days messages deleted) & Restoring Backup...`)
+                    .setColor(0xFF0000)
+                    .setTimestamp()
+                ] 
+            }).catch(()=>{});
         }
     }
 
-    // 3. RESTORE
     await restoreGuild(guild);
 }
 
-module.exports = { createBackup, handleDeletion };
+// --- 3. ANTI-BOT NO VERIFICADO ---
+async function checkBotJoin(member) {
+    if (!member.user.bot) return; 
+
+    const settings = await db.query('SELECT antinuke_enabled FROM guild_backups WHERE guildid = $1', [member.guild.id]);
+    if (settings.rows.length === 0 || !settings.rows[0].antinuke_enabled) return;
+
+    if (member.id === member.client.user.id) return; 
+
+    const whitelist = await db.query('SELECT * FROM bot_whitelist WHERE guildid = $1 AND targetid = $2', [member.guild.id, member.id]);
+    if (whitelist.rows.length > 0) return; 
+
+    const user = await member.user.fetch();
+    const isVerified = user.flags?.has(UserFlags.VerifiedBot);
+
+    if (!isVerified) {
+        console.log(`[ANTI-BOT] Unverified bot detected: ${member.user.tag}`);
+        
+        let inviterText = "Unknown (Check Logs)";
+        try {
+            const logs = await member.guild.fetchAuditLogs({ limit: 5, type: AuditLogEvent.BotAdd });
+            const entry = logs.entries.find(e => e.target.id === member.id);
+            if (entry && entry.executor) {
+                inviterText = `${entry.executor.tag} (\`${entry.executor.id}\`)`;
+            }
+        } catch (e) { console.error("Error fetching inviter:", e); }
+
+        if (member.guild.members.me.permissions.has(PermissionFlagsBits.BanMembers)) {
+            await member.ban({ 
+                deleteMessageSeconds: 604800, 
+                reason: `Anti-Nuke: Unverified Bot. Invited by: ${inviterText}` 
+            }).catch(() => {});
+            
+            const logRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid=$1 AND log_type='antinuke'", [member.guild.id]);
+            if (logRes.rows.length > 0) {
+                const ch = member.guild.channels.cache.get(logRes.rows[0].channel_id);
+                if (ch) ch.send({ 
+                    embeds: [new EmbedBuilder()
+                        .setTitle('🤖 UNVERIFIED BOT BANNED')
+                        .setDescription(`**Bot:** ${member.user.tag} (\`${member.id}\`)\n**Invited By:** ${inviterText}\n**Reason:** Not Verified & Not Whitelisted\n**Action:** Banned & Messages Purged`)
+                        .setColor(0xFFA500)
+                        .setTimestamp()
+                    ] 
+                }).catch(()=>{});
+            }
+        }
+    }
+}
+
+module.exports = { createBackup, restoreGuild, handleAction, checkBotJoin };
