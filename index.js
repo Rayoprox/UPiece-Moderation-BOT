@@ -80,4 +80,15 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
     console.log(`HTTP Server running on port ${PORT} for 24/7 heartbeat.`);
+
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('⚠️ Unhandled Rejection:', reason);
+    // No salir del proceso
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('⚠️ Uncaught Exception:', error);
+    // No salir del proceso
 });

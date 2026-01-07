@@ -1,5 +1,4 @@
-const { Events, PermissionsBitField, MessageFlags, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ChannelSelectMenuBuilder, RoleSelectMenuBuilder } = require('discord.js');
-const ms = require('ms');
+const { Events, PermissionsBitField, MessageFlags, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ChannelSelectMenuBuilder, RoleSelectMenuBuilder, ChannelType } = require('discord.js');
 const { emojis } = require('../utils/config.js');
 
 const MAIN_GUILD_ID = process.env.DISCORD_GUILD_ID;
@@ -173,7 +172,7 @@ module.exports = {
                  }
             }
 
-            if (customId === 'setup_antinuke') {
+           if (customId === 'setup_antinuke') {
                 if (!await safeDefer(interaction, true)) return;
                 
                 const settingsRes = await db.query('SELECT antinuke_enabled FROM guild_backups WHERE guildid = $1', [guildId]);
@@ -191,7 +190,7 @@ module.exports = {
                 
                 const backBtn = new ButtonBuilder().setCustomId('setup_back_to_main').setLabel('Back').setStyle(ButtonStyle.Secondary);
 
-                // AQUI ESTABA EL ERROR: ChannelType ahora está importado
+                // CORRECCIÓN APLICADA: ChannelType ya está importado arriba
                 const channelSelect = new ChannelSelectMenuBuilder()
                     .setCustomId('select_antinuke_channel')
                     .setPlaceholder('Select channel for "Nuke Triggered" alerts...')
@@ -224,6 +223,36 @@ module.exports = {
                 return;
             }
             
+            // --- SELECT CHANNEL PARA ANTI-NUKE ---
+            if (customId === 'select_antinuke_channel') {
+                if (!await safeDefer(interaction, true)) return;
+                // Guardar el canal de logs 'antinuke' en log_channels
+                await db.query(`INSERT INTO log_channels (guildid, log_type, channel_id) VALUES ($1, $2, $3) ON CONFLICT(guildid, log_type) DO UPDATE SET channel_id = $3`, [guildId, 'antinuke', values[0]]);
+                
+                // Volver a mostrar el menú de Anti-Nuke
+                const settingsRes = await db.query('SELECT antinuke_enabled FROM guild_backups WHERE guildid = $1', [guildId]);
+                const isEnabled = settingsRes.rows.length > 0 && settingsRes.rows[0].antinuke_enabled;
+
+                const embed = new EmbedBuilder()
+                    .setTitle('☢️ Anti-Nuke Configuration')
+                    .setDescription(`Status: **${isEnabled ? 'ENABLED ✅' : 'DISABLED ❌'}**\n\nProtects against mass deletion of channels/roles. Bans offenders and restores data from 24h backup.\n\n✅ **Alert Channel Updated!**`)
+                    .setColor(isEnabled ? 0x2ECC71 : 0xE74C3C);
+
+                const toggleBtn = new ButtonBuilder()
+                    .setCustomId('antinuke_toggle')
+                    .setLabel(isEnabled ? 'Disable Anti-Nuke' : 'Enable Anti-Nuke')
+                    .setStyle(isEnabled ? ButtonStyle.Danger : ButtonStyle.Success);
+                
+                const backBtn = new ButtonBuilder().setCustomId('setup_back_to_main').setLabel('Back').setStyle(ButtonStyle.Secondary);
+                const channelSelect = new ChannelSelectMenuBuilder()
+                    .setCustomId('select_antinuke_channel')
+                    .setPlaceholder('Select channel for "Nuke Triggered" alerts...')
+                    .setChannelTypes(ChannelType.GuildText);
+
+                await interaction.editReply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(toggleBtn, backBtn), new ActionRowBuilder().addComponents(channelSelect)] });
+                return;
+            }
+
             if (customId === 'automod_add_rule') {
                 if (!await safeDefer(interaction, true)) return;
                 const menu = new StringSelectMenuBuilder().setCustomId('automod_action_select').setPlaceholder('1. Select punishment type...').addOptions([{ label: 'Ban (Permanent/Temporary)', value: 'BAN' },{ label: 'Mute (Timed only)', value: 'MUTE' },{ label: 'Kick (Instant)', value: 'KICK' }]);
