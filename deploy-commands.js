@@ -2,6 +2,7 @@ const { REST, Routes } = require('discord.js');
 const fs = require('node:fs');
 const path = require('node:path');
 require('dotenv').config();
+console.log("Token:", process.env.DISCORD_TOKEN ? "SÍ" : "NO");
 
 const mainGuildCommands = [];
 const appealGuildCommands = [];
