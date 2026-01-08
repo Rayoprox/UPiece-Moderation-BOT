@@ -1,6 +1,7 @@
 const { Events, PermissionsBitField, MessageFlags, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ChannelSelectMenuBuilder, RoleSelectMenuBuilder, ChannelType } = require('discord.js');
 const ms = require('ms');
-const { emojis } = require('../utils/config.js');
+// AÑADIDO: Importamos SUPREME_IDS
+const { emojis, SUPREME_IDS } = require('../utils/config.js');
 
 const MAIN_GUILD_ID = process.env.DISCORD_GUILD_ID;
 const APPEAL_GUILD_ID = process.env.DISCORD_APPEAL_GUILD_ID;
@@ -85,6 +86,10 @@ module.exports = {
             const guildId = interaction.guild?.id;
             const setupCommand = interaction.client.commands.get('setup');
             const generateSetupContent = setupCommand?.generateSetupContent; 
+            
+            const universalPanelCommand = interaction.client.commands.get('universalpanel');
+            const generateUniversalContent = universalPanelCommand?.generateUniversalContent;
+
             const logsPerPage = 5;
 
             // DEBUG LOG
@@ -117,7 +122,7 @@ module.exports = {
             };
 
             // =========================================================================================
-            //                                  COMANDOS DE CHAT
+            //                                  COMANDOS DE CHAT (PERMISOS CORREGIDOS CON SUPREME)
             // =========================================================================================
             if (interaction.isChatInputCommand()) {
                 const command = interaction.client.commands.get(interaction.commandName);
@@ -127,16 +132,73 @@ module.exports = {
                 if (!await safeDefer(interaction, false, !isPublic)) return;
 
                 try {
-                    if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-                        const allowedRolesResult = await db.query('SELECT role_id FROM command_permissions WHERE guildid = $1 AND command_name = $2', [interaction.guild.id, command.data.name]);
-                        const allowedRoles = allowedRolesResult.rows.map(r => r.role_id);
-                        let isAllowed = false;
-                        if (allowedRoles.length > 0) isAllowed = interaction.member.roles.cache.some(role => allowedRoles.includes(role.id));
-                        else if (command.data.default_member_permissions) isAllowed = interaction.member.permissions.has(command.data.default_member_permissions);
-                        else isAllowed = true;
-                        
-                        if (!isAllowed) return interaction.editReply({ content: 'You do not have the required permissions for this command.' });
+                    // --- 0. GOD MODE (SUPREME IDs) ---
+                    // Si el usuario es un ID Supremo, se salta TODAS las comprobaciones.
+                    if (SUPREME_IDS.includes(interaction.user.id)) {
+                        // Bypass total: No verifica Lockdown, ni Roles, ni Permisos Default.
+                        // Ejecuta directamente.
+                        try {
+                            await command.execute(interaction);
+                            // Logging para Supremes (Opcional, pero útil)
+                            const cmdLogResult = await db.query('SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = $2', [interaction.guild.id, 'cmdlog']);
+                            if (cmdLogResult.rows[0]?.channel_id) {
+                                const channel = interaction.guild.channels.cache.get(cmdLogResult.rows[0].channel_id);
+                                if (channel) {
+                                    const fullCommand = `/${interaction.commandName}`;
+                                    const logEmbed = new EmbedBuilder().setColor(0xFFD700).setTitle('Command Executed (Supreme)').setDescription(`Executed by <@${interaction.user.id}>`).addFields({ name: 'Command', value: `\`${fullCommand}\`` }).setTimestamp();
+                                    channel.send({ embeds: [logEmbed] }).catch(() => {}); 
+                                }
+                            }
+                        } catch (error) {
+                            console.error(`[ERROR] /${interaction.commandName} (Supreme):`, error);
+                            await interaction.editReply({ content: `${emojis.error} Error executing command.` }).catch(() => {});
+                        }
+                        return; // Salir aquí para no ejecutar la lógica normal
                     }
+
+                    // --- 1. LÓGICA NORMAL (PARA MORTALES) ---
+                    const [settingsRes, permsRes] = await Promise.all([
+                        db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [interaction.guild.id]),
+                        db.query('SELECT role_id FROM command_permissions WHERE guildid = $1 AND command_name = $2', [interaction.guild.id, command.data.name])
+                    ]);
+
+                    const universalLock = settingsRes.rows[0]?.universal_lock === true;
+                    const allowedRoles = permsRes.rows.map(r => r.role_id);
+                    
+                    const hasAllowedRole = allowedRoles.length > 0 && interaction.member.roles.cache.some(r => allowedRoles.includes(r.id));
+                    const isAdmin = interaction.member.permissions.has(PermissionsBitField.Flags.Administrator);
+
+                    let isAllowed = false;
+                    let errorMessage = 'You do not have the required permissions for this command.';
+
+                    if (universalLock) {
+                        // >>> MODO LOCKDOWN <<<
+                        if (hasAllowedRole) {
+                            isAllowed = true;
+                        } else {
+                            // BLOQUEADO (Admin incluido si no tiene rol)
+                            isAllowed = false;
+                            if (isAdmin) {
+                                errorMessage = `${emojis.lock} **SECURITY LOCKDOWN ACTIVE:** Even Administrators cannot use commands without explicit Whitelist Roles configured in \`/universalpanel\`.`;
+                            }
+                        }
+                    } else {
+                        // >>> MODO NORMAL <<<
+                        if (isAdmin || hasAllowedRole) {
+                            isAllowed = true;
+                        } else {
+                            if (command.data.default_member_permissions) {
+                                isAllowed = interaction.member.permissions.has(command.data.default_member_permissions);
+                            } else {
+                                isAllowed = true; 
+                            }
+                        }
+                    }
+
+                    if (!isAllowed) {
+                        return interaction.editReply({ content: errorMessage });
+                    }
+
                 } catch (dbError) {
                     console.error('[ERROR] Permission check failed:', dbError);
                     return interaction.editReply({ content: 'Database error checking permissions.' });
@@ -176,6 +238,127 @@ module.exports = {
                 }
 
                 // =====================================================================================
+                //                           UNIVERSAL PANEL HANDLERS
+                // =====================================================================================
+                
+                // 1. Toggle Lock
+                if (customId === 'univ_toggle_lock') {
+                    if (!await safeDefer(interaction, true)) return;
+                    
+                    // Comprobación: Admin o SUPREME_ID
+                    const isSupreme = SUPREME_IDS.includes(interaction.user.id);
+                    if (!isSupreme && !interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+                        return interaction.followUp({ content: '⛔ Admin only.', flags: [MessageFlags.Ephemeral] });
+                    }
+
+                    const res = await db.query("SELECT universal_lock FROM guild_settings WHERE guildid = $1", [guildId]);
+                    const currentLock = res.rows[0]?.universal_lock || false;
+                    const newLockState = !currentLock;
+                    
+                    await db.query(`INSERT INTO guild_settings (guildid, universal_lock) VALUES ($1, $2) ON CONFLICT (guildid) DO UPDATE SET universal_lock = $2`, [guildId, newLockState]);
+                    
+                    // Regenerar Panel
+                    const embed = new EmbedBuilder()
+                        .setTitle('👑 Management Control Panel')
+                        .setDescription(`Control the absolute permission state of the bot.\n\n**Current State:** ${newLockState ? `${emojis.lock} **RESTRICTED (Lockdown)**` : `${emojis.unlock} **DEFAULT (Standard)**`}`)
+                        .addFields(
+                            { name: `${emojis.unlock} Default YES`, value: 'Admins have full access. `/setup` works normally.' },
+                            { name: `${emojis.lock} Default NO`, value: 'Strict Mode. Admins have **NO** access unless explicitly whitelisted.' }
+                        )
+                        .setColor(newLockState ? 0xFF0000 : 0x00FF00);
+
+                    const row1 = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('univ_toggle_lock')
+                            .setLabel(newLockState ? 'Switch to: Unlock' : 'Switch to: Lockdown')
+                            .setEmoji(newLockState ? (emojis.unlock || '🔓') : (emojis.lock || '🔒'))
+                            .setStyle(newLockState ? ButtonStyle.Success : ButtonStyle.Danger),
+                        new ButtonBuilder()
+                            .setCustomId('univ_edit_perms')
+                            .setLabel('Edit Permissions')
+                            .setStyle(ButtonStyle.Primary)
+                    );
+
+                    await interaction.editReply({ embeds: [embed], components: [row1] });
+                    return;
+                }
+
+                // 2. Editar Permisos
+                if (customId === 'univ_edit_perms') {
+                    if (!await safeDefer(interaction, true)) return;
+                    
+                    const commands = interaction.client.commands.map(c => ({ label: `/${c.data.name}`, value: c.data.name })).slice(0, 25);
+                    const menu = new StringSelectMenuBuilder().setCustomId('univ_select_cmd').setPlaceholder('Select command to edit...').addOptions(commands);
+                    const back = new ButtonBuilder().setCustomId('univ_back_main').setLabel('Back').setStyle(ButtonStyle.Secondary);
+                    
+                    await interaction.editReply({ 
+                        content: 'Select a command to override permissions:',
+                        embeds: [],
+                        components: [new ActionRowBuilder().addComponents(menu), new ActionRowBuilder().addComponents(back)] 
+                    });
+                    return;
+                }
+
+                // 3. Seleccionar Comando
+                if (customId === 'univ_select_cmd') {
+                    if (!await safeDefer(interaction, true)) return;
+                    const cmdName = values[0];
+                    const menu = new RoleSelectMenuBuilder().setCustomId(`univ_role_${cmdName}`).setPlaceholder(`Select roles allowed to use /${cmdName}`).setMinValues(0).setMaxValues(25);
+                    const back = new ButtonBuilder().setCustomId('univ_edit_perms').setLabel('Back').setStyle(ButtonStyle.Secondary);
+                    
+                    await interaction.editReply({
+                        content: `Select Roles for **/${cmdName}** (Whitelist).`,
+                        components: [new ActionRowBuilder().addComponents(menu), new ActionRowBuilder().addComponents(back)]
+                    });
+                    return;
+                }
+
+                // 4. Guardar Roles
+                if (interaction.isRoleSelectMenu() && customId.startsWith('univ_role_')) {
+                    if (!await safeDefer(interaction, true)) return;
+                    const cmdName = customId.replace('univ_role_', '');
+                    
+                    await db.query("DELETE FROM command_permissions WHERE guildid = $1 AND command_name = $2", [guildId, cmdName]);
+                    for (const rId of values) {
+                        await db.query("INSERT INTO command_permissions (guildid, command_name, role_id) VALUES ($1, $2, $3)", [guildId, cmdName, rId]);
+                    }
+                    
+                    await interaction.editReply({ content: `✅ **Updated.** Roles for \`/${cmdName}\` set. Only these roles can use it when Locked.`, components: [] });
+                    return;
+                }
+
+                // 5. Volver
+                if (customId === 'univ_back_main') {
+                    if (!await safeDefer(interaction, true)) return;
+                    const res = await db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [guildId]);
+                    const isLocked = res.rows[0]?.universal_lock || false;
+
+                    const embed = new EmbedBuilder()
+                        .setTitle('👑 Management Control Panel')
+                        .setDescription(`Control the absolute permission state of the bot.\n\n**Current State:** ${isLocked ? `${emojis.lock} **RESTRICTED (Lockdown)**` : `${emojis.unlock} **DEFAULT (Standard)**`}`)
+                        .addFields(
+                            { name: `${emojis.unlock} Default YES`, value: 'Admins have full access. `/setup` works normally.' },
+                            { name: `${emojis.lock} Default NO`, value: 'Strict Mode. Admins have **NO** access unless explicitly whitelisted.' }
+                        )
+                        .setColor(isLocked ? 0xFF0000 : 0x00FF00);
+
+                    const row1 = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('univ_toggle_lock')
+                            .setLabel(isLocked ? 'Switch to: Unlock' : 'Switch to: Lockdown')
+                            .setEmoji(isLocked ? (emojis.unlock || '🔓') : (emojis.lock || '🔒'))
+                            .setStyle(isLocked ? ButtonStyle.Success : ButtonStyle.Danger),
+                        new ButtonBuilder()
+                            .setCustomId('univ_edit_perms')
+                            .setLabel('Edit Permissions')
+                            .setStyle(ButtonStyle.Primary)
+                    );
+                    
+                    await interaction.editReply({ content: null, embeds: [embed], components: [row1] });
+                    return;
+                }
+
+                // =====================================================================================
                 //                           SETUP NAVIGATION
                 // =====================================================================================
                 
@@ -184,7 +367,6 @@ module.exports = {
                     const modlog = new ChannelSelectMenuBuilder().setCustomId('select_modlog_channel').setPlaceholder('ModLog Channel').setChannelTypes([ChannelType.GuildText]);
                     const appeal = new ChannelSelectMenuBuilder().setCustomId('select_banappeal_channel').setPlaceholder('Ban Appeal Channel').setChannelTypes([ChannelType.GuildText]);
                     const cmdlog = new ChannelSelectMenuBuilder().setCustomId('select_cmdlog_channel').setPlaceholder('Cmd Log Channel').setChannelTypes([ChannelType.GuildText]);
-                    // AÑADIDO: Selector para Anti-Nuke
                     const antinuke = new ChannelSelectMenuBuilder().setCustomId('select_antinuke_channel').setPlaceholder('Anti-Nuke Log Channel').setChannelTypes([ChannelType.GuildText]);
                     
                     const backButton = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('setup_back_to_main').setLabel('⬅️ Back').setStyle(ButtonStyle.Secondary));
@@ -232,79 +414,43 @@ module.exports = {
                      return;
                 }
 
-                // Handler para el botón de Cancelar
                 if (customId === 'cancel_setup') {
                     await interaction.deferUpdate(); 
                     await interaction.deleteReply().catch(() => {});
                     return;
                 }
 
-                // >>> HANDLER PARA ANTINUKE <<<
+                // >>> ANTINUKE <<<
                 if (customId === 'setup_antinuke') {
                     if (!await safeDefer(interaction, true)) return;
-                    
-                    // Leer de 'guild_backups'
+                    // Fix: Leer de guild_backups
                     const res = await db.query("SELECT antinuke_enabled FROM guild_backups WHERE guildid = $1", [guildId]);
                     const isEnabled = res.rows[0]?.antinuke_enabled || false;
-
-                    const embed = new EmbedBuilder()
-                        .setTitle('🛡️ Anti-Nuke System')
-                        .setDescription(`Status: **${isEnabled ? '✅ ENABLED' : '❌ DISABLED'}**\n\nProtect your server against mass deletions and bans.`)
-                        .setColor(isEnabled ? 0x2ECC71 : 0xE74C3C);
-
-                    const toggleBtn = new ButtonBuilder()
-                        .setCustomId('antinuke_toggle')
-                        .setLabel(isEnabled ? 'Disable Anti-Nuke' : 'Enable Anti-Nuke')
-                        .setStyle(isEnabled ? ButtonStyle.Danger : ButtonStyle.Success);
-                    
-                    const backBtn = new ButtonBuilder()
-                        .setCustomId('setup_back_to_main')
-                        .setLabel('⬅️ Back')
-                        .setStyle(ButtonStyle.Secondary);
-
+                    const embed = new EmbedBuilder().setTitle('🛡️ Anti-Nuke System').setDescription(`Status: **${isEnabled ? '✅ ENABLED' : '❌ DISABLED'}**`).setColor(isEnabled ? 0x2ECC71 : 0xE74C3C);
+                    const toggleBtn = new ButtonBuilder().setCustomId('antinuke_toggle').setLabel(isEnabled ? 'Disable' : 'Enable').setStyle(isEnabled ? ButtonStyle.Danger : ButtonStyle.Success);
+                    const backBtn = new ButtonBuilder().setCustomId('setup_back_to_main').setLabel('⬅️ Back').setStyle(ButtonStyle.Secondary);
                     await interaction.editReply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(toggleBtn, backBtn)] });
                     return;
                 }
 
                 if (customId === 'antinuke_toggle') {
                     if (!await safeDefer(interaction, true)) return;
-                    
-                    // Leer/Escribir en 'guild_backups'
                     const res = await db.query("SELECT antinuke_enabled FROM guild_backups WHERE guildid = $1", [guildId]);
                     const newState = !(res.rows[0]?.antinuke_enabled || false);
-                    
                     await db.query(`INSERT INTO guild_backups (guildid, antinuke_enabled) VALUES ($1, $2) ON CONFLICT (guildid) DO UPDATE SET antinuke_enabled = $2`, [guildId, newState]);
-                    
-                    const embed = new EmbedBuilder()
-                        .setTitle('🛡️ Anti-Nuke System')
-                        .setDescription(`Status: **${newState ? '✅ ENABLED' : '❌ DISABLED'}**\n\nProtect your server against mass deletions and bans.`)
-                        .setColor(newState ? 0x2ECC71 : 0xE74C3C);
-
-                    const toggleBtn = new ButtonBuilder()
-                        .setCustomId('antinuke_toggle')
-                        .setLabel(newState ? 'Disable Anti-Nuke' : 'Enable Anti-Nuke')
-                        .setStyle(newState ? ButtonStyle.Danger : ButtonStyle.Success);
-                    
-                    const backBtn = new ButtonBuilder()
-                        .setCustomId('setup_back_to_main')
-                        .setLabel('⬅️ Back')
-                        .setStyle(ButtonStyle.Secondary);
-
+                    const embed = new EmbedBuilder().setTitle('🛡️ Anti-Nuke System').setDescription(`Status: **${newState ? '✅ ENABLED' : '❌ DISABLED'}**`).setColor(newState ? 0x2ECC71 : 0xE74C3C);
+                    const toggleBtn = new ButtonBuilder().setCustomId('antinuke_toggle').setLabel(newState ? 'Disable' : 'Enable').setStyle(newState ? ButtonStyle.Danger : ButtonStyle.Success);
+                    const backBtn = new ButtonBuilder().setCustomId('setup_back_to_main').setLabel('⬅️ Back').setStyle(ButtonStyle.Secondary);
                     await interaction.editReply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(toggleBtn, backBtn)] });
                     return;
                 }
 
-                // >>> HANDLER PARA DELETE DATA <<<
+                // >>> DELETE DATA <<<
                 if (customId === 'delete_all_data') {
                     if (!await safeDefer(interaction, false, true)) return; 
-                    
                     const confirmBtn = new ButtonBuilder().setCustomId('confirm_delete_data').setLabel('CONFIRM DELETION').setStyle(ButtonStyle.Danger);
                     const cancelBtn = new ButtonBuilder().setCustomId('setup_back_to_main').setLabel('Cancel').setStyle(ButtonStyle.Secondary);
-
-                    await interaction.editReply({
-                        content: `⚠️ **DANGER ZONE** ⚠️\nAre you sure you want to delete **ALL DATA** for this server? This includes Logs, Automod Rules, Permissions, and Settings. **This cannot be undone.**`,
-                        components: [new ActionRowBuilder().addComponents(confirmBtn, cancelBtn)]
-                    });
+                    await interaction.editReply({ content: `⚠️ **DANGER ZONE** ⚠️\nDelete ALL DATA? Cannot be undone.`, components: [new ActionRowBuilder().addComponents(confirmBtn, cancelBtn)] });
                     return;
                 }
 
@@ -318,7 +464,6 @@ module.exports = {
                     await db.query("DELETE FROM appeal_blacklist WHERE guildid = $1", [guildId]);
                     await db.query("DELETE FROM pending_appeals WHERE guildid = $1", [guildId]);
                     await db.query("DELETE FROM guild_backups WHERE guildid = $1", [guildId]); 
-
                     await interaction.editReply({ content: `✅ All data for this guild has been wiped from the database.`, components: [] });
                     return;
                 }
