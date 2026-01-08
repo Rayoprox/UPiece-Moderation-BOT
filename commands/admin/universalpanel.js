@@ -3,17 +3,19 @@ const db = require('../../utils/db.js');
 const { SUPREME_IDS } = require('../../utils/config.js');
 
 module.exports = {
-    deploy: 'main', // O 'global' si quieres
+    deploy: 'main', 
     data: new SlashCommandBuilder()
         .setName('universalpanel')
-        .setDescription('👑 Supreme Control Panel (Restricted Access).'),
+        .setDescription('👑 Advanced Control Panel (Restricted Access).'),
 
     async execute(interaction) {
+        // NOTA: La interacción YA viene diferida (Thinking...) desde interactionCreate.js
+        // Por eso usamos editReply en lugar de reply.
+
         // 1. SEGURIDAD EXTREMA: Solo Supremos
         if (!SUPREME_IDS.includes(interaction.user.id)) {
-            return interaction.reply({ 
-                content: '⛔ **ACCESS DENIED.** You are not authorized to use the Universal Panel.', 
-                flags: [MessageFlags.Ephemeral] 
+            return interaction.editReply({ 
+                content: '⛔ **ACCESS DENIED.** You are not authorized to use the Universal Panel.'
             });
         }
 
@@ -24,11 +26,11 @@ module.exports = {
         let isLocked = res.rows[0]?.universal_lock || false;
 
         const embed = new EmbedBuilder()
-            .setTitle('👑 Universal Control Panel')
-            .setDescription(`Control the absolute permission state of the bot.\n\n**Current State:** ${isLocked ? '🔴 **RESTRICTED (Default NO)**' : '🟢 **DEFAULT (Default YES)**'}`)
+            .setTitle('👑 Management Control Panel')
+            .setDescription(`Control the absolute permission state of the bot.\n\n**Current State:** ${isLocked ? '🔴 **RESTRICTED (Lockdown)**' : '🟢 **DEFAULT (Standard)**'}`)
             .addFields(
                 { name: '🟢 Default YES', value: 'Admins have full access. `/setup` works normally.' },
-                { name: '🔴 Default NO', value: 'Admins have **NO** access unless explicitly whitelisted here. Native Discord permissions are ignored.' }
+                { name: '🔴 Default NO', value: 'Strict Mode. Admins have **NO** access unless explicitly whitelisted. Discord permissions are ignored.' }
             )
             .setColor(isLocked ? 0xFF0000 : 0x00FF00);
 
@@ -43,13 +45,13 @@ module.exports = {
                 .setStyle(ButtonStyle.Primary)
         );
 
-        const response = await interaction.reply({ 
+        // USAMOS editReply AQUÍ
+        const response = await interaction.editReply({ 
             embeds: [embed], 
-            components: [row1], 
-            flags: [MessageFlags.Ephemeral] 
+            components: [row1]
         });
 
-        // Collector para manejar los clics AQUÍ MISMO (más seguro y privado)
+        // Collector para manejar los clics
         const collector = response.createMessageComponentCollector({ time: 300000 });
 
         collector.on('collect', async i => {
@@ -59,7 +61,7 @@ module.exports = {
                 await db.query(`INSERT INTO guild_settings (guildid, universal_lock) VALUES ($1, $2) ON CONFLICT (guildid) DO UPDATE SET universal_lock = $2`, [guildId, isLocked]);
                 
                 const newEmbed = EmbedBuilder.from(embed)
-                    .setDescription(`Control the absolute permission state of the bot.\n\n**Current State:** ${isLocked ? '🔴 **RESTRICTED (Default NO)**' : '🟢 **DEFAULT (Default YES)**'}`)
+                    .setDescription(`Control the absolute permission state of the bot.\n\n**Current State:** ${isLocked ? '🔴 **RESTRICTED (Lockdown)**' : '🟢 **DEFAULT (Standard)**'}`)
                     .setColor(isLocked ? 0xFF0000 : 0x00FF00);
                 
                 row1.components[0].setLabel(isLocked ? 'Switch to: Default YES' : 'Switch to: Default NO').setStyle(isLocked ? ButtonStyle.Success : ButtonStyle.Danger);
@@ -70,7 +72,7 @@ module.exports = {
             if (i.customId === 'univ_edit_perms') {
                 // Mostrar selector de comandos
                 const commands = Array.from(interaction.client.commands.keys()).map(c => ({ label: `/${c}`, value: c }));
-                // Discord limita los selects a 25 opciones. Si tienes más, habría que paginar. Asumimos <25 por ahora.
+                
                 const cmdMenu = new StringSelectMenuBuilder()
                     .setCustomId('univ_select_cmd')
                     .setPlaceholder('Select a command to force permissions...')
@@ -90,7 +92,5 @@ module.exports = {
                 await i.update({ content: `Select Roles for **/${cmdName}** (This creates the Whitelist).`, components: [new ActionRowBuilder().addComponents(roleMenu)] });
             }
         });
-        
-        
     }
 };

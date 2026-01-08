@@ -92,3 +92,20 @@ process.on('uncaughtException', (error) => {
     console.error('⚠️ Uncaught Exception:', error);
     // No salir del proceso
 });
+
+process.on('unhandledRejection', (reason, p) => {
+    // Ignorar errores de "Interacción ya respondida" o "Unknown Message" (comunes en lag)
+    if (reason?.code === 10062 || reason?.code === 40060 || reason?.code === 10008) return;
+    console.log(' [ANTI-CRASH] Unhandled Rejection/Catch');
+    console.log(reason, p);
+});
+
+process.on('uncaughtException', (err, origin) => {
+    console.log(' [ANTI-CRASH] Uncaught Exception/Catch');
+    console.log(err, origin);
+});
+
+process.on('uncaughtExceptionMonitor', (err, origin) => {
+    console.log(' [ANTI-CRASH] Uncaught Exception/Catch (Monitor)');
+    console.log(err, origin);
+});

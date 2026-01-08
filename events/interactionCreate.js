@@ -1,6 +1,5 @@
 const { Events, PermissionsBitField, MessageFlags, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ChannelSelectMenuBuilder, RoleSelectMenuBuilder, ChannelType } = require('discord.js');
-const ms = require('ms');
-const { emojis, SUPREME_IDS } = require('../utils/config.js'); // <--- IMPORTANTE
+const { emojis, SUPREME_IDS } = require('../utils/config.js');
 const antiNuke = require('../utils/antiNuke.js');
 
 async function safeDefer(interaction, isUpdate = false, isEphemeral = false) {
@@ -24,80 +23,97 @@ module.exports = {
             const command = interaction.client.commands.get(interaction.commandName);
             if (!command) return;
 
-            // 1. CHEQUEO SUPREMO: Si es uno de los 4, pasa SIEMPRE.
+            // 1. CHEQUEO SUPREMO (Bypass Total)
             if (SUPREME_IDS.includes(interaction.user.id)) {
-                try { await command.execute(interaction); } catch(e) { console.error(e); }
+                try { 
+                    if (command.data.name !== 'setup') {
+                        if (!await safeDefer(interaction, false, !command.isPublic)) return;
+                    }
+                    await command.execute(interaction); 
+                } catch(e) { console.error(e); }
                 return;
             }
 
-            // 2. CHEQUEO DE BLOQUEO UNIVERSAL (Default NO)
+            // 2. CHEQUEO DE BLOQUEO UNIVERSAL
             const settingsRes = await db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [guildId]);
             const isLocked = settingsRes.rows[0]?.universal_lock;
 
             if (isLocked) {
-                // --- MODO LOCKDOWN ---
-                // En este modo, el permiso de ADMINISTRADOR de Discord NO IMPORTA.
-                // Solo importa si el rol está en la base de datos 'command_permissions'.
-                
+                // --- MODO LOCKDOWN (RESTRICTED) ---
                 const perms = await db.query('SELECT role_id FROM command_permissions WHERE guildid=$1 AND command_name=$2', [guildId, command.data.name]);
                 const allowedRoles = perms.rows.map(r => r.role_id);
                 
-                const hasPerm = interaction.member.roles.cache.hasAny(...allowedRoles);
+                // ¿Está en la whitelist?
+                const hasWhitelist = interaction.member.roles.cache.hasAny(...allowedRoles);
 
-                if (!hasPerm) {
-                    return interaction.reply({ 
-                        content: `⛔ **SYSTEM LOCKED.** This command is restricted by the Supreme Council.\nYou do not have the required whitelisted role to use \`/${command.data.name}\`.`, 
-                        flags: [MessageFlags.Ephemeral] 
-                    });
+                if (!hasWhitelist) {
+                    // LÓGICA DE MENSAJES ESTÉTICA:
+                    // Si es ADMINISTRADOR REAL -> Mensaje de "Restringido por Management".
+                    // Si es USUARIO NORMAL -> Mensaje genérico de "No tienes permiso".
+                    
+                    if (interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+                        return interaction.reply({ 
+                            content: `⛔ **ACCESS DENIED.** This command is restricted by **Server Management**.\nYou do not have the required whitelisted role to use \`/${command.data.name}\`.`, 
+                            flags: [MessageFlags.Ephemeral] 
+                        });
+                    } else {
+                        return interaction.reply({ 
+                            content: '⛔ You do not have permission to use this command.', 
+                            flags: [MessageFlags.Ephemeral] 
+                        });
+                    }
                 }
 
             } else {
                 // --- MODO NORMAL (Default YES) ---
-                // Si es Admin, pasa. Si no, mira la DB.
                 if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
                     const perms = await db.query('SELECT role_id FROM command_permissions WHERE guildid=$1 AND command_name=$2', [guildId, command.data.name]);
-                    if (perms.rows.length > 0 && !interaction.member.roles.cache.hasAny(...perms.rows.map(r=>r.role_id))) 
-                        return interaction.reply({ content: 'You do not have permission.', flags: [MessageFlags.Ephemeral] });
+                    if (perms.rows.length > 0 && !interaction.member.roles.cache.hasAny(...perms.rows.map(r=>r.role_id))) {
+                        return interaction.reply({ content: '⛔ You do not have permission to use this command.', flags: [MessageFlags.Ephemeral] });
+                    }
                 }
             }
 
-            // Si pasa los filtros, ejecutamos
+            // Ejecución del comando
             try {
-                // Defer manual si no es /setup (ya que /setup gestiona su propio reply/defer)
                 if (command.data.name !== 'setup') {
                     if (!await safeDefer(interaction, false, !command.isPublic)) return;
                 }
                 await command.execute(interaction);
-            } catch (e) { console.error(e); }
+            } catch (e) { 
+                console.error(`Error executing ${command.data.name}:`, e);
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply({ content: '❌ An error occurred executing this command.', flags: [MessageFlags.Ephemeral] }).catch(() => {});
+                }
+            }
             return;
         }
-       // --- MANEJO DE COMPONENTES (Botones, Selects) ---
+
+        // --- MANEJO DE BOTONES Y MENÚS ---
         if (interaction.isButton() || interaction.isAnySelectMenu() || interaction.isModalSubmit()) {
             const { customId, values } = interaction;
-            const parts = customId.split('_');
+            const setupCmd = interaction.client.commands.get('setup');
+            const generateSetupContent = setupCmd ? setupCmd.generateSetupContent : null;
 
-            // --- Lógica especial para el Universal Panel (Guardar Roles) ---
             if (interaction.isRoleSelectMenu() && customId.startsWith('univ_role_')) {
-                // Verificar Supremo de nuevo por seguridad
-                if (!SUPREME_IDS.includes(interaction.user.id)) return interaction.reply({ content: '⛔', flags: [MessageFlags.Ephemeral] });
-                
-                const cmdName = customId.replace('univ_role_', '');
-                await db.query('DELETE FROM command_permissions WHERE guildid=$1 AND command_name=$2', [guildId, cmdName]);
-                for (const rid of values) {
-                    await db.query('INSERT INTO command_permissions (guildid, command_name, role_id) VALUES ($1, $2, $3)', [guildId, cmdName, rid]);
-                }
-                await interaction.update({ content: `✅ **Updated.** Roles for \`/${cmdName}\` set. Only these roles can use it when Locked.`, components: [] });
-                return;
+                 if (!SUPREME_IDS.includes(interaction.user.id)) return interaction.reply({ content: '⛔', flags: [MessageFlags.Ephemeral] });
+                 const cmdName = customId.replace('univ_role_', '');
+                 await db.query('DELETE FROM command_permissions WHERE guildid=$1 AND command_name=$2', [guildId, cmdName]);
+                 for (const rid of values) await db.query('INSERT INTO command_permissions (guildid, command_name, role_id) VALUES ($1, $2, $3)', [guildId, cmdName, rid]);
+                 await interaction.update({ content: `✅ **Updated.** Roles for \`/${cmdName}\` set. Only these roles can use it when Locked.`, components: [] });
+                 return;
             }
 
-            // ==========================================
+           // ==========================================
             //       CONFIGURACIÓN ANTI-NUKE
             // ==========================================
             if (customId === 'setup_antinuke') {
                 if (!await safeDefer(interaction, true)) return;
+                // Check permisos del BOT (no del usuario)
                 if (!interaction.guild.members.me.permissions.has(PermissionsBitField.Flags.Administrator)) {
-        return interaction.editReply({ content: `❌ **ERROR:** Need Administrator Permission` });
-    }
+                    return interaction.editReply({ content: `❌ **ERROR:** I need Administrator Permission to protect the server.` });
+                }
+                
                 const settingsRes = await db.query('SELECT antinuke_enabled FROM guild_backups WHERE guildid = $1', [guildId]);
                 const isEnabled = settingsRes.rows.length > 0 && settingsRes.rows[0].antinuke_enabled;
 
@@ -140,6 +156,7 @@ module.exports = {
                     antiNuke.createBackup(interaction.guild);
                 }
 
+          
                 if (generateSetupContent) {
                     const { embed, components } = await generateSetupContent(interaction, guildId);
                     await interaction.editReply({ content: `✅ Anti-Nuke system has been **${newStatus ? 'ENABLED' : 'DISABLED'}**.`, embeds: [embed], components });
@@ -153,7 +170,6 @@ module.exports = {
                 if (!await safeDefer(interaction, true)) return;
                 await db.query(`INSERT INTO log_channels (guildid, log_type, channel_id) VALUES ($1, $2, $3) ON CONFLICT(guildid, log_type) DO UPDATE SET channel_id = $3`, [guildId, 'antinuke', values[0]]);
                 
-                // Recargar vista Anti-Nuke
                 const settingsRes = await db.query('SELECT antinuke_enabled FROM guild_backups WHERE guildid = $1', [guildId]);
                 const isEnabled = settingsRes.rows.length > 0 && settingsRes.rows[0].antinuke_enabled;
 
@@ -169,7 +185,6 @@ module.exports = {
                 await interaction.editReply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(toggleBtn, backBtn), new ActionRowBuilder().addComponents(channelSelect)] });
                 return;
             }
-
 
             // ==========================================
             //           AUTOMOD CONFIGURATION
