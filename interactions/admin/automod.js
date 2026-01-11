@@ -13,7 +13,7 @@ module.exports = async (interaction) => {
     const setupCommand = client.commands.get('setup');
     const generateSetupContent = setupCommand?.generateSetupContent;
 
-    // 1. INICIO
+
     if (customId === 'automod_add_rule') {
         if (!await safeDefer(interaction, true)) return;
         const menu = new StringSelectMenuBuilder()
@@ -33,7 +33,6 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // 2. PANEL PRINCIPAL
     if (customId === 'setup_automod') { 
         if (!await safeDefer(interaction, true)) return;
         const btns = new ActionRowBuilder().addComponents(
@@ -57,7 +56,7 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // 3. SELECCIÓN WARNS
+   
     if (customId === 'automod_action_select') {
         if (!await safeDefer(interaction, true)) return;
         const action = values[0];
@@ -68,7 +67,7 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // 4. PROCESAR WARNS (Kick o Modal)
+    
     if (customId === 'automod_warn_select') {
         const [warnCountStr, actionType] = values[0].split(':');
         const warnCount = parseInt(warnCountStr, 10);
@@ -79,7 +78,7 @@ module.exports = async (interaction) => {
             
             if (generateSetupContent) {
                 const { embed, components } = await generateSetupContent(interaction, guildId);
-                // 👇 USO DE LA FÁBRICA (SUCCESS)
+               
                 await interaction.editReply({ content: null, embeds: [success(`Automod rule saved: **${warnCount} Warns -> KICK**`), embed], components });
             } else await interaction.editReply({ embeds: [success(`Automod rule saved.`)] });
             return;
@@ -104,12 +103,11 @@ module.exports = async (interaction) => {
         }
     }
 
-    // 5. REMOVE MENU
     if (customId === 'automod_remove_rule') {
         if (!await safeDefer(interaction, false, true)) return;
         const rulesResult = await db.query('SELECT rule_order, warnings_count, action_type, action_duration FROM automod_rules WHERE guildid = $1 ORDER BY warnings_count ASC', [guildId]);
         
-        // 👇 USO DE LA FÁBRICA (ERROR)
+      
         if (rulesResult.rows.length === 0) return interaction.editReply({ embeds: [error('No rules found to remove.')] });
         
         const options = rulesResult.rows.map(rule => ({ 
@@ -123,7 +121,7 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // 6. PROCESAR REMOVE
+
     if (customId === 'automod_select_remove') {
         await safeDefer(interaction, true);
         const ruleOrder = parseInt(values[0], 10);
@@ -131,13 +129,12 @@ module.exports = async (interaction) => {
         
         if (generateSetupContent) {
             const { embed, components } = await generateSetupContent(interaction, guildId);
-            // 👇 USO DE LA FÁBRICA (SUCCESS)
+       
             await interaction.editReply({ content: null, embeds: [success(`Rule deleted.`), embed], components });
         } else await interaction.editReply({ embeds: [success('Deleted.')] });
         return;
     }
 
-    // 7. PROCESAR MODAL (VALIDACIONES CON FÁBRICA)
     if (customId.startsWith('automod_duration_modal:')) {
         if (!await safeDefer(interaction, true)) return;
 
@@ -148,23 +145,22 @@ module.exports = async (interaction) => {
         let finalDuration = durationStr;
         const msDuration = ms(durationStr);
 
-        // --- VALIDACIÓN BAN ---
         if (actionType === 'BAN') {
             if (durationStr === '0') {
                 finalDuration = null; 
             } else {
                 if (!msDuration || msDuration <= 0) {
-                    // 👇 USO DE LA FÁBRICA (ERROR)
+                  
                     return interaction.editReply({ embeds: [error(`**Invalid Duration.**\nFor a temporary ban, use format like \`7d\`, \`24h\`.\nFor **Permanent**, type \`0\`.`)] });
                 }
                 finalDuration = durationStr;
             }
         } 
         
-        // --- VALIDACIÓN MUTE ---
+        
         else if (actionType === 'MUTE') {
             if (!msDuration) {
-                // 👇 USO DE LA FÁBRICA (ERROR)
+                
                 return interaction.editReply({ embeds: [error(`**Invalid Duration.** Please use a valid format like \`10m\`, \`1h\`, \`1d\`.`)] });
             }
             if (msDuration < 10000) { 
@@ -180,7 +176,7 @@ module.exports = async (interaction) => {
 
         if (generateSetupContent) {
             const { embed, components } = await generateSetupContent(interaction, guildId);
-            // 👇 USO DE LA FÁBRICA (SUCCESS)
+            
             await interaction.editReply({ content: null, embeds: [success(`Automod Rule Saved: **${warnCount} Warns -> ${actionType}** (${finalDuration || 'Permanent'})`), embed], components });
         } else await interaction.editReply({ embeds: [success(`Saved.`)] });
         return;

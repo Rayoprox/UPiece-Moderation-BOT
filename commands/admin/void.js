@@ -26,7 +26,7 @@ module.exports = {
         }
         
         
-        // bloquea si el caso ACTIVO TIMEOUT o un BAN.
+       
         if (log.status === 'ACTIVE' && (log.action === 'TIMEOUT' || log.action === 'BAN')) {
             return interaction.editReply({ content: `❌ This case is still an **ACTIVE** punishment. Please remove the punishment (unban/unmute) before you can void this case.`, flags: [MessageFlags.Ephemeral] });
         }

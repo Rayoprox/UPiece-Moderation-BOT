@@ -30,7 +30,7 @@ module.exports = {
         const timeStr = interaction.options.getString('duration');
         const deleteMessageSeconds = parseInt(interaction.options.getString('delete_messages') || '0', 10);
         const shouldBlacklist = interaction.options.getBoolean('blacklist') ?? false;
-        let isAppealable = !shouldBlacklist; // Por defecto es apelable a menos que se diga lo contrario
+        let isAppealable = !shouldBlacklist; 
         const moderatorMember = interaction.member;
         const guildId = interaction.guild.id;
         const moderatorTag = interaction.user.tag;
@@ -39,7 +39,6 @@ module.exports = {
         const cleanReason = reason.trim();
         const currentTimestamp = Date.now();
         
-        // --- VERIFICACIONES ---
         if (targetUser.id === interaction.user.id) return interaction.editReply({ embeds: [error('You cannot ban yourself.')] });
         if (targetUser.id === interaction.client.user.id) return interaction.editReply({ embeds: [error('You cannot ban me.')] });
         if (targetUser.id === interaction.guild.ownerId) return interaction.editReply({ embeds: [error('You cannot ban the server owner.')] });
@@ -71,14 +70,12 @@ module.exports = {
 
         const caseId = `CASE-${currentTimestamp}`;
 
-        // --- COMPROBACIÓN DEL SISTEMA DE APELACIONES ---
-        // Consultamos si EXISTE un canal de "banappeal" configurado en este servidor.
+      
         const appealChannelRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'banappeal'", [guildId]);
         const appealSystemActive = !!appealChannelRes.rows[0]?.channel_id;
 
-        // Si no hay sistema activo, forzamos que no se muestre el link de apelación
         if (!appealSystemActive) {
-            isAppealable = false; // (Visualmente para el usuario, aunque en DB lo guardemos como apelable si quieres, pero mejor ser consistentes)
+            isAppealable = false; 
         }
         
         let dmSent = false; 
@@ -94,7 +91,6 @@ module.exports = {
             )
             .setTimestamp();
         
-        // SOLO MOSTRAR LINK SI ES APELABLE Y EL SISTEMA ESTÁ ACTIVO (Canal existe + Link existe)
         if (isAppealable && appealSystemActive) {
             dmEmbed.setFooter({ text: `Case ID: ${caseId} | You will need this if you decide to appeal!` });
             if (APPEAL_SERVER_INVITE) {
@@ -124,8 +120,7 @@ module.exports = {
             return interaction.editReply({ embeds: [error('An unexpected error occurred while trying to ban the user.')] });
         }
 
-        // En DB guardamos appealable: 1 si no está en blacklist, independientemente de si el sistema está activo hoy.
-        // O si prefieres estricto: (appealSystemActive && !shouldBlacklist) ? 1 : 0
+    
         await db.query(`
             INSERT INTO modlogs (caseid, guildid, action, userid, usertag, moderatorid, moderatortag, reason, timestamp, endsAt, action_duration, appealable, dmstatus, status) 
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
@@ -138,7 +133,7 @@ module.exports = {
         if (endsAt) resumePunishmentsOnStart(interaction.client); 
         if (shouldBlacklist) await db.query("INSERT INTO appeal_blacklist (userid, guildid) VALUES ($1, $2) ON CONFLICT DO NOTHING", [targetUser.id, guildId]);
 
-        // LOGGING
+    
         const modLogResult = await db.query('SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = $2', [guildId, 'modlog']);
         if (modLogResult.rows[0]?.channel_id) {
             const channel = interaction.guild.channels.cache.get(modLogResult.rows[0].channel_id);

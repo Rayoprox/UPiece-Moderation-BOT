@@ -7,11 +7,11 @@ module.exports = async (interaction) => {
     const db = client.db;
     const guildId = guild.id;
     
-    // Helper para volver al menú principal
+  
     const setupCommand = client.commands.get('setup');
     const generateSetupContent = setupCommand?.generateSetupContent;
 
-    // --- 1. SISTEMA DE CANALES ---
+  
     if (customId === 'setup_channels') {
         if (!await safeDefer(interaction, true)) return;
         const res = await db.query("SELECT log_type, channel_id FROM log_channels WHERE guildid = $1", [guildId]);
@@ -48,7 +48,6 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // --- 2. STAFF ROLES ---
     if (customId === 'setup_staff_roles') {
         if (!await safeDefer(interaction, true)) return;
         const res = await db.query("SELECT staff_roles FROM guild_settings WHERE guildid = $1", [guildId]);
@@ -79,7 +78,7 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // --- 3. PERMISOS ---
+    
     if (customId === 'setup_permissions') {
         if (!await safeDefer(interaction, true)) return;
         const res = await db.query("SELECT command_name, role_id FROM command_permissions WHERE guildid = $1 ORDER BY command_name", [guildId]);
@@ -96,7 +95,7 @@ module.exports = async (interaction) => {
     if (customId === 'setup_perms_edit_select') {
         if (!await safeDefer(interaction, true)) return;
         
-        // AQUÍ ESTÁ EL CAMBIO: Filtramos 'setup' de la lista
+       
         const commands = client.commands
             .filter(c => c.data.name !== 'setup') 
             .map(c => ({ label: `/${c.data.name}`, value: c.data.name }))
@@ -130,7 +129,6 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // --- 4. OTROS ---
     if (customId === 'setup_back_to_main' && generateSetupContent) {
         if (!await safeDefer(interaction, true)) return;
         const { embed, components } = await generateSetupContent(interaction, guildId);
@@ -139,7 +137,7 @@ module.exports = async (interaction) => {
     }
 
     if (customId === 'cancel_setup') {
-        // Como 'cancel_setup' no es un botón de respuesta, solo borramos
+   
         await interaction.deferUpdate(); 
         await interaction.deleteReply().catch(() => {});
         return;

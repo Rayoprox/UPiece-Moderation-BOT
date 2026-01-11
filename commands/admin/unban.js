@@ -42,7 +42,6 @@ module.exports = {
             return interaction.editReply({ embeds: [error('An error occurred while trying to unban this user.')] });
         }
 
-        // LIMPIEZA DE TIMERS 
         const activeBansResult = await db.query(`SELECT caseid FROM modlogs WHERE guildid = $1 AND userid = $2 AND status = 'ACTIVE' AND action = 'BAN'`, [guildId, targetId]);
         for (const row of activeBansResult.rows) {
             if (interaction.client.punishmentTimers.has(row.caseid)) {
@@ -56,7 +55,7 @@ module.exports = {
         const unbanCaseId = `CASE-${currentTimestamp}`;
         await db.query(`INSERT INTO modlogs (caseid, guildid, action, userid, usertag, moderatorid, moderatortag, reason, timestamp, appealable, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, [unbanCaseId, guildId, 'UNBAN', ban.user.id, ban.user.tag, interaction.user.id, interaction.user.tag, cleanReason, currentTimestamp, 0, 'EXECUTED']);
 
-        // LOGGING
+   
         const modLogResult = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = $2", [guildId, 'modlog']);
         if (modLogResult.rows[0]?.channel_id) {
             const channel = guild.channels.cache.get(modLogResult.rows[0].channel_id);
@@ -76,7 +75,7 @@ module.exports = {
             }
         }
         
-        // RESPUESTA PÚBLICA USANDO FÁBRICA
+  
         const publicEmbed = success(`The user **${ban.user.tag}** has been **unbanned**.`)
             .setTitle(`${emojis.unban} Unban Successful`)
             .setThumbnail(ban.user.displayAvatarURL({ dynamic: true, size: 64 }))

@@ -81,7 +81,7 @@ module.exports = {
                 return interaction.editReply({ content: 'The appeal blacklist is currently empty.', flags: [MessageFlags.Ephemeral] }); // Cambio aquí
             }
 
-            // Estabilizado
+           
             const userList = await Promise.all(blacklist.map(async entry => {
                 const user = await interaction.client.users.fetch(entry.userid).catch(() => null);
                 return `\`${entry.userid}\` - ${user ? user.tag : '*Unknown User Tag*'}`;

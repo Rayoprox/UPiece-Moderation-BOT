@@ -7,7 +7,7 @@ const SUCCESS_COLOR = 0x2ECC71;
 
 module.exports = {
     deploy: 'main',
-    isPublic: true, // Esto hace que interactionCreate use deferReply(ephemeral: false)
+    isPublic: true, 
     data: new SlashCommandBuilder()
         .setName('purge')
         .setDescription('Deletes a specified number of messages from the channel (Max 100).')
@@ -20,7 +20,7 @@ module.exports = {
                 .setMaxValue(100)),
 
     async execute(interaction) {
-        // ELIMINADO: interaction.deferReply() -> Ya lo hace interactionCreate.js
+      
         
         const amount = interaction.options.getInteger('amount');
         const channel = interaction.channel;
@@ -76,10 +76,10 @@ module.exports = {
                 embeds: [successEmbed]
             });
             
-            // Eliminar la confirmación después de 5 segundos
+            
             setTimeout(() => interaction.deleteReply().catch(() => {}), 5000); 
         } catch (error) {
-            if (error.code !== 10008) { // Ignorar error "Unknown Message" si ya se borró
+            if (error.code !== 10008) {
                  console.warn('[WARN] Failed to edit or delete the final purge interaction reply:', error);
             }
         }

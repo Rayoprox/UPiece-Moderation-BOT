@@ -13,7 +13,7 @@ const db = {
     },
 
     ensureTables: async () => {
-        // Tablas Modlogs y Configuración (Mantenemos lo importante)
+       
         const createModlogsTable = `
             CREATE TABLE IF NOT EXISTS modlogs (
                 id SERIAL PRIMARY KEY,
@@ -60,7 +60,6 @@ const db = {
                 PRIMARY KEY (userid, guildid)
             );`;
 
-        // ELIMINADA: createChannelOverwritesTable (Ya no la usamos)
 
         await db.query(createModlogsTable);
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN dmstatus TEXT`); } catch (e) { if (e.code !== '42701' && e.code !== '42P01') console.warn(`[WARN] Could not add dmstatus column: ${e.message}`); }

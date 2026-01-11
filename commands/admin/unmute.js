@@ -29,7 +29,6 @@ module.exports = {
 
         const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
         
-        // VALIDACIONES CON FÁBRICA
         if (!targetMember) return interaction.editReply({ embeds: [error('User is not in the server.')] });
         if (!targetMember.isCommunicationDisabled()) return interaction.editReply({ embeds: [error('This user is not currently muted.')] });
 
@@ -53,7 +52,7 @@ module.exports = {
         const unmuteCaseId = `CASE-${currentTimestamp}`;
         await db.query(`INSERT INTO modlogs (caseid, guildid, action, userid, usertag, moderatorid, moderatortag, reason, timestamp, appealable, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, [unmuteCaseId, guildId, 'UNMUTE', targetUser.id, targetUser.tag, interaction.user.id, cleanModeratorTag, cleanReason, currentTimestamp, 0, 'EXECUTED']);
 
-        // LOGGING
+      
         const modLogResult = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'modlog'", [guildId]);
         if (modLogResult.rows[0]?.channel_id) {
             const channel = interaction.guild.channels.cache.get(modLogResult.rows[0].channel_id);
@@ -68,7 +67,7 @@ module.exports = {
             }
         }
         
-        // RESPUESTA PÚBLICA USANDO FÁBRICA
+       
         const publicEmbed = success(`**${targetUser.tag}**'s communication privileges have been **restored**.`)
             .setTitle(`${emojis.unmute} Unmute Successful`)
             .addFields(

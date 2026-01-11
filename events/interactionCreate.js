@@ -8,13 +8,13 @@ module.exports = {
         if (!interaction) return;
 
         try {
-            // 1. Manejo de Comandos de Chat (Slash Commands)
+        
             if (interaction.isChatInputCommand()) {
                 await commandHandler(interaction);
                 return;
             }
 
-            // 2. Manejo de Componentes (Botones, Menús, Modales)
+            
             if (interaction.isButton() || interaction.isAnySelectMenu() || interaction.isModalSubmit()) {
                 await componentHandler(interaction);
                 return;
@@ -26,7 +26,7 @@ module.exports = {
                 if (!interaction.replied && !interaction.deferred) {
                     await interaction.reply({ content: '❌ Fatal system error.', ephemeral: true });
                 }
-            } catch (e) { /* Ignorar error al reportar error */ }
+            } catch (e) { }
         }
     },
 };

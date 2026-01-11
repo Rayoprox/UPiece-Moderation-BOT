@@ -22,8 +22,7 @@ module.exports = {
         const guildId = interaction.guild.id;
 
         const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
-        
-        // VALIDACIONES CON FÁBRICA
+   
         if (!targetMember) return interaction.editReply({ embeds: [error('User is not in the server.')] });
         if (targetUser.id === interaction.user.id) return interaction.editReply({ embeds: [error('You cannot kick yourself.')] });
         if (targetUser.id === interaction.client.user.id) return interaction.editReply({ embeds: [error('You cannot kick me.')] });
@@ -70,7 +69,7 @@ module.exports = {
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             `, [caseId, guildId, 'KICK', targetUser.id, targetUser.tag, interaction.user.id, cleanModeratorTag, cleanReason, currentTimestamp, 0, 'EXECUTED', dmSent ? 'SENT' : 'FAILED']);
 
-            // LOGGING
+           
             const modLogResult = await db.query('SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = $2', [guildId, 'modlog']);
             const modLogChannelId = modLogResult.rows[0]?.channel_id;
             
@@ -94,7 +93,7 @@ module.exports = {
                 }
             }
             
-            // RESPUESTA PÚBLICA USANDO FÁBRICA
+         
             const publicEmbed = success(`**${targetUser.tag}** has been **kicked** from the server.`)
                 .setTitle(`${emojis.success} Kick Executed`)
                 .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 64 }))

@@ -7,7 +7,7 @@ module.exports = async (interaction) => {
     const db = client.db;
     const guildId = guild.id;
 
-    // 1. Toggle Lock
+  
     if (customId === 'univ_toggle_lock') {
         if (!await safeDefer(interaction, true)) return;
         
@@ -47,7 +47,7 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // 2. Editar Permisos
+   
     if (customId === 'univ_edit_perms') {
         if (!await safeDefer(interaction, true)) return;
         
@@ -63,7 +63,7 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // 3. Seleccionar Comando
+    
     if (customId === 'univ_select_cmd') {
         if (!await safeDefer(interaction, true)) return;
         const cmdName = values[0];
@@ -77,7 +77,6 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // 4. Guardar Roles
     if (interaction.isRoleSelectMenu() && customId.startsWith('univ_role_')) {
         if (!await safeDefer(interaction, true)) return;
         const cmdName = customId.replace('univ_role_', '');
@@ -91,7 +90,6 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // 5. Volver
     if (customId === 'univ_back_main') {
         if (!await safeDefer(interaction, true)) return;
         const res = await db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [guildId]);

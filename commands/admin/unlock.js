@@ -30,7 +30,7 @@ module.exports = {
         try {
             const everyoneRole = interaction.guild.roles.everyone;
 
-            // APLICAR DESBLOQUEO: @everyone -> SendMessages: null (Restablecer a defecto)
+            
             await channel.permissionOverwrites.edit(everyoneRole, { 
                 SendMessages: null 
             }, { reason: `Unlock by ${interaction.user.tag}` });

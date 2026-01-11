@@ -81,30 +81,19 @@ server.listen(PORT, () => {
     console.log(`HTTP Server running on port ${PORT} for 24/7 heartbeat.`);
 
 });
-
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('⚠️ Unhandled Rejection:', reason);
-   
-});
-
-process.on('uncaughtException', (error) => {
-    console.error('⚠️ Uncaught Exception:', error);
-    
-});
-
-process.on('unhandledRejection', (reason, p) => {
     
     if (reason?.code === 10062 || reason?.code === 40060 || reason?.code === 10008) return;
-    console.log(' [ANTI-CRASH] Unhandled Rejection/Catch');
-    console.log(reason, p);
+
+    console.error(' [ANTI-CRASH] Unhandled Rejection:', reason);
+    
 });
 
 process.on('uncaughtException', (err, origin) => {
-    console.log(' [ANTI-CRASH] Uncaught Exception/Catch');
-    console.log(err, origin);
+    console.error(' [ANTI-CRASH] Uncaught Exception:', err);
+    console.error('Origen:', origin);
 });
 
 process.on('uncaughtExceptionMonitor', (err, origin) => {
-    console.log(' [ANTI-CRASH] Uncaught Exception/Catch (Monitor)');
-    console.log(err, origin);
+    console.error(' [ANTI-CRASH] Monitor:', err);
 });

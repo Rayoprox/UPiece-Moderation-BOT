@@ -11,7 +11,7 @@ module.exports = async (interaction) => {
     const { customId, client } = interaction;
     const db = client.db;
 
-    // --- 1. INICIAR PROCESO DE APELACIÓN (BOTÓN) ---
+    // Inicio
     if (customId === 'start_appeal_process') {
         if (!await safeDefer(interaction, false, true)) return;
         
@@ -27,12 +27,11 @@ module.exports = async (interaction) => {
             
             const mainGuild = await client.guilds.fetch(MAIN_GUILD_ID).catch(() => null);
             if (!mainGuild) return interaction.editReply({ embeds: [error('Main Guild unavailable.')], components: [] });
-            
-            // VERIFICACIÓN 1: ELEGIBILIDAD DEL USUARIO
+           
             const status = await verifyAppealEligibility(interaction.user.id, mainGuild, db);
             if (!status.valid) return interaction.editReply({ embeds: [error(status.message)], components: [] });
             
-            // VERIFICACIÓN 2: CONFIGURACIÓN DEL SISTEMA (Canal existe?)
+        
             const chRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'banappeal'", [MAIN_GUILD_ID]);
             if (!chRes.rows[0]?.channel_id) {
                 return interaction.editReply({ embeds: [error('Appeal system is currently offline (Channel not configured).')], components: [] });
@@ -52,7 +51,7 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // --- 2. ABRIR FORMULARIO (MODAL) ---
+    // Formulario
     if (customId.startsWith('appeal:open_form:')) {
         const userId = customId.split(':')[2];
         if (interaction.user.id !== userId) return interaction.reply({ content: `⛔ This form is not for you.`, flags: [MessageFlags.Ephemeral] });
@@ -69,7 +68,7 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // --- 3. RECIBIR FORMULARIO (SUBMIT) ---
+    // Recibir
     if (interaction.isModalSubmit() && customId.startsWith('appeal:submit:')) {
         if (!await safeDefer(interaction, false, true)) return;
         try {
@@ -83,7 +82,7 @@ module.exports = async (interaction) => {
             try { q3 = interaction.fields.getTextInputValue('appeal_q3') || 'N/A'; } catch (e) {}
 
             const chRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'banappeal'", [MAIN_GUILD_ID]);
-            // Aunque ya validamos antes, doble check por seguridad
+        
             if (!chRes.rows[0]?.channel_id) return interaction.editReply({ embeds: [error("Appeal system offline.")] });
             
             const channel = mainGuild.channels.cache.get(chRes.rows[0].channel_id);
@@ -112,7 +111,7 @@ module.exports = async (interaction) => {
                 new ButtonBuilder().setCustomId(`appeal:blacklist:${caseId}:${interaction.user.id}:${MAIN_GUILD_ID}`).setLabel('Block & Reject').setStyle(ButtonStyle.Secondary).setEmoji('⛔')
             );
 
-            // CORRECCIÓN: Se quitó el 'content' con texto plano
+           
             const msg = await channel.send({ embeds: [staffEmbed], components: [rows] });
             
             await db.query(`INSERT INTO pending_appeals (userid, guildid, appeal_messageid) VALUES ($1, $2, $3)`, [interaction.user.id, MAIN_GUILD_ID, msg.id]);
@@ -132,7 +131,7 @@ module.exports = async (interaction) => {
         }
     }
 
-    // --- 4. DECISIONES (Staff) ---
+    // Staff Botones
     if (customId.startsWith('appeal:')) {
         if (!interaction.member.permissions.has(PermissionsBitField.Flags.BanMembers)) return interaction.reply({ content: `No permission.`, flags: [MessageFlags.Ephemeral] });
         if (!await safeDefer(interaction, true)) return;
@@ -153,10 +152,9 @@ module.exports = async (interaction) => {
             dmEmbed = new EmbedBuilder().setColor(0x2ECC71).setTitle(`${emojis.success || '✅'} Appeal Status Update: APPROVED`).setAuthor({ name: banGuild.name, iconURL: banGuild.iconURL({ dynamic: true }) }).setDescription(`Great news! Your ban appeal for **${banGuild.name}** has been reviewed and **accepted**.`).setFooter({ text: 'You are welcome to rejoin the server.' }).setTimestamp();
             if (DISCORD_MAIN_INVITE) dmEmbed.addFields({ name: '🔗 Rejoin Server', value: `[**Click here**](${DISCORD_MAIN_INVITE})` });
 
-            // Logs...
             const unbanCaseId = `CASE-${Date.now()}`;
             await db.query(`INSERT INTO modlogs (caseid, guildid, action, userid, usertag, moderatorid, moderatortag, reason, timestamp, status) VALUES ($1, $2, 'UNBAN', $3, $4, $5, $6, 'Appeal Accepted', $7, 'EXECUTED')`, [unbanCaseId, banGuildId, userId, user.tag, interaction.user.id, interaction.user.tag, Date.now()]);
-            // (Logica de canal de logs abreviada por espacio, es la misma de siempre)
+          
 
         } else if (decision === 'reject') {
             newEmbed.setColor(0xE74C3C).setTitle(`${emojis.error || '❌'} Appeal Rejected`).setDescription(`This appeal has been **REJECTED** by <@${interaction.user.id}>.`).setFooter({ text: `Rejected by ${interaction.user.tag}` });

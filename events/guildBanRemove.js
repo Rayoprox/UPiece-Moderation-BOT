@@ -8,7 +8,7 @@ module.exports = {
         const guildId = ban.guild.id;
 
         try {
-            // LIMPIEZA DE TIMERS EN EL EVENTO
+            
             const activeBansResult = await db.query(`SELECT caseid FROM modlogs WHERE guildid = $1 AND userid = $2 AND status = 'ACTIVE' AND action = 'BAN'`, [guildId, userId]);
             for (const row of activeBansResult.rows) {
                 if (ban.client.punishmentTimers && ban.client.punishmentTimers.has(row.caseid)) {

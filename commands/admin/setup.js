@@ -3,7 +3,7 @@ const db = require('../../utils/db.js');
 const { emojis } = require('../../utils/config.js');
 
 const generateSetupContent = async (interaction, guildId) => {
-    // 1. Cargas de base de datos
+   
     const [logChannelsResult, guildSettingsResult, permissionsResult, rulesResult, antiNukeResult] = await Promise.all([
         db.query('SELECT * FROM log_channels WHERE guildid = $1', [guildId]),
         db.query('SELECT * FROM guild_settings WHERE guildid = $1', [guildId]),
@@ -12,7 +12,6 @@ const generateSetupContent = async (interaction, guildId) => {
         db.query('SELECT antinuke_enabled, threshold_count, threshold_time FROM guild_backups WHERE guildid = $1', [guildId])
     ]);
     
-    // 2. Procesar datos
     const logChannels = logChannelsResult.rows;
     const guildSettings = guildSettingsResult.rows[0] || {};
     const permissions = permissionsResult.rows;
@@ -31,8 +30,7 @@ const generateSetupContent = async (interaction, guildId) => {
         (acc[p.command_name] = acc[p.command_name] || []).push(`<@&${p.role_id}>`);
         return acc;
     }, {})).map(([cmd, roles]) => `\`/${cmd}\`: ${roles.join(', ')}`).join('\n') || 'No custom permissions set.';
-    
-    // 3. Crear Embed
+
    const embed = new EmbedBuilder()
         .setColor(0x0099FF)
         .setTitle(`⚙️ ${interaction.guild.name}'s Setup Panel`)
@@ -72,13 +70,11 @@ module.exports = {
     generateSetupContent,
 
     async execute(interaction) {
-        // La interacción ya fue diferida en interactionCreate.js si todo va bien, 
-        // pero por seguridad hacemos editReply directo.
+       
         const guildId = interaction.guild.id;
         const { embed: mainEmbed, components: mainComponents } = await generateSetupContent(interaction, guildId);
 
-        // Enviamos el panel y TERMINAMOS. No hay collectors aquí.
-        // Toda la lógica de botones la manejará interactionCreate.js
+        
         await interaction.editReply({ 
             embeds: [mainEmbed], 
             components: mainComponents

@@ -9,16 +9,15 @@ module.exports = async (interaction) => {
     const guildId = guild.id;
     const logsPerPage = 5;
 
-    // Verificar seguridad: solo el autor puede tocar botones
+    
     const logsAuthorId = parts[parts.length - 1];
     if (interaction.user.id !== logsAuthorId) {
         return interaction.reply({ content: `${emojis.error} Only the command author can use these buttons.`, flags: [MessageFlags.Ephemeral] });
     }
 
-    const action = parts[1]; // next, prev, purge-prompt, remove-start, etc.
-    const userId = parts[2]; // Target user ID
+    const action = parts[1]; 
+    const userId = parts[2]; 
 
-    // Navegación (Next/Prev)
     if (action === 'next' || action === 'prev') {
         await safeDefer(interaction, true);
         const targetUser = await client.users.fetch(userId);
@@ -34,7 +33,7 @@ module.exports = async (interaction) => {
         await interaction.editReply({ embeds: [embed], components });
     }
 
-    // Purge (Borrado total)
+    // Purge 
     if (action === 'purge-prompt') {
             await safeDefer(interaction, false, true);
             const btns = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`modlogs_purge-confirm_${userId}_${logsAuthorId}`).setLabel('DELETE ALL').setStyle(ButtonStyle.Danger), new ButtonBuilder().setCustomId(`modlogs_purge-cancel_${userId}_${logsAuthorId}`).setLabel('Cancel').setStyle(ButtonStyle.Secondary));

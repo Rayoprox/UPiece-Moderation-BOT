@@ -23,7 +23,7 @@ module.exports = {
         const channel = interaction.options.getChannel('channel') || interaction.channel;
         const reason = interaction.options.getString('reason') || 'No specific reason provided.';
 
-        // Usamos editReply porque interactionCreate ya hizo deferReply
+      
         await interaction.editReply({ 
             content: `${emojis.loading} **Locking Channel...**` 
         });
@@ -31,7 +31,7 @@ module.exports = {
         try {
             const everyoneRole = interaction.guild.roles.everyone;
 
-            // Verificar si ya está bloqueado para no spamear la API
+         
             const currentPerms = channel.permissionOverwrites.cache.get(everyoneRole.id);
             if (currentPerms && currentPerms.deny.has(PermissionsBitField.Flags.SendMessages)) {
                 return interaction.editReply({ 
@@ -39,12 +39,10 @@ module.exports = {
                 });
             }
 
-            // APLICAR BLOQUEO: Solo @everyone -> SendMessages: false
             await channel.permissionOverwrites.edit(everyoneRole, { 
                 SendMessages: false 
             }, { reason: `Lockdown by ${interaction.user.tag}` });
 
-            // Embed Estético
             const lockEmbed = new EmbedBuilder()
                 .setColor(LOCK_COLOR)
                 .setTitle(`${emojis.lock} CHANNEL LOCKED`)

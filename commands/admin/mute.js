@@ -3,7 +3,7 @@ const db = require('../../utils/db.js');
 const ms = require('ms');
 const { resumePunishmentsOnStart } = require('../../utils/temporary_punishment_handler.js');
 const { emojis } = require('../../utils/config.js');
-const { success, error } = require('../../utils/embedFactory.js'); // IMPORTAMOS LA FÁBRICA
+const { success, error } = require('../../utils/embedFactory.js');
 
 const MUTE_COLOR = 0xFFA500; 
 
@@ -26,8 +26,7 @@ module.exports = {
         const guildId = interaction.guild.id;
 
         const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
-        
-        // VALIDACIONES CON FÁBRICA
+      
         if (!targetMember) return interaction.editReply({ embeds: [error('User is not in the server.')] });
         if (targetUser.id === interaction.user.id) return interaction.editReply({ embeds: [error('You cannot mute yourself.')] });
         if (targetUser.id === interaction.client.user.id) return interaction.editReply({ embeds: [error('You cannot mute me.')] });
@@ -88,7 +87,7 @@ module.exports = {
 
         resumePunishmentsOnStart(interaction.client); 
 
-        // LOGGING
+     
         const modLogResult = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = $2", [guildId, 'modlog']);
         if (modLogResult.rows[0]?.channel_id) {
             const channel = interaction.guild.channels.cache.get(modLogResult.rows[0].channel_id);
@@ -110,7 +109,7 @@ module.exports = {
             }
         }
         
-        // RESPUESTA PÚBLICA USANDO FÁBRICA
+      
         const publicEmbed = success(`**${targetUser.tag}** has been **timed out** successfully.`)
             .setTitle(`${emojis.success} Mute Applied`)
             .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 64 }))

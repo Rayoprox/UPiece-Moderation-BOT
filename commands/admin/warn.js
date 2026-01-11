@@ -30,7 +30,7 @@ module.exports = {
         const cleanReason = reason.trim();
         const currentTimestamp = Date.now();
 
-        // VALIDACIONES CON FÁBRICA
+       
         if (targetUser.id === interaction.user.id) return interaction.editReply({ embeds: [error('You cannot warn yourself.')] });
         if (targetUser.id === interaction.client.user.id) return interaction.editReply({ embeds: [error('You cannot warn me.')] });
         if (targetUser.id === interaction.guild.ownerId) return interaction.editReply({ embeds: [error('You cannot warn the server owner.')] });
@@ -65,7 +65,7 @@ module.exports = {
         const countResult = await db.query("SELECT COUNT(*) as count FROM modlogs WHERE userid = $1 AND guildid = $2 AND action = 'WARN' AND status = 'ACTIVE'", [targetUser.id, guildId]);
         const activeWarningsCount = Number(countResult.rows[0].count);
 
-        // LOGGING
+ 
         const modLogResult = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'modlog'", [guildId]);
         if (modLogResult.rows[0]?.channel_id) {
             const modLogChannel = interaction.guild.channels.cache.get(modLogResult.rows[0].channel_id);
@@ -88,8 +88,7 @@ module.exports = {
         }
 
         let finalReplyEmbed;
-        
-        // --- LÓGICA DE AUTOMOD ---
+    
         const ruleResult = await db.query('SELECT * FROM automod_rules WHERE guildid = $1 AND warnings_count = $2', [guildId, activeWarningsCount]);
         const ruleToExecute = ruleResult.rows[0];
 
@@ -141,7 +140,7 @@ module.exports = {
                     if (durationMs) await targetMember.timeout(durationMs, autoReason);
                 }
 
-                // RESPUESTA AUTOMOD (Usamos embed personalizado aquí porque es muy específico)
+               
                 finalReplyEmbed = new EmbedBuilder()
                     .setColor(AUTOMOD_COLOR)
                     .setTitle(`${emojis.rules} Automod Triggered: ${action}`)
@@ -163,7 +162,7 @@ module.exports = {
         }
 
         if (!finalReplyEmbed) {
-            // RESPUESTA NORMAL USANDO FÁBRICA
+         
             finalReplyEmbed = success(`**${targetUser.tag}** has been warned.`)
                 .setTitle(`${emojis.success} Warning Successfully Issued`)
                 .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 64 }))

@@ -40,14 +40,14 @@ module.exports = {
             .setAuthor({ name: `${targetUser.tag} ${targetUser.bot ? '[BOT]' : ''}`, iconURL: targetUser.displayAvatarURL({ dynamic: true }) })
             .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 256 }));
 
-        // 1. INFO USUARIO
+      
         whoisEmbed.addFields({
             name: `${emojis.user || '👤'} User Identity`,
             value: `**Mention:** <@${targetUser.id}>\n**ID:** \`${targetUser.id}\`\n**Created:** <t:${Math.floor(targetUser.createdTimestamp / 1000)}:F> (<t:${Math.floor(targetUser.createdTimestamp / 1000)}:R>)`,
             inline: false
         });
 
-        // 2. INFO SERVIDOR Y PERMISOS
+      
         if (targetMember) {
             const joinedTimestamp = Math.floor(targetMember.joinedTimestamp / 1000);
             
@@ -60,7 +60,7 @@ module.exports = {
                 ? (roles.length > 10 ? `${roles.slice(0, 10).join(', ')} ...and ${roles.length - 10} more` : roles.join(', ')) 
                 : 'No roles';
 
-            // Lista de permisos importantes a mostrar
+          
             const keyPermissions = [
                 'Administrator', 'ManageGuild', 'ManageRoles', 'ManageChannels', 
                 'BanMembers', 'KickMembers', 'ManageMessages', 'MentionEveryone', 
@@ -98,7 +98,7 @@ module.exports = {
             whoisEmbed.addFields({ name: '⚠️ Membership', value: 'User is NOT in this server.', inline: false });
         }
 
-        // 3. ESTADO MODERACIÓN
+       
         let modStatusValue = `**Total Logs:** ${totalModLogs}`;
         
         const activeWarningsResult = await db.query("SELECT COUNT(*) AS count FROM modlogs WHERE userid = $1 AND guildid = $2 AND action = 'WARN' AND status = 'ACTIVE'", [targetUser.id, guildId]);

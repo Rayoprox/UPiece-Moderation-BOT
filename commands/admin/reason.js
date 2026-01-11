@@ -39,10 +39,10 @@ module.exports = {
                     if (message && message.embeds.length > 0) {
                         const originalEmbed = message.embeds[0];
                         
-                        // Compatibilida
+                       
                         const newEmbed = new EmbedBuilder(originalEmbed.toJSON());
                         
-                        // Razon
+                       
                         const reasonFieldIndex = newEmbed.data.fields.findIndex(field => field.name && field.name.toLowerCase().includes('reason'));
 
                         if (reasonFieldIndex !== -1) {

@@ -37,21 +37,20 @@ async function safeDefer(interaction, isUpdate = false, isEphemeral = false) {
 }
 
 async function verifyAppealEligibility(userId, mainGuild, db) {
-    // 1. Verificar si está baneado
+   
     const banEntry = await mainGuild.bans.fetch({ user: userId, force: true }).catch(() => null);
     if (!banEntry) {
         await db.query("DELETE FROM pending_appeals WHERE userid = $1 AND guildid = $2", [userId, mainGuild.id]);
         return { valid: false, message: "You are not currently banned from this server." };
     }
 
-    // 2. Verificar Blacklist
+    
     const blacklistResult = await db.query("SELECT * FROM appeal_blacklist WHERE userid = $1 AND guildid = $2", [userId, mainGuild.id]);
     if (blacklistResult.rows.length > 0) return { valid: false, message: "You are **blacklisted** from the appeal system." };
 
-    // 3. Verificar si ya tiene apelación pendiente
     const pendingResult = await db.query("SELECT appeal_messageid FROM pending_appeals WHERE userid = $1 AND guildid = $2", [userId, mainGuild.id]);
     if (pendingResult.rows.length > 0) {
-        // Doble check: ¿Existe el mensaje original todavía?
+       
         const chRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'banappeal'", [mainGuild.id]);
         if (chRes.rows.length > 0) {
             const channel = mainGuild.channels.cache.get(chRes.rows[0].channel_id);
@@ -60,14 +59,14 @@ async function verifyAppealEligibility(userId, mainGuild, db) {
                     await channel.messages.fetch(pendingResult.rows[0].appeal_messageid);
                     return { valid: false, message: "You already have an active appeal pending review." };
                 } catch (e) {
-                    // Si el mensaje no existe (borrado manual), limpiamos la DB
+
                     await db.query("DELETE FROM pending_appeals WHERE userid = $1 AND guildid = $2", [userId, mainGuild.id]);
                 }
             }
         }
     }
 
-    // 4. Verificar si es Ban Temporal (No apelable generalmente)
+  
     const banLog = await db.query("SELECT endsat FROM modlogs WHERE userid = $1 AND guildid = $2 AND action = 'BAN' AND (status = 'ACTIVE' OR status = 'PERMANENT') ORDER BY timestamp DESC LIMIT 1", [userId, mainGuild.id]);
     if (banLog.rows[0]?.endsat) {
         const endsAtTimestamp = Math.floor(Number(banLog.rows[0].endsat) / 1000);

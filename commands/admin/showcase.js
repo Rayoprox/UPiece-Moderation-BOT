@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
 const { emojis } = require('../../utils/config.js');
 
-// TU ID DE DEVELOPER
+
 const DEVELOPER_ID = '715926664344895559';
 
 module.exports = {
@@ -19,9 +19,6 @@ module.exports = {
             });
         }
 
-        //Datos
-        
-        // A. SETUP & PANELES
         const setupEmbed = new EmbedBuilder()
             .setColor(0x0099FF)
             .setTitle(`⚙️ ${interaction.guild.name}'s Setup Panel`)
@@ -43,7 +40,7 @@ module.exports = {
             )
             .setColor(0xFF0000);
 
-        // B. MODERATION LOGS
+      
         const warnLogEmbed = new EmbedBuilder()
             .setColor(0xFFD700)
             .setAuthor({ name: `UserTag has been WARNED`, iconURL: interaction.user.displayAvatarURL() })
@@ -69,7 +66,7 @@ module.exports = {
             .setFooter({ text: `Case ID: CASE-987654321` })
             .setTimestamp();
 
-        // C. USER DMs
+    
         const dmWarnEmbed = new EmbedBuilder()
             .setColor(0xFFD700)
             .setTitle(`${emojis.warn} Official Warning Issued in ${interaction.guild.name}`)
@@ -93,7 +90,7 @@ module.exports = {
             )
             .setFooter({ text: `Case ID: CASE-987654321` });
 
-        // D. ANTI-NUKE ALERTS
+      
         const antiNukeEmbed = new EmbedBuilder()
             .setTitle(`${emojis.warn} SERVER NUKE ATTEMPT BLOCKED`)
             .setDescription(`**User:** RogueAdmin#0000\n**Action:** Mass CHANNEL_DELETE\n**Result:** ${emojis.ban} Banned & Restoring...`)
@@ -106,7 +103,7 @@ module.exports = {
             .setColor(0xFFA500)
             .setTimestamp();
 
-        // Menu
+      
 
         const selectMenu = new StringSelectMenuBuilder()
             .setCustomId('showcase_select')

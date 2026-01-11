@@ -40,7 +40,7 @@ module.exports = {
 
         const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
 
-        // Verificación de staff y jerarquía de roles
+    
         if (targetMember) {
             const guildSettingsResult = await db.query('SELECT staff_roles FROM guild_settings WHERE guildid = $1', [guildId]);
             const staffIds = guildSettingsResult.rows[0]?.staff_roles ? guildSettingsResult.rows[0].staff_roles.split(',') : [];

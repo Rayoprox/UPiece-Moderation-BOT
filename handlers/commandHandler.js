@@ -9,18 +9,18 @@ module.exports = async (interaction) => {
 
     if (!command) return interaction.reply({ content: 'Error: Command not found.', ephemeral: true }).catch(() => {});
 
-    // Defer inicial
+
     const isPublic = command.isPublic ?? false;
     if (!await safeDefer(interaction, false, !isPublic)) return;
 
     try {
-        // --- 0. GOD MODE (SUPREME IDs) ---
+        
         if (SUPREME_IDS.includes(user.id)) {
             await executeCommand(interaction, command, db, true);
             return;
         }
 
-        // --- 1. LÓGICA DE PERMISOS ---
+     
         const [settingsRes, permsRes] = await Promise.all([
             db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [guild.id]),
             db.query('SELECT role_id FROM command_permissions WHERE guildid = $1 AND command_name = $2', [guild.id, command.data.name])
@@ -35,7 +35,7 @@ module.exports = async (interaction) => {
         let errorMessage = 'You do not have the required permissions for this command.';
 
         if (universalLock) {
-            // >>> MODO LOCKDOWN <<<
+            
             if (hasAllowedRole) {
                 isAllowed = true;
             } else {
@@ -45,7 +45,7 @@ module.exports = async (interaction) => {
                 }
             }
         } else {
-            // >>> MODO NORMAL <<<
+           
             if (isAdmin || hasAllowedRole) {
                 isAllowed = true;
             } else {
@@ -61,7 +61,7 @@ module.exports = async (interaction) => {
             return interaction.editReply({ content: errorMessage });
         }
 
-        // Ejecutar si tiene permiso
+      
         await executeCommand(interaction, command, db, false);
 
     } catch (dbError) {
@@ -74,22 +74,22 @@ async function executeCommand(interaction, command, db, isSupreme) {
     try {
         await command.execute(interaction); 
         
-        // --- LOGGING ---
+        
         const cmdLogResult = await db.query('SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = $2', [interaction.guild.id, 'cmdlog']);
         
         if (cmdLogResult.rows[0]?.channel_id) {
             const channel = interaction.guild.channels.cache.get(cmdLogResult.rows[0].channel_id);
             if (channel) {
-                // AQUÍ ESTÁ LA MAGIA: interaction.toString() obtiene el comando completo con opciones
+               
                 const fullCommandString = interaction.toString(); 
 
                 const logEmbed = new EmbedBuilder()
-                    .setColor(isSupreme ? 0xFFD700 : 0x3498DB) // Dorado para Supreme, Azul para mortales
+                    .setColor(isSupreme ? 0xFFD700 : 0x3498DB) 
                     .setAuthor({ 
                         name: `Command Executed ${isSupreme ? '(Administrator)' : ''}`, 
                         iconURL: interaction.user.displayAvatarURL() 
                     })
-                    .setDescription(`**Command:** \`${fullCommandString}\``) // Muestra el comando completo
+                    .setDescription(`**Command:** \`${fullCommandString}\``)
                     .addFields(
                         { 
                             name: `${emojis.user || '👤'} User`, 
