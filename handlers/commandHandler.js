@@ -20,7 +20,7 @@ module.exports = async (interaction) => {
             return;
         }
 
-        // --- 1. LÓGICA NORMAL ---
+        // --- 1. LÓGICA DE PERMISOS ---
         const [settingsRes, permsRes] = await Promise.all([
             db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [guild.id]),
             db.query('SELECT role_id FROM command_permissions WHERE guildid = $1 AND command_name = $2', [guild.id, command.data.name])
@@ -41,7 +41,7 @@ module.exports = async (interaction) => {
             } else {
                 isAllowed = false;
                 if (isAdmin) {
-                    errorMessage = `${emojis.lock} **SECURITY LOCKDOWN ACTIVE:** Even Administrators cannot use commands without explicit Whitelist Roles configured in \`/universalpanel\`.`;
+                    errorMessage = `${emojis.lock || '🔒'} **SECURITY LOCKDOWN ACTIVE:** Even Administrators cannot use commands without explicit Whitelist Roles configured in \`/universalpanel\`.`;
                 }
             }
         } else {
@@ -73,22 +73,43 @@ module.exports = async (interaction) => {
 async function executeCommand(interaction, command, db, isSupreme) {
     try {
         await command.execute(interaction); 
+        
+        // --- LOGGING ---
         const cmdLogResult = await db.query('SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = $2', [interaction.guild.id, 'cmdlog']);
+        
         if (cmdLogResult.rows[0]?.channel_id) {
             const channel = interaction.guild.channels.cache.get(cmdLogResult.rows[0].channel_id);
             if (channel) {
-                const fullCommand = `/${interaction.commandName}`;
+                // AQUÍ ESTÁ LA MAGIA: interaction.toString() obtiene el comando completo con opciones
+                const fullCommandString = interaction.toString(); 
+
                 const logEmbed = new EmbedBuilder()
-                    .setColor(isSupreme ? 0xFFD700 : 0x3498DB)
-                    .setTitle(isSupreme ? 'Command Executed (Supreme)' : 'Command Executed')
-                    .setDescription(`Executed by <@${interaction.user.id}> in <#${interaction.channel.id}>`)
-                    .addFields({ name: 'User', value: `${interaction.user.tag} (${interaction.user.id})` }, { name: 'Command', value: `\`${fullCommand}\`` })
+                    .setColor(isSupreme ? 0xFFD700 : 0x3498DB) // Dorado para Supreme, Azul para mortales
+                    .setAuthor({ 
+                        name: `Command Executed ${isSupreme ? '(Administrator)' : ''}`, 
+                        iconURL: interaction.user.displayAvatarURL() 
+                    })
+                    .setDescription(`**Command:** \`${fullCommandString}\``) // Muestra el comando completo
+                    .addFields(
+                        { 
+                            name: `${emojis.user || '👤'} User`, 
+                            value: `${interaction.user} (\`${interaction.user.id}\`)`, 
+                            inline: true 
+                        },
+                        { 
+                            name: `${emojis.channel || '#️⃣'} Channel`, 
+                            value: `${interaction.channel} (\`${interaction.channel.id}\`)`, 
+                            inline: true 
+                        }
+                    )
+                    .setFooter({ text: `Executed at` })
                     .setTimestamp();
+
                 channel.send({ embeds: [logEmbed] }).catch(() => {}); 
             }
         }
     } catch (error) {
         console.error(`[ERROR] /${interaction.commandName}:`, error);
-        await interaction.editReply({ content: `${emojis.error} An error occurred!` }).catch(() => {});
+        await interaction.editReply({ content: `${emojis.error || '❌'} An error occurred while executing this command!` }).catch(() => {});
     }
 }
