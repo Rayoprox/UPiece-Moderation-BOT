@@ -1,7 +1,5 @@
-// utils/embedFactory.js
 const { EmbedBuilder } = require('discord.js');
 const { emojis } = require('./config.js');
-
 
 const COLORS = {
     SUCCESS: 0x2ECC71, // Verde Esmeralda
@@ -11,28 +9,24 @@ const COLORS = {
 };
 
 module.exports = {
-    
     success: (text) => {
         return new EmbedBuilder()
             .setColor(COLORS.SUCCESS)
             .setDescription(`${emojis.success || '✅'} ${text}`);
     },
 
-  
     error: (text) => {
         return new EmbedBuilder()
             .setColor(COLORS.ERROR)
             .setDescription(`${emojis.error || '❌'} ${text}`);
     },
 
-   
     warning: (text) => {
         return new EmbedBuilder()
             .setColor(COLORS.WARNING)
             .setDescription(`${emojis.warn || '⚠️'} ${text}`);
     },
 
-   
     info: (text) => {
         return new EmbedBuilder()
             .setColor(COLORS.INFO)

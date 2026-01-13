@@ -37,7 +37,7 @@ module.exports = async (interaction) => {
                 return interaction.editReply({ embeds: [error('Appeal system is currently offline (Channel not configured).')], components: [] });
             }
             
-            // Si pasa ambas, habilitamos botón
+          
             openFormButton.setDisabled(false);
             
             const readyEmbed = success('**Status Verified.** You are eligible to appeal.')
@@ -88,7 +88,8 @@ module.exports = async (interaction) => {
             const channel = mainGuild.channels.cache.get(chRes.rows[0].channel_id);
             if (!channel) return interaction.editReply({ embeds: [error("Appeal channel not found.")] });
             
-            const caseId = `APP-${Date.now()}`;
+       
+            const caseId = `APPEAL-${Date.now()}`;
 
             const staffEmbed = new EmbedBuilder()
                 .setColor(0xF1C40F)
@@ -102,7 +103,7 @@ module.exports = async (interaction) => {
                     { name: '⚖️ 2. Why should we unban you?', value: `>>> ${q2}` },
                     { name: 'ℹ️ 3. Anything else?', value: `>>> ${q3}` }
                 )
-                .setFooter({ text: `Appeal ID: ${caseId} • Waiting for Staff action` })
+                .setFooter({ text: `Appeal Case ID: ${caseId} • Waiting for Staff action` })
                 .setTimestamp();
             
             const rows = new ActionRowBuilder().addComponents(
@@ -131,7 +132,6 @@ module.exports = async (interaction) => {
         }
     }
 
-    // Staff Botones
     if (customId.startsWith('appeal:')) {
         if (!interaction.member.permissions.has(PermissionsBitField.Flags.BanMembers)) return interaction.reply({ content: `No permission.`, flags: [MessageFlags.Ephemeral] });
         if (!await safeDefer(interaction, true)) return;
@@ -147,14 +147,46 @@ module.exports = async (interaction) => {
 
         let dmEmbed;
         if (decision === 'accept') {
+         
             newEmbed.setColor(0x2ECC71).setTitle(`${emojis.success || '✅'} Appeal Accepted`).setDescription(`This appeal has been **APPROVED** by <@${interaction.user.id}>.`).setFooter({ text: `Approved by ${interaction.user.tag}` });
+            
+          
             await banGuild.members.unban(userId, `Appeal Accepted by ${interaction.user.tag}`).catch(() => {});
+            
             dmEmbed = new EmbedBuilder().setColor(0x2ECC71).setTitle(`${emojis.success || '✅'} Appeal Status Update: APPROVED`).setAuthor({ name: banGuild.name, iconURL: banGuild.iconURL({ dynamic: true }) }).setDescription(`Great news! Your ban appeal for **${banGuild.name}** has been reviewed and **accepted**.`).setFooter({ text: 'You are welcome to rejoin the server.' }).setTimestamp();
             if (DISCORD_MAIN_INVITE) dmEmbed.addFields({ name: '🔗 Rejoin Server', value: `[**Click here**](${DISCORD_MAIN_INVITE})` });
 
-            const unbanCaseId = `CASE-${Date.now()}`;
-            await db.query(`INSERT INTO modlogs (caseid, guildid, action, userid, usertag, moderatorid, moderatortag, reason, timestamp, status) VALUES ($1, $2, 'UNBAN', $3, $4, $5, $6, 'Appeal Accepted', $7, 'EXECUTED')`, [unbanCaseId, banGuildId, userId, user.tag, interaction.user.id, interaction.user.tag, Date.now()]);
+    
+            const unbanCaseId = caseId; 
+            
           
+            await db.query(`UPDATE modlogs SET status = 'EXPIRED', endsAt = NULL WHERE guildid = $1 AND userid = $2 AND status = 'ACTIVE' AND action = 'BAN'`, [banGuildId, userId]);
+            
+            await db.query(`INSERT INTO modlogs (caseid, guildid, action, userid, usertag, moderatorid, moderatortag, reason, timestamp, status, appealable) VALUES ($1, $2, 'UNBAN', $3, $4, $5, $6, 'Appeal Accepted', $7, 'EXECUTED', false)`, [unbanCaseId, banGuildId, userId, user.tag, interaction.user.id, interaction.user.tag, Date.now()]);
+
+         
+            const logRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'modlog'", [banGuildId]);
+            if (logRes.rows[0]?.channel_id) {
+                const logChannel = banGuild.channels.cache.get(logRes.rows[0].channel_id);
+                if (logChannel) {
+                    const logEmbed = new EmbedBuilder()
+                        .setColor(0x2ECC71) // Verde Unban
+                        .setAuthor({ name: `${user.tag} has been UNBANNED`, iconURL: user.displayAvatarURL({ dynamic: true }) })
+                        .addFields(
+                            { name: `${emojis.user || '👤'} User`, value: `${user.tag} (\`${user.id}\`)`, inline: true },
+                            { name: `${emojis.moderator || '👮'} Moderator`, value: `<@${interaction.user.id}>`, inline: true },
+                            { name: `${emojis.reason || '📝'} Reason`, value: 'Appeal Accepted', inline: false }
+                        )
+                        
+                        .setFooter({ text: `Case ID: ${unbanCaseId}` }) 
+                        .setTimestamp();
+                    
+                    const sentMsg = await logChannel.send({ embeds: [logEmbed] }).catch(() => {});
+                    if (sentMsg) {
+                        await db.query('UPDATE modlogs SET logmessageid = $1 WHERE caseid = $2', [sentMsg.id, unbanCaseId]);
+                    }
+                }
+            }
 
         } else if (decision === 'reject') {
             newEmbed.setColor(0xE74C3C).setTitle(`${emojis.error || '❌'} Appeal Rejected`).setDescription(`This appeal has been **REJECTED** by <@${interaction.user.id}>.`).setFooter({ text: `Rejected by ${interaction.user.tag}` });

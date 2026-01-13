@@ -9,6 +9,13 @@ const SUPREME_IDS = [
 ];
 
 module.exports = {
+
+    STAFF_COMMANDS: [
+        'ban', 'unban', 'softban', 'kick', 
+        'mute', 'unmute', 'warn', 'warnings', 'void',
+        'modlogs', 'case', 'reason', 'whois', 'purge',
+        'lock', 'unlock'
+    ],
   
     SUPREME_IDS,
 

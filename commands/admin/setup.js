@@ -3,7 +3,7 @@ const db = require('../../utils/db.js');
 const { emojis } = require('../../utils/config.js');
 
 const generateSetupContent = async (interaction, guildId) => {
-   
+    
     const [logChannelsResult, guildSettingsResult, permissionsResult, rulesResult, antiNukeResult] = await Promise.all([
         db.query('SELECT * FROM log_channels WHERE guildid = $1', [guildId]),
         db.query('SELECT * FROM guild_settings WHERE guildid = $1', [guildId]),
@@ -36,10 +36,10 @@ const generateSetupContent = async (interaction, guildId) => {
         .setTitle(`⚙️ ${interaction.guild.name}'s Setup Panel`)
         .setDescription(`Configure the bot using the buttons below.`)
         .addFields(
-            { name: `${emojis.channel} Log Channels`, value: `**Mod Log:** ${modLog ? `<#${modLog}>` : '❌'}\n**Command Log:** ${cmdLog ? `<#${cmdLog}>` : '❌'}\n**Ban Appeals:** ${banAppeal ? `<#${banAppeal}>` : '❌'}\n**Anti-Nuke Log:** ${antiNukeLog ? `<#${antiNukeLog}>` : '❌'}` },
-            { name: `${emojis.role} Roles`, value: `**Staff Roles:** ${staffRoles}` }, 
-            { name: `${emojis.lock} Permissions`, value: permsConfig },
-            { name: `${emojis.rules} Automod Rules`, value: ruleSummary },
+            { name: `${emojis.channel || '📺'} Log Channels`, value: `**Mod Log:** ${modLog ? `<#${modLog}>` : '❌'}\n**Command Log:** ${cmdLog ? `<#${cmdLog}>` : '❌'}\n**Ban Appeals:** ${banAppeal ? `<#${banAppeal}>` : '❌'}\n**Anti-Nuke Log:** ${antiNukeLog ? `<#${antiNukeLog}>` : '❌'}` },
+            { name: `${emojis.role || '🛡️'} Roles`, value: `**Staff Roles:** ${staffRoles}` }, 
+            { name: `${emojis.lock || '🔒'} Permissions`, value: permsConfig },
+            { name: `${emojis.rules || '📜'} Automod Rules`, value: ruleSummary },
             { name: '☢️ Anti-Nuke', value: isAntiNukeOn ? `✅ **ENABLED**` : '❌ **DISABLED**' }
         );
 
@@ -70,11 +70,11 @@ module.exports = {
     generateSetupContent,
 
     async execute(interaction) {
-       
+     
+        
         const guildId = interaction.guild.id;
         const { embed: mainEmbed, components: mainComponents } = await generateSetupContent(interaction, guildId);
 
-        
         await interaction.editReply({ 
             embeds: [mainEmbed], 
             components: mainComponents
