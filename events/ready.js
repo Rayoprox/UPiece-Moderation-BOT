@@ -34,7 +34,7 @@ module.exports = {
         }, 86400000);
 
         client.user.setPresence({
-            activities: [{ name: 'Moderating Universal Piece', type: ActivityType.Watching }],
+            activities: [{ name: 'Moderating Kobaria', type: ActivityType.Watching }],
             status: 'online',
         });
     },
