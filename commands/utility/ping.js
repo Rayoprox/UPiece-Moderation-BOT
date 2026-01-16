@@ -15,7 +15,7 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setColor(0x0099FF)
-            .setTitle('📡 Connection Status & Latency Version 0.9')
+            .setTitle('📡 Connection Status & Latency Version 1')
             .setDescription(`Measurement of bot responsiveness across network components.`)
             .addFields(
                 { name: 'App Latency (Edit Time)', value: `⏱️ **${appLatency}ms**`, inline: true },

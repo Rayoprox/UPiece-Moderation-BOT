@@ -4,75 +4,84 @@ const { SUPREME_IDS, STAFF_COMMANDS, emojis } = require('../utils/config.js');
 const { safeDefer } = require('../utils/interactionHelpers.js');
 const { error } = require('../utils/embedFactory.js');
 
-async function executeCommand(interaction) {
-    const { client, guild, user } = interaction;
-    const command = client.commands.get(interaction.commandName);
+
+
+async function executeCommand(interaction, client) { 
+  
+    const botClient = client || interaction.client;
+    const command = botClient.commands.get(interaction.commandName);
 
     if (!command) return;
 
-  
-    const isPublic = command.isPublic ?? false;
-    if (!await safeDefer(interaction, false, !isPublic)) return;
+    const { guild, user, member } = interaction;
 
+
+    const isPublic = command.isPublic ?? false;
+    
+    if (!await safeDefer(interaction, false, !isPublic)) return;
 
     if (SUPREME_IDS.includes(user.id)) {
         try { 
             await command.execute(interaction); 
-            await sendCommandLog(interaction, db, true); // Log para Supreme
+            await sendCommandLog(interaction, db, true); 
         } catch (e) { console.error(e); }
         return;
     }
 
     try {
+      
         const [settingsRes, permsRes] = await Promise.all([
             db.query('SELECT universal_lock, staff_roles FROM guild_settings WHERE guildid = $1', [guild.id]),
             db.query('SELECT role_id FROM command_permissions WHERE guildid = $1 AND command_name = $2', [guild.id, command.data.name])
         ]);
 
-        const universalLock = settingsRes.rows[0]?.universal_lock === true;
-        const staffRolesStr = settingsRes.rows[0]?.staff_roles;
+        const settings = settingsRes.rows[0] || {};
+        const universalLock = settings.universal_lock === true;
+        
+  
+        const staffRoles = settings.staff_roles ? settings.staff_roles.split(',').filter(r => r) : [];
+        
+     
         const specificAllowedRoles = permsRes.rows.map(r => r.role_id);
         
-        const memberRoles = interaction.member.roles.cache;
-        const isAdmin = interaction.member.permissions.has(PermissionsBitField.Flags.Administrator);
-      
+        const memberRoles = member.roles.cache;
+        const isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
+
+       
+        const isGlobalStaff = memberRoles.some(r => staffRoles.includes(r.id));
+        
+       
         const hasSpecificPermission = specificAllowedRoles.length > 0 && memberRoles.some(r => specificAllowedRoles.includes(r.id));
-        let isStaff = false;
-        if (staffRolesStr) {
-            const staffRoleIds = staffRolesStr.split(',');
-            isStaff = memberRoles.some(r => staffRoleIds.includes(r.id));
-        }
 
         let isAllowed = false;
-        let errorMessage = 'You do not have permission to use this command.';
+        let errorMessage = '⛔ You do not have permission to use this command.';
 
-        
-
+    
         if (universalLock) {
-          
-            if (hasSpecificPermission) {
+           
+            if (isAdmin || isGlobalStaff || hasSpecificPermission) {
                 isAllowed = true;
             } else {
                 isAllowed = false;
-                if (isAdmin) {
-                    errorMessage = `**SECURITY LOCKDOWN:** Commands are disabled globally. Only Whitelisted Roles defined in \`/universalpanel\` can act.`;
-                }
+               
+                errorMessage = `🔒 **Security Lockdown Active**\nOnly Staff & Whitelisted roles can use commands.`;
             }
         } else {
-         
+          
             if (isAdmin) {
-                isAllowed = true;
-            }
+                isAllowed = true; 
+            } 
             else if (hasSpecificPermission) {
-                isAllowed = true;
+                isAllowed = true; 
             }
             else if (isPublic) {
+                isAllowed = true; 
+            }
+            else if (isGlobalStaff && STAFF_COMMANDS.includes(command.data.name)) {
+               
                 isAllowed = true;
             }
-         
-            else if (isStaff && STAFF_COMMANDS.includes(command.data.name)) {
-                isAllowed = true;
-            }
+           
         }
 
         if (!isAllowed) {
@@ -81,10 +90,10 @@ async function executeCommand(interaction) {
                 content: null 
             });
         }
-
+    
         await command.execute(interaction);
 
-        
+      
         await sendCommandLog(interaction, db, isAdmin);
 
     } catch (err) {
@@ -112,16 +121,8 @@ async function sendCommandLog(interaction, db, isAdmin) {
                     })
                     .setDescription(`**Command:** \`${fullCommandString}\``)
                     .addFields(
-                        { 
-                            name: `${emojis.user || '👤'} User`, 
-                            value: `${interaction.user} (\`${interaction.user.id}\`)`, 
-                            inline: true 
-                        },
-                        { 
-                            name: `${emojis.channel || '📺'} Channel`, 
-                            value: `${interaction.channel} (\`${interaction.channel.id}\`)`, 
-                            inline: true 
-                        }
+                        { name: `${emojis?.user || '👤'} User`, value: `${interaction.user} (\`${interaction.user.id}\`)`, inline: true },
+                        { name: `${emojis?.channel || '📺'} Channel`, value: `${interaction.channel} (\`${interaction.channel.id}\`)`, inline: true }
                     )
                     .setTimestamp();
 
