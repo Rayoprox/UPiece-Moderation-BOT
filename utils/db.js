@@ -1,5 +1,3 @@
-// utils/db.js
-
 const { Pool } = require('pg');
 
 const pool = new Pool({
@@ -16,6 +14,13 @@ const db = {
 
     ensureTables: async () => {
         console.log('🔄 Checking database integrity & patching schema...');
+
+       
+        const createGlobalSettingsTable = `
+            CREATE TABLE IF NOT EXISTS global_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );`;
 
         const createModlogsTable = `
             CREATE TABLE IF NOT EXISTS modlogs (
@@ -106,16 +111,16 @@ const db = {
                 overwrites TEXT NOT NULL
             );`;
 
-            const createTicketPanelsTable = `
+        const createTicketPanelsTable = `
             CREATE TABLE IF NOT EXISTS ticket_panels (
                 id SERIAL PRIMARY KEY,
                 guild_id TEXT NOT NULL,
-                panel_id TEXT NOT NULL, -- ID único interno (ej: "panel-1234")
+                panel_id TEXT NOT NULL, 
                 title TEXT DEFAULT 'Support Ticket',
                 description TEXT DEFAULT 'Click the button below to open a ticket.',
                 banner_url TEXT,
                 button_label TEXT DEFAULT 'Open Ticket',
-                button_style TEXT DEFAULT 'Primary', -- Primary (Azul), Secondary (Gris), Success (Verde), Danger (Rojo)
+                button_style TEXT DEFAULT 'Primary', 
                 button_emoji TEXT DEFAULT '📩',
                 support_role_id TEXT,
                 blacklist_role_id TEXT,
@@ -130,17 +135,19 @@ const db = {
             CREATE TABLE IF NOT EXISTS tickets (
                 id SERIAL PRIMARY KEY,
                 guild_id TEXT NOT NULL,
-                channel_id TEXT UNIQUE NOT NULL, -- El canal del ticket
-                user_id TEXT NOT NULL, -- El dueño del ticket
-                panel_id TEXT, -- De qué panel vino (para saber qué logs usar)
-                status TEXT DEFAULT 'OPEN', -- OPEN, CLOSED
+                channel_id TEXT UNIQUE NOT NULL, 
+                user_id TEXT NOT NULL, 
+                panel_id TEXT, 
+                status TEXT DEFAULT 'OPEN', 
                 created_at BIGINT NOT NULL,
                 closed_at BIGINT,
                 closed_by TEXT,
                 close_reason TEXT,
-                participants TEXT -- Guardaremos un JSON string de los IDs de staff que hablaron
+                participants TEXT 
             );`;
 
+    
+        await db.query(createGlobalSettingsTable); 
         await db.query(createTicketPanelsTable);
         await db.query(createTicketsTable);
         await db.query(createModlogsTable);
@@ -154,40 +161,30 @@ const db = {
         await db.query(createBotWhitelistTable);
         await db.query(createChannelOverwritesTable);
 
-
      
         try { await db.query(`ALTER TABLE modlogs RENAME COLUMN modid TO moderatorid`); } catch (e) {}
-
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN moderatorid TEXT`); } catch (e) {}
-
-      
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN dmstatus TEXT`); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN action_duration TEXT`); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN appealable BOOLEAN DEFAULT TRUE`); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN logmessageid TEXT`); } catch (e) {}
-
-      
         try { 
             await db.query(`ALTER TABLE modlogs ADD COLUMN proof TEXT`);
             console.log("✅ FIXED: Column 'proof' added to modlogs.");
         } catch (e) {}
-        
         try { 
             await db.query(`ALTER TABLE modlogs ADD COLUMN unban_timestamp BIGINT`);
             console.log("✅ FIXED: Column 'unban_timestamp' added to modlogs.");
         } catch (e) {}
-
         try { 
             await db.query(`ALTER TABLE guild_settings ADD COLUMN universal_lock BOOLEAN DEFAULT FALSE`);
             console.log("✅ FIXED: Column 'universal_lock' added to guild_settings.");
         } catch (e) {}
-
-       
         try {
             await db.query(`ALTER TABLE log_channels DROP CONSTRAINT log_channels_guildid_key`);
         } catch (e) {}
-         console.log('✅ Ticket System tables ensured.');
 
+        console.log('✅ Ticket System tables ensured.');
         console.log('✅ PostgreSQL Database Integrity Check Completed & Tables Ensured.');
     }
 };
