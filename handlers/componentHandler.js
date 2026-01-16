@@ -13,20 +13,12 @@ module.exports = async (interaction) => {
 
     if (customId.startsWith('univ_')) return await universalPanel(interaction);
     if (customId.startsWith('automod_') || customId === 'setup_automod') return await automodSystem(interaction);
-
     
     if (customId === 'setup_tickets_menu' || customId.startsWith('ticket_panel_') || customId.startsWith('tkt_')) {
         return await ticketSetup(interaction);
     }
 
-  
-    if (customId.startsWith('setup_') || 
-        customId.startsWith('select_') || 
-        customId === 'delete_all_data' || 
-        customId === 'confirm_delete_data' || 
-        customId === 'cancel_setup' ||  
-        customId.startsWith('antinuke_') || 
-        customId.startsWith('perms_role_select_')) {
+    if (customId.startsWith('setup_') || customId.startsWith('select_') || customId === 'delete_all_data' || customId === 'confirm_delete_data' || customId === 'cancel_setup' || customId.startsWith('antinuke_') || customId.startsWith('perms_role_select_')) {
         return await setupSystem.execute(interaction); 
     }
 
@@ -39,7 +31,8 @@ module.exports = async (interaction) => {
         return;
     }
     
-    if (customId.startsWith('ticket_action_')) {
+   
+    if (customId.startsWith('ticket_action_') || customId.startsWith('ticket_close_') || customId.startsWith('ticket_claim_')) {
         await handleTicketActions(interaction, client); 
         return;
     }
