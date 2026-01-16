@@ -106,6 +106,43 @@ const db = {
                 overwrites TEXT NOT NULL
             );`;
 
+            const createTicketPanelsTable = `
+            CREATE TABLE IF NOT EXISTS ticket_panels (
+                id SERIAL PRIMARY KEY,
+                guild_id TEXT NOT NULL,
+                panel_id TEXT NOT NULL, -- ID único interno (ej: "panel-1234")
+                title TEXT DEFAULT 'Support Ticket',
+                description TEXT DEFAULT 'Click the button below to open a ticket.',
+                banner_url TEXT,
+                button_label TEXT DEFAULT 'Open Ticket',
+                button_style TEXT DEFAULT 'Primary', -- Primary (Azul), Secondary (Gris), Success (Verde), Danger (Rojo)
+                button_emoji TEXT DEFAULT '📩',
+                support_role_id TEXT,
+                blacklist_role_id TEXT,
+                ticket_category_id TEXT,
+                log_channel_id TEXT,
+                welcome_message TEXT DEFAULT 'Hello {user}, staff will be with you shortly.',
+                created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000,
+                UNIQUE (guild_id, panel_id)
+            );`;
+
+        const createTicketsTable = `
+            CREATE TABLE IF NOT EXISTS tickets (
+                id SERIAL PRIMARY KEY,
+                guild_id TEXT NOT NULL,
+                channel_id TEXT UNIQUE NOT NULL, -- El canal del ticket
+                user_id TEXT NOT NULL, -- El dueño del ticket
+                panel_id TEXT, -- De qué panel vino (para saber qué logs usar)
+                status TEXT DEFAULT 'OPEN', -- OPEN, CLOSED
+                created_at BIGINT NOT NULL,
+                closed_at BIGINT,
+                closed_by TEXT,
+                close_reason TEXT,
+                participants TEXT -- Guardaremos un JSON string de los IDs de staff que hablaron
+            );`;
+
+        await db.query(createTicketPanelsTable);
+        await db.query(createTicketsTable);
         await db.query(createModlogsTable);
         await db.query(createLogChannelsTable);
         await db.query(createGuildSettingsTable);
@@ -116,6 +153,7 @@ const db = {
         await db.query(createGuildBackupsTable);
         await db.query(createBotWhitelistTable);
         await db.query(createChannelOverwritesTable);
+
 
      
         try { await db.query(`ALTER TABLE modlogs RENAME COLUMN modid TO moderatorid`); } catch (e) {}
@@ -148,6 +186,7 @@ const db = {
         try {
             await db.query(`ALTER TABLE log_channels DROP CONSTRAINT log_channels_guildid_key`);
         } catch (e) {}
+         console.log('✅ Ticket System tables ensured.');
 
         console.log('✅ PostgreSQL Database Integrity Check Completed & Tables Ensured.');
     }

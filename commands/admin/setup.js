@@ -3,7 +3,9 @@ const db = require('../../utils/db.js');
 const { emojis } = require('../../utils/config.js');
 
 const generateSetupContent = async (interaction, guildId) => {
-    
+    // Verificamos que los emojis existan para evitar crash, si no, usamos fallback
+    const e = emojis || {};
+
     const [logChannelsResult, guildSettingsResult, permissionsResult, rulesResult, antiNukeResult] = await Promise.all([
         db.query('SELECT * FROM log_channels WHERE guildid = $1', [guildId]),
         db.query('SELECT * FROM guild_settings WHERE guildid = $1', [guildId]),
@@ -36,10 +38,10 @@ const generateSetupContent = async (interaction, guildId) => {
         .setTitle(`⚙️ ${interaction.guild.name}'s Setup Panel`)
         .setDescription(`Configure the bot using the buttons below.`)
         .addFields(
-            { name: `${emojis.channel || '📺'} Log Channels`, value: `**Mod Log:** ${modLog ? `<#${modLog}>` : '❌'}\n**Command Log:** ${cmdLog ? `<#${cmdLog}>` : '❌'}\n**Ban Appeals:** ${banAppeal ? `<#${banAppeal}>` : '❌'}\n**Anti-Nuke Log:** ${antiNukeLog ? `<#${antiNukeLog}>` : '❌'}` },
-            { name: `${emojis.role || '🛡️'} Roles`, value: `**Staff Roles:** ${staffRoles}` }, 
-            { name: `${emojis.lock || '🔒'} Permissions`, value: permsConfig },
-            { name: `${emojis.rules || '📜'} Automod Rules`, value: ruleSummary },
+            { name: `${e.channel || '📺'} Log Channels`, value: `**Mod Log:** ${modLog ? `<#${modLog}>` : '❌'}\n**Command Log:** ${cmdLog ? `<#${cmdLog}>` : '❌'}\n**Ban Appeals:** ${banAppeal ? `<#${banAppeal}>` : '❌'}\n**Anti-Nuke Log:** ${antiNukeLog ? `<#${antiNukeLog}>` : '❌'}` },
+            { name: `${e.role || '🛡️'} Roles`, value: `**Staff Roles:** ${staffRoles}` }, 
+            { name: `${e.lock || '🔒'} Permissions`, value: permsConfig },
+            { name: `${e.rules || '📜'} Automod Rules`, value: ruleSummary },
             { name: '☢️ Anti-Nuke', value: isAntiNukeOn ? `✅ **ENABLED**` : '❌ **DISABLED**' }
         );
 
@@ -52,6 +54,7 @@ const generateSetupContent = async (interaction, guildId) => {
             new ButtonBuilder().setCustomId('setup_antinuke').setLabel('Anti-Nuke').setStyle(isAntiNukeOn ? ButtonStyle.Success : ButtonStyle.Danger)
         ),
         new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('setup_tickets_menu').setLabel('Ticket System').setStyle(ButtonStyle.Primary).setEmoji('🎫'), // ¡AÑADIDO EL BOTÓN DE TICKETS!
             new ButtonBuilder().setCustomId('delete_all_data').setLabel('Reset Data').setStyle(ButtonStyle.Danger),
             new ButtonBuilder().setCustomId('cancel_setup').setLabel('Close').setStyle(ButtonStyle.Secondary)
         )
@@ -70,14 +73,37 @@ module.exports = {
     generateSetupContent,
 
     async execute(interaction) {
-     
-        
-        const guildId = interaction.guild.id;
-        const { embed: mainEmbed, components: mainComponents } = await generateSetupContent(interaction, guildId);
+        try {
+            // 1. PROTECCIÓN ANTI-CRASH:
+            // Si el bot no ha respondido ni diferido, lo hacemos ahora.
+            // Si el commandHandler ya lo hizo, nos saltamos este paso.
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.deferReply({ ephemeral: true });
+            }
 
-        await interaction.editReply({ 
-            embeds: [mainEmbed], 
-            components: mainComponents
-        });
+            const guildId = interaction.guild.id;
+            
+            // 2. Generamos el contenido (puede tardar por la DB)
+            const { embed: mainEmbed, components: mainComponents } = await generateSetupContent(interaction, guildId);
+
+            // 3. Editamos la respuesta (SIEMPRE editReply porque ya garantizamos el defer arriba)
+            await interaction.editReply({ 
+                embeds: [mainEmbed], 
+                components: mainComponents
+            });
+
+        } catch (error) {
+            console.error("[SETUP ERROR]", error);
+            
+            // 4. MANEJO DE ERRORES SEGURO:
+            // Si falla algo, avisamos al usuario sin romper la interacción doblemente.
+            const errorMsg = { content: '❌ Error loading setup configuration. Check console.', ephemeral: true };
+            
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply(errorMsg).catch(() => {});
+            } else {
+                await interaction.reply(errorMsg).catch(() => {});
+            }
+        }
     },
 };
