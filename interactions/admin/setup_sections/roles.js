@@ -3,6 +3,7 @@ const db = require('../../../utils/db.js');
 const { success } = require('../../../utils/embedFactory.js');
 const { safeDefer } = require('../../../utils/interactionHelpers.js');
 const { STAFF_COMMANDS } = require('../../../utils/config.js');
+const guildCache = require('../../../utils/guildCache.js');
 
 module.exports = async (interaction) => {
     const { customId, guild, values } = interaction;
@@ -32,6 +33,7 @@ module.exports = async (interaction) => {
     if (customId === 'setup_staff_delete_all') {
         if (!await safeDefer(interaction, true)) return;
         await db.query("UPDATE guild_settings SET staff_roles = NULL WHERE guildid = $1", [guildId]);
+        guildCache.flush(guildId);
         const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('setup_staff_roles').setLabel('Return to View').setStyle(ButtonStyle.Primary));
         await interaction.editReply({ embeds: [success(`All Staff Roles have been removed.`)], components: [row] });
         return;
@@ -40,6 +42,7 @@ module.exports = async (interaction) => {
     if (interaction.isRoleSelectMenu() && customId === 'select_staff_roles') {
         await safeDefer(interaction, true);
         await db.query(`INSERT INTO guild_settings (guildid, staff_roles) VALUES ($1, $2) ON CONFLICT(guildid) DO UPDATE SET staff_roles = $2`, [guildId, values.join(',')]);
+        guildCache.flush(guildId);
         const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('setup_staff_roles').setLabel('Return to Staff View').setStyle(ButtonStyle.Primary));
         await interaction.editReply({ embeds: [success(`Staff Roles updated successfully. (${values.length} roles active)`)], components: [row] });
         return;

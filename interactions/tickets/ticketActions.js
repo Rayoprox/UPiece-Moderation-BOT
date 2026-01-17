@@ -1,12 +1,25 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { 
+    EmbedBuilder, 
+    ActionRowBuilder, 
+    ButtonBuilder, 
+    ButtonStyle, 
+    ModalBuilder, 
+    TextInputBuilder, 
+    TextInputStyle,
+    PermissionsBitField,
+    MessageFlags 
+} = require('discord.js');
 const discordTranscripts = require('discord-html-transcripts');
 const { error, success } = require('../../utils/embedFactory.js');
 
 async function safeDefer(interaction) {
     try {
         if (!interaction.deferred && !interaction.replied) {
-            if (interaction.isChatInputCommand()) await interaction.deferReply({ ephemeral: false });
-            else await interaction.deferUpdate();
+            if (interaction.isChatInputCommand()) {
+                await interaction.deferReply({ ephemeral: false });
+            } else {
+                await interaction.deferUpdate();
+            }
         }
         return true;
     } catch (err) {
@@ -106,7 +119,7 @@ async function closeTicket(interaction, client, db, reason = 'No reason provided
 async function claimTicket(interaction, client, db) {
     if (!await safeDefer(interaction)) return;
     
-    const { channel, user, guild } = interaction;
+    const { channel, user, guild, member } = interaction;
     
     const check = await db.query('SELECT * FROM tickets WHERE channel_id = $1', [channel.id]);
     if (check.rows.length === 0) return;
@@ -117,6 +130,18 @@ async function claimTicket(interaction, client, db) {
         const panelRes = await db.query('SELECT support_role_id FROM ticket_panels WHERE panel_id = $1', [ticket.panel_id]);
         supportRoleId = panelRes.rows[0]?.support_role_id;
     }
+
+    const isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
+    const hasSupportRole = supportRoleId && member.roles.cache.has(supportRoleId);
+
+    if (!isAdmin && !hasSupportRole) {
+    
+        return interaction.followUp({ 
+            content: '⛔ **Permission Denied:** Only members with the **Support Role** can claim tickets.', 
+            flags: MessageFlags.Ephemeral 
+        });
+    }
+
 
     await channel.permissionOverwrites.edit(user, {
         ViewChannel: true, SendMessages: true, ManageChannels: true, ManageMessages: true, AttachFiles: true

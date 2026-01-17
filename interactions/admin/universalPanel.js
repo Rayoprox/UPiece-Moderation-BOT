@@ -1,13 +1,13 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, RoleSelectMenuBuilder, MessageFlags, PermissionsBitField } = require('discord.js');
 const { emojis, SUPREME_IDS } = require('../../utils/config.js');
 const { safeDefer } = require('../../utils/interactionHelpers.js');
+const guildCache = require('../../utils/guildCache.js');
 
 module.exports = async (interaction) => {
     const { customId, guild, user, values, client } = interaction;
     const db = client.db;
     const guildId = guild.id;
 
-  
     if (customId === 'univ_toggle_lock') {
         if (!await safeDefer(interaction, true)) return;
         
@@ -21,6 +21,7 @@ module.exports = async (interaction) => {
         const newLockState = !currentLock;
         
         await db.query(`INSERT INTO guild_settings (guildid, universal_lock) VALUES ($1, $2) ON CONFLICT (guildid) DO UPDATE SET universal_lock = $2`, [guildId, newLockState]);
+        guildCache.flush(guildId);
         
         const embed = new EmbedBuilder()
             .setTitle('👑 Management Control Panel')
@@ -46,7 +47,6 @@ module.exports = async (interaction) => {
         await interaction.editReply({ embeds: [embed], components: [row1] });
         return;
     }
-
    
     if (customId === 'univ_edit_perms') {
         if (!await safeDefer(interaction, true)) return;
@@ -62,7 +62,6 @@ module.exports = async (interaction) => {
         });
         return;
     }
-
     
     if (customId === 'univ_select_cmd') {
         if (!await safeDefer(interaction, true)) return;
@@ -85,6 +84,7 @@ module.exports = async (interaction) => {
         for (const rId of values) {
             await db.query("INSERT INTO command_permissions (guildid, command_name, role_id) VALUES ($1, $2, $3)", [guildId, cmdName, rId]);
         }
+        guildCache.flush(guildId);
         
         await interaction.editReply({ content: `✅ **Updated.** Roles for \`/${cmdName}\` set. Only these roles can use it when Locked.`, components: [] });
         return;
