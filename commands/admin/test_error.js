@@ -4,7 +4,7 @@ module.exports = {
     deploy: 'main',
     data: new SlashCommandBuilder()
         .setName('test_error')
-        .setDescription('Fuerza un error de código para probar el Webhook de Logs.')
+        .setDescription('Error Testing ')
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
 
     async execute(interaction) {

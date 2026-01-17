@@ -1,5 +1,6 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField } = require('discord.js');
 const db = require('../../utils/db.js');
+const { emojis } = require('../../utils/config.js');
 
 module.exports = {
     deploy: 'all',
@@ -9,23 +10,28 @@ module.exports = {
         .setDescription('Displays a list of commands you can use.'),
 
     async execute(interaction) {
-        
-
-        const { commands } = interaction.client;
+       
+        const { client, user, guild } = interaction;
+        const commands = client.commands; 
         const member = interaction.member;
-        const guildId = interaction.guild.id;
+        const guildId = guild.id;
+
+        const arrow = emojis?.arrow || '🔹';
+        const book = emojis?.book || '📖';
 
         const commandCategories = { admin: [], utility: [], appeal: [] };
         
+   
         const allPermissionsResult = await db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guildId]);
         const permMap = allPermissionsResult.rows.reduce((acc, row) => {
             if (!acc[row.command_name]) acc[row.command_name] = [];
             acc[row.command_name].push(row);
             return acc;
         }, {});
-        
+    
         for (const command of commands.values()) {
             let hasPermission = member.permissions.has(PermissionsBitField.Flags.Administrator);
+            
             if (!hasPermission) {
                 const allowedRoles = permMap[command.data.name] || [];
                 if (allowedRoles.length > 0) {
@@ -33,17 +39,26 @@ module.exports = {
                 } else if (command.data.default_member_permissions) {
                     hasPermission = member.permissions.has(command.data.default_member_permissions);
                 } else {
-                    hasPermission = true;
+                    hasPermission = true; 
                 }
             }
 
             if (hasPermission) {
-                const optionsString = command.data.options.map(opt => opt.required ? `<${opt.name}>` : `[${opt.name}]`).join(' ');
-                const formattedCommand = `\`/${command.data.name} ${optionsString}\`\n*${command.data.description}*`;
+                
+                const options = command.data.options.map(opt => opt.required ? `<${opt.name}>` : `[${opt.name}]`);
+                
+                let commandHeader = `> **/${command.data.name}**`;
+                
+               
+                if (options.length > 0) {
+                    commandHeader += ` \`${options.join(' ')}\``;
+                }
+
+                const formattedCommand = `${commandHeader}\n> *${command.data.description}*`;
 
                 switch(command.deploy) {
                     case 'main':
-                        if (['ban', 'kick', 'mute', 'unmute', 'modlogs', 'warnings', 'purge', 'reason', 'void', 'warn', 'unban', 'blmanage', 'setup'].includes(command.data.name)) {
+                        if (['ban', 'kick', 'mute', 'unmute', 'modlogs', 'warnings', 'purge', 'reason', 'void', 'warn', 'unban', 'blmanage', 'setup', 'lock', 'unlock', 'softban', 'case', 'whois'].includes(command.data.name)) {
                             commandCategories.admin.push(formattedCommand);
                         } else {
                             commandCategories.utility.push(formattedCommand);
@@ -61,15 +76,54 @@ module.exports = {
             }
         }
 
+        
         const helpEmbed = new EmbedBuilder()
-            .setColor(0x3498DB)
-            .setTitle('Help Menu - Command List')
-            .setDescription(`Here is a list of commands available to you on **${interaction.guild.name}**.`);
+            .setColor(0x5865F2)
+            .setTitle(`${book} Universal Piece Help Menu`)
+            .setDescription(`Here is a comprehensive list of commands available to **${user.username}** in **${guild.name}**.`)
+            .setThumbnail(client.user.displayAvatarURL({ dynamic: true, size: 256 }))
+            .setFooter({ 
+                text: `Requested by ${user.username} • UPiece System`, 
+                iconURL: user.displayAvatarURL({ dynamic: true }) 
+            })
+            .setTimestamp();
 
-        if (commandCategories.admin.length > 0) helpEmbed.addFields({ name: '👑 Moderation Commands', value: commandCategories.admin.join('\n\n') });
-        if (commandCategories.utility.length > 0) helpEmbed.addFields({ name: '🛠️ Utility Commands', value: commandCategories.utility.join('\n\n') });
-        if (commandCategories.appeal.length > 0) helpEmbed.addFields({ name: '📨 Appeal Server Commands', value: commandCategories.appeal.join('\n\n') });
-        if (helpEmbed.data.fields.length === 0) helpEmbed.setDescription("It seems there are no commands available for you to use.");
+        
+        const addSplitFields = (embed, title, items) => {
+            if (!items || items.length === 0) return;
+            
+            let currentText = '';
+            let isFirstField = true;
+
+            for (const item of items) {
+                if (currentText.length + item.length + 2 > 1024) {
+                    embed.addFields({ 
+                        name: isFirstField ? title : `${title} (Cont.)`, 
+                        value: currentText 
+                    });
+                    currentText = item;
+                    isFirstField = false;
+                } else {
+                    currentText = currentText.length > 0 ? currentText + '\n\n' + item : item;
+                }
+            }
+            
+            if (currentText.length > 0) {
+                embed.addFields({ 
+                    name: isFirstField ? title : `${title} (Cont.)`, 
+                    value: currentText 
+                });
+            }
+        };
+
+        addSplitFields(helpEmbed, `${emojis?.staff || '🛡️'} Moderation & Admin`, commandCategories.admin);
+        addSplitFields(helpEmbed, `${emojis?.utils || '🛠️'} Utility & Tools`, commandCategories.utility);
+        addSplitFields(helpEmbed, `${emojis?.appeal || '📨'} Appeal System`, commandCategories.appeal);
+
+        if (!helpEmbed.data.fields || helpEmbed.data.fields.length === 0) {
+            helpEmbed.setDescription(`${emojis?.cross || '❌'} **No commands available.**\nYou do not have permission to view or use any commands here.`);
+            helpEmbed.setColor(0xE74C3C);
+        }
 
         await interaction.editReply({ embeds: [helpEmbed] });
     },
