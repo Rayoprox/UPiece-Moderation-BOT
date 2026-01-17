@@ -30,6 +30,7 @@ module.exports = {
             return;
         }
 
+  
         if (customId === 'setup_home' || customId === 'setup_back_to_main') {
             if (!await safeDefer(interaction, true)) return;
             const { embed, components } = await setupHome.generateSetupContent(interaction, interaction.guild.id);
@@ -37,12 +38,23 @@ module.exports = {
             return;
         }
         
+ 
         if (customId === 'cancel_setup') {
-            await interaction.deferUpdate(); 
-            await interaction.deleteReply().catch(() => {});
+            try {
+              
+                if (!interaction.deferred && !interaction.replied) {
+                    await interaction.deferUpdate(); 
+                }
+              
+                await interaction.deleteReply().catch(() => {});
+            } catch (err) {
+          
+                if (err.code !== 10062) console.error('Error in cancel_setup:', err);
+            }
             return;
         }
 
+       
         if (customId.startsWith('setup_channels') || customId.endsWith('_channel') || customId === 'select_delete_channel') {
             return await setupChannels(interaction);
         }
@@ -51,7 +63,7 @@ module.exports = {
             return await setupRoles(interaction);
         }
 
-    
+   
         if (customId.startsWith('setup_perm') || customId.startsWith('select_command_perms') || customId.startsWith('perms_role_select_') || customId === 'select_delete_perm') {
             return await setupPermissions(interaction);
         }
