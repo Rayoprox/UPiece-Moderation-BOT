@@ -46,7 +46,7 @@ module.exports = {
         const embed = new EmbedBuilder()
             .setColor(statusColor)
             .setTitle(`${statusEmoji} System Status: ${statusText}`)
-            .setDescription(`**Universal Piece** is currently operational.`)
+            .setDescription(`**Universal Piece** is currently operational. v1`)
             .addFields(
                 { 
                     name: '📡 API Latency', 
