@@ -1,10 +1,14 @@
 require('dotenv').config();
+
+require('./utils/keep_alive.js'); 
+
 const { initLogger } = require('./utils/logger.js');
 const { Client, Collection, GatewayIntentBits, Partials } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const db = require('./utils/db.js'); 
-const http = require('http');
+
+
 
 const client = new Client({ 
     intents: [
@@ -19,6 +23,7 @@ const client = new Client({
 
 client.commands = new Collection();
 client.db = db; 
+
 
 const foldersPath = path.join(__dirname, 'commands');
 const commandFolders = fs.readdirSync(foldersPath);
@@ -50,22 +55,14 @@ for (const file of eventFiles) {
 
 (async () => {
     try {
-        await db.ensureTables();
-        await initLogger();
+        await db.ensureTables(); 
         console.log('✅ PostgreSQL Database Integrity Check Completed.');
-        client.login(process.env.DISCORD_TOKEN);
+        await client.login(process.env.DISCORD_TOKEN);
     } catch (error) {
         console.error('❌ Startup failed:', error);
     }
 })();
 
-const PORT = process.env.PORT || 3000; 
-http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot is Live');
-}).listen(PORT, () => {
-    console.log(`HTTP Server running on port ${PORT}`);
-});
 
 process.on('unhandledRejection', (reason) => {
     console.error('Unhandled Rejection:', reason);
@@ -74,3 +71,4 @@ process.on('unhandledRejection', (reason) => {
 process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception:', err);
 });
+
