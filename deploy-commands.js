@@ -2,7 +2,12 @@ const { REST, Routes } = require('discord.js');
 const fs = require('node:fs');
 const path = require('node:path');
 require('dotenv').config();
-console.log("Token:", process.env.DISCORD_TOKEN ? "SÍ" : "NO");
+
+// Verificación de seguridad
+if (!process.env.DISCORD_TOKEN) {
+    console.error("❌ Error: Falta DISCORD_TOKEN en las variables de entorno.");
+    process.exit(1);
+}
 
 const mainGuildCommands = [];
 const appealGuildCommands = [];
@@ -15,7 +20,6 @@ for (const folder of commandFolders) {
     for (const file of commandFiles) {
         const command = require(path.join(__dirname, 'commands', folder, file));
         if ('data' in command && 'execute' in command) {
-           
             switch (command.deploy) {
                 case 'main':
                     mainGuildCommands.push(command.data.toJSON());
@@ -38,30 +42,35 @@ const rest = new REST().setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
     try {
-        console.log('Started refreshing application (/) commands.');
+        console.log('🔄 Started refreshing application (/) commands.');
 
-        // Servidor PRINCIPAL
-        await rest.put(
-            Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID),
-            { body: mainGuildCommands },
-        );
-        console.log(`Successfully reloaded ${mainGuildCommands.length} commands for the MAIN guild.`);
+        if (process.env.DISCORD_GUILD_ID) {
+            await rest.put(
+                Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID),
+                { body: mainGuildCommands },
+            );
+            console.log(`✅ Successfully reloaded ${mainGuildCommands.length} commands for MAIN guild.`);
+        }
 
-        // Servidor DE APELACIONES
-        await rest.put(
-            Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_APPEAL_GUILD_ID),
-            { body: appealGuildCommands },
-        );
-        console.log(`Successfully reloaded ${appealGuildCommands.length} commands for the APPEAL guild.`);
+        if (process.env.DISCORD_APPEAL_GUILD_ID) {
+            await rest.put(
+                Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_APPEAL_GUILD_ID),
+                { body: appealGuildCommands },
+            );
+            console.log(`✅ Successfully reloaded ${appealGuildCommands.length} commands for APPEAL guild.`);
+        }
 
-        // Comandos GLOBALES 
         await rest.put(
             Routes.applicationCommands(process.env.DISCORD_CLIENT_ID),
             { body: globalCommands },
         );
-        console.log(`Successfully reloaded ${globalCommands.length} GLOBAL commands.`);
+        console.log(`✅ Successfully reloaded ${globalCommands.length} GLOBAL commands.`);
 
     } catch (error) {
-        console.error(error);
+        console.error("❌ Error deploying commands:", error);
+    } finally {
+        // ESTA ES LA CLAVE: Forzamos el cierre del proceso para que no bloquee el deploy
+        console.log(' Closing deploy script to release resources.');
+        process.exit(0);
     }
 })();
