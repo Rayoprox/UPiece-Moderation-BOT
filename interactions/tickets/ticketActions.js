@@ -91,21 +91,35 @@ async function claimTicket(interaction, client) {
     }
     await channel.permissionOverwrites.edit(user.id, { SendMessages: true, ViewChannel: true });
 
-    const rows = message.components.map(oldRow => {
-        const row = ActionRowBuilder.from(oldRow);
-        row.components.forEach(c => {
-            if (c.data.custom_id === 'ticket_action_claim') {
-                c.setCustomId('ticket_action_unclaim')
-                 .setLabel('Unclaim Ticket')
-                 .setStyle(ButtonStyle.Danger)
-                 .setEmoji('🔓');
-            }
-        });
-        return row;
-    });
+    let targetMessage = message;
+    if (!targetMessage) {
+        const fetchedMessages = await channel.messages.fetch({ limit: 50 });
+        targetMessage = fetchedMessages.find(m => m.author.id === client.user.id && m.components.length > 0);
+    }
 
-    await interaction.update({ components: rows });
-    await channel.send({ embeds: [success(`${user} has **claimed** this ticket. Support staff is now in read-only mode.`)] });
+    if (targetMessage) {
+        const rows = targetMessage.components.map(oldRow => {
+            const row = ActionRowBuilder.from(oldRow);
+            row.components.forEach(c => {
+                if (c.data.custom_id === 'ticket_action_claim') {
+                    c.setCustomId('ticket_action_unclaim')
+                     .setLabel('Unclaim Ticket')
+                     .setStyle(ButtonStyle.Danger)
+                     .setEmoji('🔓');
+                }
+            });
+            return row;
+        });
+
+        if (interaction.isButton()) {
+            await interaction.update({ components: rows });
+        } else {
+            await targetMessage.edit({ components: rows });
+            await smartReply(interaction, { embeds: [success(`${user} has **claimed** this ticket.`)] }, true);
+        }
+    } else if (!interaction.replied) {
+        await smartReply(interaction, { embeds: [success(`${user} has **claimed** this ticket.`)] }, true);
+    }
 }
 
 async function unclaimTicket(interaction, client) {
@@ -129,21 +143,35 @@ async function unclaimTicket(interaction, client) {
         await channel.permissionOverwrites.edit(supportRoleId, { SendMessages: true });
     }
 
-    const rows = message.components.map(oldRow => {
-        const row = ActionRowBuilder.from(oldRow);
-        row.components.forEach(c => {
-            if (c.data.custom_id === 'ticket_action_unclaim') {
-                c.setCustomId('ticket_action_claim')
-                 .setLabel('Claim Ticket')
-                 .setStyle(ButtonStyle.Secondary)
-                 .setEmoji('🙋‍♂️');
-            }
-        });
-        return row;
-    });
+    let targetMessage = message;
+    if (!targetMessage) {
+        const fetchedMessages = await channel.messages.fetch({ limit: 50 });
+        targetMessage = fetchedMessages.find(m => m.author.id === client.user.id && m.components.length > 0);
+    }
 
-    await interaction.update({ components: rows });
-    await channel.send({ embeds: [success(`Ticket **unclaimed**. All support staff can speak again.`)] });
+    if (targetMessage) {
+        const rows = targetMessage.components.map(oldRow => {
+            const row = ActionRowBuilder.from(oldRow);
+            row.components.forEach(c => {
+                if (c.data.custom_id === 'ticket_action_unclaim') {
+                    c.setCustomId('ticket_action_claim')
+                     .setLabel('Claim Ticket')
+                     .setStyle(ButtonStyle.Secondary)
+                     .setEmoji('🙋‍♂️');
+                }
+            });
+            return row;
+        });
+
+        if (interaction.isButton()) {
+            await interaction.update({ components: rows });
+        } else {
+            await targetMessage.edit({ components: rows });
+            await smartReply(interaction, { embeds: [success(`Ticket **unclaimed** successfully.`)] }, true);
+        }
+    } else if (!interaction.replied) {
+        await smartReply(interaction, { embeds: [success(`Ticket **unclaimed** successfully.`)] }, true);
+    }
 }
 
 async function handleTicketActions(interaction, client) {
