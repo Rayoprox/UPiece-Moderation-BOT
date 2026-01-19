@@ -33,7 +33,7 @@ module.exports = {
 
         const updateStatus = () => {
             const guild = client.guilds.cache.first();
-            const statusText = guild ? `Moderating ${guild.name}` : '';
+            const statusText = guild ? `Moderating ${guild.name} | by @ukirama` : 'by @ukirama';
 
             client.user.setPresence({
                 activities: [{ name: statusText, type: ActivityType.Watching }],

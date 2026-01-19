@@ -64,14 +64,13 @@ module.exports = {
             }
         }
 
-   
         const helpEmbed = new EmbedBuilder()
             .setColor(0x5865F2)
             .setTitle(`${book} ${guild.name} Help Menu`) 
             .setDescription(`Here is a comprehensive list of commands available to **${user.username}** in **${guild.name}**.`)
             .setThumbnail(client.user.displayAvatarURL({ dynamic: true, size: 256 }))
             .setFooter({ 
-                text: `Requested by ${user.username} • ${client.user.username} System`, 
+                text: `Requested by ${user.username} • Dev by @ukirama`, 
                 iconURL: user.displayAvatarURL({ dynamic: true }) 
             })
             .setTimestamp();
