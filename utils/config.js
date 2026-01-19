@@ -16,7 +16,7 @@ module.exports = {
         'ban', 'unban', 'softban', 'kick', 'mute', 'unmute', 
         'warn', 'warnings', 'void', 'modlogs', 'case', 
         'reason', 'whois', 'purge', 'lock', 'unlock', 
-        'lockdown', 'unlockdown', 'slowmode'
+        'lockdown', 'unlockdown', 'slowmode', 'afk'
     ],
    
     emojis: {

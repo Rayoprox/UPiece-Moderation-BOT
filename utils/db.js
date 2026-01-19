@@ -36,6 +36,16 @@ const db = {
         type TEXT DEFAULT 'lifetime'
     );
 `);
+
+await db.query(`
+    CREATE TABLE IF NOT EXISTS afk_users (
+        userid TEXT,
+        guildid TEXT,
+        reason TEXT,
+        timestamp BIGINT,
+        PRIMARY KEY (userid, guildid)
+    );
+`);
         try { await db.query(`ALTER TABLE modlogs RENAME COLUMN modid TO moderatorid`); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN moderatorid TEXT`); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN dmstatus TEXT`); } catch (e) {}
