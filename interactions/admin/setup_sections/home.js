@@ -9,7 +9,8 @@ module.exports = {
                 { name: '📺 Channels', value: 'Configure logging, welcome, and report channels.', inline: true },
                 { name: '🤖 Automod', value: 'Manage auto-moderation rules.', inline: true },
                 { name: '🔐 Permissions', value: 'Manage Staff Roles and Command Overrides.', inline: true },
-                { name: '🛡️ Protection', value: 'Anti-Nuke system and Lockdown configuration.', inline: true }
+                { name: '🛡️ Protection', value: 'Anti-Nuke system and Lockdown configuration.', inline: true },
+                { name: '🎫 Tickets', value: 'Create and manage support ticket panels.', inline: true }
             )
             .setColor('#2B2D31') 
             .setThumbnail(interaction.guild.iconURL({ dynamic: true }));
@@ -18,7 +19,8 @@ module.exports = {
             new ButtonBuilder().setCustomId('setup_channels').setLabel('Channels').setStyle(ButtonStyle.Primary).setEmoji('📺'),
             new ButtonBuilder().setCustomId('setup_automod').setLabel('Automod').setStyle(ButtonStyle.Success).setEmoji('🤖'),
             new ButtonBuilder().setCustomId('setup_menu_permissions').setLabel('Permissions').setStyle(ButtonStyle.Primary).setEmoji('🔐'),
-            new ButtonBuilder().setCustomId('setup_menu_protection').setLabel('Protection').setStyle(ButtonStyle.Danger).setEmoji('🛡️')
+            new ButtonBuilder().setCustomId('setup_menu_protection').setLabel('Protection').setStyle(ButtonStyle.Danger).setEmoji('🛡️'),
+            new ButtonBuilder().setCustomId('setup_tickets_menu').setLabel('Tickets').setStyle(ButtonStyle.Primary).setEmoji('🎫')
         );
 
         const row2 = new ActionRowBuilder().addComponents(

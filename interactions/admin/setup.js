@@ -8,6 +8,7 @@ const setupRoles = require('./setup_sections/roles.js');
 const setupPermissions = require('./setup_sections/permissions.js');
 const setupAntinuke = require('./setup_sections/antinuke.js');
 const setupReset = require('./setup_sections/reset.js');
+const ticketSetup = require('../tickets/ticketSetup.js');
 
 const setupAutomod = require('./automod.js'); 
 
@@ -15,7 +16,6 @@ module.exports = {
     async execute(interaction) {
         const { customId } = interaction;
 
-        // HOME
         if (customId === 'setup_home') {
             if (!await safeDefer(interaction, true)) return;
             const { embed, components } = await setupHome.generateSetupContent(interaction, interaction.guild.id);
@@ -23,37 +23,34 @@ module.exports = {
             return;
         }
         
-        // MENUS INTERMEDIOS 
+        if (customId === 'setup_tickets_menu' || customId.startsWith('ticket_panel_') || customId.startsWith('tkt_')) {
+            return await ticketSetup(interaction);
+        }
+
         if (customId.startsWith('setup_menu_') || customId.startsWith('setup_lockdown') || customId === 'select_lockdown_channels') {
             return await setupMenus(interaction);
         }
 
-        // CHANNELS
         if (customId.startsWith('setup_channels')) {
             return await setupChannels(interaction);
         }
 
-        // AUTOMOD
         if (customId.startsWith('setup_automod') || customId.startsWith('automod_')) {
             return await setupAutomod(interaction);
         }
 
-        // STAFF ROLES
         if (customId.startsWith('setup_staff') || customId === 'select_staff_roles') {
             return await setupRoles(interaction);
         }
 
-        // COMMAND PERMISSIONS
         if (customId.startsWith('setup_perm') || customId.startsWith('select_command_perms') || customId.startsWith('perms_role_select_') || customId === 'select_delete_perm') {
             return await setupPermissions(interaction);
         }
 
-        // ANTI-NUKE
         if (customId.startsWith('setup_antinuke') || customId.startsWith('antinuke_')) {
             return await setupAntinuke(interaction);
         }
 
-        // RESET
         if (customId === 'delete_all_data' || customId === 'confirm_delete_data') {
             return await setupReset(interaction);
         }
