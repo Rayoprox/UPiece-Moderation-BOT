@@ -1,4 +1,4 @@
-const { PermissionsBitField } = require('discord.js');
+const { PermissionsBitField, EmbedBuilder } = require('discord.js');
 const db = require('../utils/db.js');
 const { DEVELOPER_IDS, SUPREME_IDS, STAFF_COMMANDS } = require('../utils/config.js');
 const { safeDefer } = require('../utils/interactionHelpers.js');
@@ -6,7 +6,7 @@ const { error } = require('../utils/embedFactory.js');
 const guildCache = require('../utils/guildCache.js'); 
 
 module.exports = async (interaction) => {
-    const client = interaction.client; 
+    const client = interaction.client;
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
 
@@ -15,23 +15,33 @@ module.exports = async (interaction) => {
 
     if (!await safeDefer(interaction, false, !isPublic)) return;
 
-   
+
     if (DEVELOPER_IDS.includes(user.id)) {
-        return await command.execute(interaction);
+        try {
+            await command.execute(interaction);
+            await sendCommandLog(interaction, db, true);
+            return;
+        } catch (e) { console.error(e); return; }
     }
 
- 
     if (command.data.name !== 'redeem') {
         const licRes = await db.query("SELECT expires_at FROM licenses WHERE guild_id = $1", [guild.id]);
         const hasLicense = licRes.rows.length > 0 && (licRes.rows[0].expires_at === null || parseInt(licRes.rows[0].expires_at) > Date.now());
         
         if (!hasLicense) {
-            return interaction.editReply({ embeds: [error("🔒 **License Required**\nThis bot instance is locked. The owner must use `/redeem`.")] });
+            return interaction.editReply({ 
+                embeds: [error("🔒 **License Required**\nThis server does not have an active license. Use `/redeem` to activate it.")] 
+            });
         }
     }
 
+
     if (SUPREME_IDS.includes(user.id)) {
-        return await command.execute(interaction);
+        try {
+            await command.execute(interaction);
+            await sendCommandLog(interaction, db, true);
+            return;
+        } catch (e) { console.error(e); return; }
     }
 
     try {
@@ -59,7 +69,7 @@ module.exports = async (interaction) => {
         let allowed = false;
 
         if (isAdmin) {
-            allowed = true; 
+            allowed = true;
         } else if (hasSpecificRules) {
             if (hasSpecificPermission) allowed = true;
         } else if (isGlobalStaff && STAFF_COMMANDS.includes(command.data.name)) {
@@ -70,15 +80,44 @@ module.exports = async (interaction) => {
 
         if (!allowed) {
             const msg = universalLock && member.permissions.has(PermissionsBitField.Flags.Administrator)
-                ? "🔒 **Universal Lockdown Active.**\nAdmin permissions are suspended by the Instance Owners."
-                : "⛔ You don't have permission to use this.";
+                ? "🔒 **Universal Lockdown Active.**\nAdmin permissions are temporarily suspended. Contact the Server Owners."
+                : "⛔ You do not have permission to use this command.";
             return interaction.editReply({ embeds: [error(msg)] });
         }
     
+   
         await command.execute(interaction);
+        await sendCommandLog(interaction, db, isAdmin).catch(() => {});
 
     } catch (err) {
         console.error(`[HANDLER ERROR] ${interaction.commandName}:`, err);
-        await interaction.editReply({ embeds: [error('An internal error occurred.')] }).catch(() => {});
+        if (interaction.deferred || interaction.replied) {
+            await interaction.editReply({ embeds: [error('An unexpected error occurred executing this command.')] }).catch(() => {});
+        }
     }
 };
+
+
+async function sendCommandLog(interaction, db, isAdmin) {
+    try {
+        const cmdLogResult = await db.query('SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = $2', [interaction.guild.id, 'cmdlog']);
+        if (!cmdLogResult.rows[0]?.channel_id) return;
+
+        const channel = interaction.guild.channels.cache.get(cmdLogResult.rows[0].channel_id);
+        if (!channel) return;
+
+        const logEmbed = new EmbedBuilder()
+            .setColor(isAdmin ? 0x2B2D31 : 0x3498DB) 
+            .setAuthor({ name: 'Command Executed', iconURL: interaction.user.displayAvatarURL() })
+            .setDescription(`**Command:** \`${interaction.toString()}\``)
+            .addFields(
+                { name: '👤 User', value: `${interaction.user} (\`${interaction.user.id}\`)`, inline: true },
+                { name: '📺 Channel', value: `${interaction.channel} (\`${interaction.channel.id}\`)`, inline: true }
+            )
+            .setTimestamp();
+
+        await channel.send({ embeds: [logEmbed] }).catch(() => {});
+    } catch (e) {
+        console.warn('[LOG-ERROR] Could not send command log:', e.message);
+    }
+}
