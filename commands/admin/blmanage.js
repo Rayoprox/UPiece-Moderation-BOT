@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
 const db = require('../../utils/db.js');
+const { moderation, error } = require('../../utils/embedFactory.js');
 
 const BLACKLIST_COLOR = 0x8B0000; 
 
@@ -8,7 +9,6 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('blmanage')
         .setDescription('Manages the appeal blacklist for the server.')
-        // CAMBIO: Visible para ManageMessages
         .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages)
         .addSubcommand(subcommand =>
             subcommand
@@ -29,8 +29,6 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        
-
         const subcommand = interaction.options.getSubcommand();
         const guildId = interaction.guild.id;
         
@@ -43,46 +41,33 @@ module.exports = {
                 try {
                     await db.query("INSERT INTO appeal_blacklist (userid, guildid) VALUES ($1, $2) ON CONFLICT DO NOTHING", [userId, guildId]);
                     
-                    return interaction.editReply({ 
-                        embeds: [new EmbedBuilder()
-                            .setColor(BLACKLIST_COLOR)
-                            .setTitle('⚫ User Blacklisted')
-                            .setDescription(`**${userTag}** has been added to the appeal blacklist.`)
-                            .setFooter({ text: `User ID: ${userId}` })
-                            .setTimestamp()],
-                        flags: [MessageFlags.Ephemeral]
-                    });
-                } catch (error) {
-                    console.error('[ERROR] Failed to add user to blacklist:', error);
-                    return interaction.editReply({ content: '❌ An error occurred while adding the user to the blacklist.', flags: [MessageFlags.Ephemeral] }); 
+                    const embed = moderation(`**User Blacklisted**\n**${userTag}** has been added to the appeal blacklist.`);
+                    return interaction.editReply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
+
+                } catch (err) {
+                    console.error('[ERROR] Failed to add user to blacklist:', err);
+                    return interaction.editReply({ embeds: [error('An error occurred while adding the user to the blacklist.')], flags: [MessageFlags.Ephemeral] }); 
                 }
 
             } else if (subcommand === 'remove') {
                 const result = await db.query("DELETE FROM appeal_blacklist WHERE userid = $1 AND guildid = $2 RETURNING userid", [userId, guildId]);
                 
                 if (result.rowCount === 0) {
-                    return interaction.editReply({ content: `❌ **${userTag}** is not currently in the appeal blacklist.`, flags: [MessageFlags.Ephemeral] }); 
+                    return interaction.editReply({ embeds: [error(`**${userTag}** is not currently in the appeal blacklist.`)], flags: [MessageFlags.Ephemeral] }); 
                 }
 
-                return interaction.editReply({ 
-                    embeds: [new EmbedBuilder()
-                        .setColor(0x00FF00)
-                        .setTitle('🟢 User Un-blacklisted')
-                        .setDescription(`**${userTag}** has been removed from the appeal blacklist.`)
-                        .setFooter({ text: `User ID: ${userId}` })
-                        .setTimestamp()],
-                    flags: [MessageFlags.Ephemeral]
-                });
+                const embed = moderation(`**User Un-blacklisted**\n**${userTag}** has been removed from the appeal blacklist.`);
+                return interaction.editReply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
             }
         } else if (subcommand === 'view') {
+           
             const blacklistResult = await db.query('SELECT userid FROM appeal_blacklist WHERE guildid = $1', [guildId]);
             const blacklist = blacklistResult.rows;
 
             if (blacklist.length === 0) {
-                return interaction.editReply({ content: 'The appeal blacklist is currently empty.', flags: [MessageFlags.Ephemeral] }); 
+                return interaction.editReply({ embeds: [error('The appeal blacklist is currently empty.')], flags: [MessageFlags.Ephemeral] }); 
             }
 
-           
             const userList = await Promise.all(blacklist.map(async entry => {
                 const user = await interaction.client.users.fetch(entry.userid).catch(() => null);
                 return `\`${entry.userid}\` - ${user ? user.tag : '*Unknown User Tag*'}`;

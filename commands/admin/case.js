@@ -1,74 +1,69 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, MessageFlags } = require('../../node_modules/discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
 const db = require('../../utils/db.js');
-const { emojis } = require('../../utils/config.js');
+const { error } = require('../../utils/embedFactory.js');
+
+
+const ACTION_COLORS = {
+    BAN: 0xAA0000,      
+    KICK: 0xE67E22,    
+    TIMEOUT: 0xFFFFFF,  
+    MUTE: 0xFFFFFF,     
+    WARN: 0xF1C40F,     
+    UNBAN: 0x2ECC71,  
+    UNMUTE: 0x2ECC71,  
+    SOFTBAN: 0xE67E22,  
+    VOIDED: 0x546E7A,   
+    DEFAULT: 0x3498DB   
+};
 
 module.exports = {
-    deploy: 'main', 
-    isPublic: true, 
+    deploy: 'main',
+    isPublic: true,
     data: new SlashCommandBuilder()
         .setName('case')
-        .setDescription('Displays details about a specific moderation case ID.')
-        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages) 
-        .addStringOption(option =>
-            option.setName('case_id')
-                .setDescription('The Case ID of the log to view (e.g., CASE-12345).')
-                .setRequired(true)),
+        .setDescription('View details of a specific moderation case.')
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages)
+        .addStringOption(option => option.setName('case_id').setDescription('The Case ID to lookup.').setRequired(true)),
 
     async execute(interaction) {
-        
-        
         const caseId = interaction.options.getString('case_id').trim();
         const guildId = interaction.guild.id;
 
-      
-        const logResult = await db.query('SELECT * FROM modlogs WHERE caseid = $1 AND guildid = $2', [caseId, guildId]);
-        const log = logResult.rows[0];
-
-        if (!log) {
-          
-            return interaction.editReply({ content: `${emojis.error} Case ID \`${caseId}\` not found in the logs for this server.`, flags: [MessageFlags.Ephemeral] });
+        const result = await db.query('SELECT * FROM modlogs WHERE caseid = $1 AND guildid = $2', [caseId, guildId]);
+        
+        if (result.rows.length === 0) {
+            return interaction.editReply({ embeds: [error(`Case ID \`${caseId}\` not found.`)], flags: [MessageFlags.Ephemeral] });
         }
 
-  
-        const timestamp = Math.floor(Number(log.timestamp) / 1000);
-        const action = log.action.charAt(0).toUpperCase() + log.action.slice(1).toLowerCase();
+        const log = result.rows[0];
+        const actionUpper = log.action ? log.action.toUpperCase() : 'UNKNOWN';
         
-        let color = 0x3498DB; 
-        if (log.action === 'WARN') color = 0xFFA500;
-        else if (log.action === 'TIMEOUT' || log.action === 'MUTE') color = 0xFFA500;
-        else if (log.action === 'BAN') color = 0xAA0000;
-        else if (log.action === 'KICK') color = 0xE67E22;
-        else if (log.status === 'VOIDED' || log.status === 'REMOVED' || log.status === 'EXPIRED') color = 0x95A5A6;
-        
-        const endsAtValue = log.endsat ? `<t:${Math.floor(Number(log.endsat) / 1000)}:R>` : 'Permanent / N/A';
-        const statusEmoji = log.status === 'ACTIVE' ? '🟢' : (log.status === 'EXPIRED' ? '⚪' : (log.status === 'VOIDED' ? '❌' : '✅'));
 
-        const caseEmbed = new EmbedBuilder()
-            .setColor(color)
-            .setTitle(`${emojis.case_id} Case Details: ${action}`)
-            .setDescription(`Information for Case ID: \`${caseId}\``)
+        let embedColor = ACTION_COLORS.DEFAULT;
+        if (log.status === 'VOIDED') embedColor = ACTION_COLORS.VOIDED;
+        else if (ACTION_COLORS[actionUpper]) embedColor = ACTION_COLORS[actionUpper];
+
+        const embed = new EmbedBuilder()
+            .setColor(embedColor)
+            .setTitle(`Case ${log.caseid}`) 
             .addFields(
-                { name: `${emojis.user} Target User`, value: `<@${log.userid}> (\`${log.usertag || 'Unknown Tag'}\`)`, inline: true },
-                { name: `${emojis.moderator} Moderator`, value: `<@${log.moderatorid}> (\`${log.moderatortag || 'Unknown Tag'}\`)`, inline: true },
-                { name: `\u200B`, value: `\u200B`, inline: true }, // Espacio
-                { name: `${emojis.reason} Reason`, value: log.reason.substring(0, 1024), inline: false },
-                { name: `\u200B`, value: `\u200B`, inline: false }, // Espacio
-                { name: `Action Type`, value: action, inline: true },
-                { name: `${emojis.duration} Duration`, value: log.action_duration || 'N/A', inline: true },
-                { name: `Status`, value: `${statusEmoji} ${log.status}`, inline: true }
-            )
-            .setFooter({ text: `Issued on: ${new Date(Number(log.timestamp)).toLocaleDateString()}` })
-            .setTimestamp(Number(log.timestamp));
-            
+                { name: 'User', value: `${log.usertag} (${log.userid})`, inline: true },
+                { name: 'Staff', value: log.moderatortag || 'Unknown', inline: true },
+                { name: 'Action', value: actionUpper, inline: true },
+                { name: 'Reason', value: log.reason || 'No reason specified', inline: false }
+            );
+
+       
+        if (log.action_duration) {
+            embed.addFields({ name: 'Duration', value: log.action_duration, inline: true });
+        }
         
-        if (log.endsat && log.status === 'ACTIVE' && (log.action === 'BAN' || log.action === 'TIMEOUT')) {
-             caseEmbed.addFields(
-                 { name: `\u200B`, value: `\u200B`, inline: false },
-                 { name: 'Expiration', value: endsAtValue, inline: false }
-             );
+        if (log.status && log.status !== 'EXECUTED') {
+            embed.addFields({ name: 'Status', value: log.status, inline: true });
         }
 
-        
-        await interaction.editReply({ embeds: [caseEmbed] });
+        embed.setFooter({ text: `Date: ${new Date(parseInt(log.timestamp)).toLocaleString()}` });
+
+        await interaction.editReply({ embeds: [embed] });
     },
 };

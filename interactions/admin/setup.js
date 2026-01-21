@@ -1,5 +1,8 @@
-const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
-const { safeDefer } = require('../../utils/interactionHelpers.js');
+const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+const db = require('../../utils/db.js');
+const guildCache = require('../../utils/guildCache.js');
+const { success, error } = require('../../utils/embedFactory.js');
+
 
 const setupHome = require('./setup_sections/home.js');
 const setupMenus = require('./setup_sections/menus.js'); 
@@ -9,16 +12,63 @@ const setupPermissions = require('./setup_sections/permissions.js');
 const setupAntinuke = require('./setup_sections/antinuke.js');
 const setupReset = require('./setup_sections/reset.js');
 const ticketSetup = require('../tickets/ticketSetup.js');
-
 const setupAutomod = require('./automod.js'); 
 
 module.exports = {
     async execute(interaction) {
-        const { customId } = interaction;
+        const { customId, guild } = interaction;
 
-        if (customId === 'setup_home') {
-            if (!await safeDefer(interaction, true)) return;
-            const { embed, components } = await setupHome.generateSetupContent(interaction, interaction.guild.id);
+   
+        if (customId === 'setup_prefix') {
+            const modal = new ModalBuilder().setCustomId('modal_setup_prefix').setTitle('Change Server Prefix');
+            const prefixInput = new TextInputBuilder().setCustomId('prefix_input').setLabel("New Prefix (Max 3 chars)").setStyle(TextInputStyle.Short).setPlaceholder('!, ., ?, kb!, etc.').setMaxLength(3).setRequired(true);
+            const row = new ActionRowBuilder().addComponents(prefixInput);
+            modal.addComponents(row);
+            await interaction.showModal(modal);
+            return;
+        }
+
+ 
+        if (interaction.isModalSubmit && interaction.isModalSubmit()) {
+            if (customId === 'modal_setup_prefix') {
+                await interaction.deferReply({ ephemeral: true });
+                const newPrefix = interaction.fields.getTextInputValue('prefix_input').trim();
+                
+                if (!newPrefix) return interaction.editReply({ embeds: [error("Prefix cannot be empty.")] });
+
+                try {
+                    await db.query(`INSERT INTO guild_settings (guildid, prefix) VALUES ($1, $2) ON CONFLICT (guildid) DO UPDATE SET prefix = $2`, [guild.id, newPrefix]);
+                    
+                    let cached = guildCache.get(guild.id);
+                    if (!cached) cached = { settings: {}, permissions: [] };
+                    cached.settings.prefix = newPrefix;
+                    guildCache.set(guild.id, cached);
+
+            
+                    if (interaction.message) {
+                        const { embed, components } = await setupHome.generateSetupContent(interaction, guild.id);
+                    
+                        await interaction.message.edit({ embeds: [embed], components }).catch(() => {});
+                    }
+                    
+                    await interaction.editReply({ embeds: [success(`Prefix successfully changed to: \`${newPrefix}\``)] });
+                } catch (err) {
+                    console.error(err);
+                    await interaction.editReply({ embeds: [error("Database error.")] });
+                }
+                return;
+            }
+        }
+
+        
+        if (!interaction.isModalSubmit() && !interaction.replied && !interaction.deferred) {
+            await interaction.deferUpdate().catch(() => {});
+        }
+
+        if (customId === 'setup_home' || customId === 'cancel_setup') {
+            const { embed, components } = await setupHome.generateSetupContent(interaction, guild.id);
+            
+           
             await interaction.editReply({ embeds: [embed], components });
             return;
         }
@@ -27,6 +77,7 @@ module.exports = {
             return await ticketSetup(interaction);
         }
 
+  
         if (customId.startsWith('setup_menu_') || customId.startsWith('setup_lockdown') || customId === 'select_lockdown_channels') {
             return await setupMenus(interaction);
         }

@@ -27,6 +27,7 @@ const db = {
         await db.query(`CREATE TABLE IF NOT EXISTS lockdown_channels (guildid TEXT NOT NULL, channel_id TEXT NOT NULL, PRIMARY KEY (guildid, channel_id));`);
         await db.query(`CREATE TABLE IF NOT EXISTS lockdown_backups (guildid TEXT NOT NULL, channel_id TEXT NOT NULL, permissions_json TEXT NOT NULL, PRIMARY KEY (guildid, channel_id));`);
         
+      
         await db.query(`
             CREATE TABLE IF NOT EXISTS licenses (
                 key TEXT PRIMARY KEY,
@@ -38,6 +39,15 @@ const db = {
             );
         `);
 
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS generated_licenses (
+                license_key TEXT PRIMARY KEY,
+                duration_days INTEGER, -- NULL = Permanente
+                created_at BIGINT
+            );
+        `);
+
+  
         try { await db.query(`ALTER TABLE modlogs RENAME COLUMN modid TO moderatorid`); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN moderatorid TEXT`); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN dmstatus TEXT`); } catch (e) {}
@@ -51,8 +61,8 @@ const db = {
         try { await db.query(`ALTER TABLE ticket_panels ADD COLUMN ticket_limit INTEGER DEFAULT 1`); } catch (e) {}
         try { await db.query(`ALTER TABLE ticket_panels ADD COLUMN welcome_color TEXT DEFAULT '#5865F2'`); } catch (e) {} 
         try { await db.query(`ALTER TABLE ticket_panels ADD COLUMN panel_color TEXT DEFAULT '#5865F2'`); } catch (e) {}
+        try { await db.query(`ALTER TABLE guild_settings ADD COLUMN prefix TEXT DEFAULT '!'`); } catch (e) {}
         
-
         console.log('✅ PostgreSQL Database Integrity Check Completed.');
     }
 };

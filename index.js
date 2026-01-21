@@ -39,21 +39,29 @@ const commandsToDeploy = { main: [], appeal: [], global: [] };
 
 for (const folder of commandFolders) {
     const commandsPath = path.join(foldersPath, folder);
+    
+
+    if (!fs.lstatSync(commandsPath).isDirectory()) continue;
+
     const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
     for (const file of commandFiles) {
         const filePath = path.join(commandsPath, file);
         const command = require(filePath);
+        
         if ('data' in command && 'execute' in command) {
             client.commands.set(command.data.name, command);
             
         
-            if (command.deploy === 'main') commandsToDeploy.main.push(command.data.toJSON());
-            else if (command.deploy === 'appeal') commandsToDeploy.appeal.push(command.data.toJSON());
-            else if (command.deploy === 'all') commandsToDeploy.global.push(command.data.toJSON());
+            if (command.deploy === 'main') {
+                commandsToDeploy.main.push(command.data.toJSON());
+            } else if (command.deploy === 'appeal') {
+                commandsToDeploy.appeal.push(command.data.toJSON());
+            } else if (command.deploy === 'all' || command.deploy === 'global') {
+                commandsToDeploy.global.push(command.data.toJSON());
+            }
         }
     }
 }
-
 
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
@@ -68,13 +76,12 @@ for (const file of eventFiles) {
     }
 }
 
-
 async function autoDeployCommands() {
     const rest = new REST().setToken(process.env.DISCORD_TOKEN);
     console.log('🔄 Auto-Deploying commands to Discord API...');
 
     try {
-    
+     
         if (process.env.DISCORD_GUILD_ID && commandsToDeploy.main.length > 0) {
             await rest.put(
                 Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID),
@@ -83,6 +90,7 @@ async function autoDeployCommands() {
             console.log(`✅ [Main Guild] ${commandsToDeploy.main.length} commands updated.`);
         }
 
+  
         if (process.env.DISCORD_APPEAL_GUILD_ID && commandsToDeploy.appeal.length > 0) {
             await rest.put(
                 Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_APPEAL_GUILD_ID),
@@ -91,7 +99,7 @@ async function autoDeployCommands() {
             console.log(`✅ [Appeal Guild] ${commandsToDeploy.appeal.length} commands updated.`);
         }
 
-   
+        
         if (commandsToDeploy.global.length > 0) {
             await rest.put(
                 Routes.applicationCommands(process.env.DISCORD_CLIENT_ID),
@@ -104,7 +112,6 @@ async function autoDeployCommands() {
     }
 }
 
-
 process.on('unhandledRejection', (reason) => {
     console.error('Unhandled Rejection:', reason);
 });
@@ -114,17 +121,13 @@ process.on('uncaughtException', (err) => {
 
 (async () => {
     try {
-     
         console.log('🔄 Connecting to Database...');
         await db.ensureTables();
         
-       
         await initLogger();
         
-     
         await autoDeployCommands();
 
-       
         console.log('🔄 Logging into Discord...');
         await client.login(process.env.DISCORD_TOKEN);
         

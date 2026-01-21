@@ -1,12 +1,12 @@
 const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const db = require('../../utils/db.js');
-const { success, error } = require('../../utils/embedFactory.js');
+const { success, error, moderation } = require('../../utils/embedFactory.js');
 
 module.exports = {
     deploy: 'main',
     data: new SlashCommandBuilder()
         .setName('unlockdown')
-        .setDescription('🔓 UNLOCKDOWN: Restores permissions from the last lockdown.')
+        .setDescription('UNLOCKDOWN: Restores permissions from the last lockdown.')
         .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages),
 
     async execute(interaction) {
@@ -35,6 +35,7 @@ module.exports = {
 
         await db.query("DELETE FROM lockdown_backups WHERE guildid = $1", [guild.id]);
 
-        await interaction.editReply({ embeds: [success(`🔓 **LOCKDOWN LIFTED**\n\nChannels Restored: ${unlockedCount}\nOriginal permissions restored.`)] });
+        const embed = moderation(`**SERVER LOCKDOWN LIFTED**\n\n**Channels Restored:** ${unlockedCount}\nOriginal permissions restored.`);
+        await interaction.editReply({ embeds: [embed] });
     },
 };

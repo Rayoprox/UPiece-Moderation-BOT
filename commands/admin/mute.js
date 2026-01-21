@@ -3,10 +3,9 @@ const db = require('../../utils/db.js');
 const ms = require('ms');
 const { resumePunishmentsOnStart } = require('../../utils/temporary_punishment_handler.js');
 const { emojis } = require('../../utils/config.js');
-const { success, error } = require('../../utils/embedFactory.js');
+const { success, error, moderation } = require('../../utils/embedFactory.js');
 
-const MUTE_COLOR = 0xFFA500; 
-
+const MUTE_COLOR = 0xFFFFFF; 
 module.exports = {
     deploy: 'main',
     isPublic: true,
@@ -54,18 +53,19 @@ module.exports = {
 
         let dmSent = false;
         try {
+           
              const dmEmbed = new EmbedBuilder()
                 .setColor(MUTE_COLOR)
-                .setTitle(`${emojis.mute} You've Been Timed Out in ${interaction.guild.name}`)
-                .setDescription(`Your communication privileges have been restricted.`)
-                .setThumbnail(interaction.guild.iconURL({ dynamic: true, size: 128 }))
+                .setTitle(`Muted in ${interaction.guild.name}`)
+                .setDescription(`You have been muted in **${interaction.guild.name}**.`)
                 .addFields(
-                    { name: `${emojis.duration} Duration`, value: durationStr, inline: true },
-                    { name: `${emojis.moderator} Moderator`, value: cleanModeratorTag, inline: true },
-                    { name: `${emojis.reason} Reason`, value: `\`\`\`\n${cleanReason}\n\`\`\``, inline: false }
+                    { name: 'Reason', value: cleanReason, inline: false },
+                    { name: 'Duration', value: durationStr, inline: true }
                 )
-                .setFooter({ text: `Case ID: ${caseId} | Time ends:` })
-                .setTimestamp(endsAt);
+                .setFooter({ text: `Case ID: ${caseId}` })
+                .setTimestamp();
+        
+
             await targetUser.send({ embeds: [dmEmbed] });
             dmSent = true;
         } catch (error) { dmSent = false; }
@@ -87,41 +87,28 @@ module.exports = {
 
         resumePunishmentsOnStart(interaction.client); 
 
-     
         const modLogResult = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = $2", [guildId, 'modlog']);
         if (modLogResult.rows[0]?.channel_id) {
             const channel = interaction.guild.channels.cache.get(modLogResult.rows[0].channel_id);
             if(channel) {
                 const modLogEmbed = new EmbedBuilder()
                     .setColor(MUTE_COLOR)
-                    .setAuthor({ name: `${targetUser.tag} has been MUTED`, iconURL: targetUser.displayAvatarURL({ dynamic: true }) })
+                    .setTitle('Mute')
                     .addFields(
-                        { name: `${emojis.user} User`, value: `<@${targetUser.id}> (\`${targetUser.id}\`)`, inline: true }, 
-                        { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}> (\`${interaction.user.id}\`)`, inline: true },
-                        { name: `${emojis.duration} Duration`, value: durationStr, inline: true }, 
-                        { name: `${emojis.reason} Reason`, value: cleanReason, inline: false }, 
-                        { name: `${emojis.dm_sent} DM Sent`, value: dmSent ? '✅ Yes' : '❌ No/Failed', inline: true }
+                        { name: 'User', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
+                        { name: 'Staff', value: interaction.user.tag, inline: true },
+                        { name: 'Reason', value: cleanReason, inline: false },
+                        { name: 'Duration', value: durationStr, inline: true }
                     )
                     .setFooter({ text: `Case ID: ${caseId}` })
                     .setTimestamp();
+
                 const sentMessage = await channel.send({ embeds: [modLogEmbed] }).catch(console.error);
                 if (sentMessage) await db.query("UPDATE modlogs SET logmessageid = $1 WHERE caseid = $2", [sentMessage.id, caseId]);
             }
         }
         
-      
-        const publicEmbed = success(`**${targetUser.tag}** has been **timed out** successfully.`)
-            .setTitle(`${emojis.success} Mute Applied`)
-            .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 64 }))
-            .addFields(
-                { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}>`, inline: true }, 
-                { name: `${emojis.duration} Duration`, value: durationStr, inline: true }, 
-                { name: `${emojis.case_id} Case ID`, value: `\`${caseId}\``, inline: true },
-                { name: `${emojis.reason} Reason`, value: cleanReason, inline: false }
-            )
-            .setFooter({ text: `Timeout ends:` })
-            .setTimestamp(endsAt); 
-            
+        const publicEmbed = moderation(`**${targetUser.tag}** has been muted for **${durationStr}**.\n**Reason:** ${cleanReason}`);
         await interaction.editReply({ embeds: [publicEmbed] });
     },
 };

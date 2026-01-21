@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
 const db = require('../../utils/db.js');
 const { emojis } = require('../../utils/config.js');
-const { success, error } = require('../../utils/embedFactory.js');
+const { success, error, moderation } = require('../../utils/embedFactory.js');
 
 const KICK_COLOR = 0xE67E22; 
 
@@ -46,14 +46,15 @@ module.exports = {
         try {
             const dmEmbed = new EmbedBuilder()
                 .setColor(KICK_COLOR) 
-                .setTitle(`${emojis.kick} You've Been Kicked from ${interaction.guild.name}`)
-                .setDescription(`This is a notification that you have been **kicked**. You are free to rejoin if you have a valid invite.`)
+                .setTitle(`Kicked from ${interaction.guild.name}`)
+                .setDescription(`You have been kicked from **${interaction.guild.name}**.`)
                 .addFields(
-                    { name: `${emojis.moderator} Moderator`, value: cleanModeratorTag, inline: true },
-                    { name: `${emojis.reason} Reason`, value: `\`\`\`\n${cleanReason}\n\`\`\``, inline: false }
+                    { name: 'Reason', value: cleanReason, inline: false }
                 )
                 .setFooter({ text: `Case ID: ${caseId}` })
                 .setTimestamp();
+            
+            
             await targetUser.send({ embeds: [dmEmbed] });
             dmSent = true;
         } catch (error) {
@@ -69,7 +70,6 @@ module.exports = {
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             `, [caseId, guildId, 'KICK', targetUser.id, targetUser.tag, interaction.user.id, cleanModeratorTag, cleanReason, currentTimestamp, 0, 'EXECUTED', dmSent ? 'SENT' : 'FAILED']);
 
-           
             const modLogResult = await db.query('SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = $2', [guildId, 'modlog']);
             const modLogChannelId = modLogResult.rows[0]?.channel_id;
             
@@ -78,12 +78,11 @@ module.exports = {
                 if (channel) {
                    const modLogEmbed = new EmbedBuilder()
                     .setColor(KICK_COLOR)
-                    .setAuthor({ name: `${targetUser.tag} has been KICKED`, iconURL: targetUser.displayAvatarURL({ dynamic: true }) })
+                    .setTitle('Kick')
                     .addFields(
-                        { name: `${emojis.user} User`, value: `<@${targetUser.id}> (\`${targetUser.id}\`)`, inline: true },
-                        { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}> (\`${interaction.user.id}\`)`, inline: true },
-                        { name: `${emojis.reason} Reason`, value: cleanReason, inline: false },
-                        { name: `${emojis.dm_sent} DM Sent`, value: dmSent ? '✅ Yes' : '❌ No/Failed', inline: true }
+                        { name: 'User', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
+                        { name: 'Staff', value: interaction.user.tag, inline: true },
+                        { name: 'Reason', value: cleanReason, inline: false }
                     )
                     .setFooter({ text: `Case ID: ${caseId}` })
                     .setTimestamp();
@@ -93,16 +92,7 @@ module.exports = {
                 }
             }
             
-         
-            const publicEmbed = success(`**${targetUser.tag}** has been **kicked** from the server.`)
-                .setTitle(`${emojis.success} Kick Executed`)
-                .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 64 }))
-                .addFields(
-                    { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}>`, inline: true },
-                    { name: `${emojis.case_id} Case ID`, value: `\`${caseId}\``, inline: true },
-                    { name: `${emojis.reason} Reason`, value: cleanReason, inline: false }
-                );
-
+            const publicEmbed = moderation(`**${targetUser.tag}** has been kicked.\n**Reason:** ${cleanReason}`);
             await interaction.editReply({ embeds: [publicEmbed] });
 
         } catch (err) {

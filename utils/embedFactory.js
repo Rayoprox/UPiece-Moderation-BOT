@@ -2,8 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 const { emojis } = require('./config.js');
 
 /**
- * 
- * @param {string} type 
+ * * @param {string} type 
  * @param {string} description 
  */
 const createEmbed = (type, description) => {
@@ -11,20 +10,20 @@ const createEmbed = (type, description) => {
     
     switch (type) {
         case 'success':
-            color = 0x2ECC71; // Emerald Green
+            color = 0x2ECC71; 
             titleEmoji = emojis?.success || '✅';
             break;
         case 'error':
-            color = 0xE74C3C; // Alizarin Red
+            color = 0xE74C3C; 
             titleEmoji = emojis?.error || '❌';
             break;
         case 'warn':
-            color = 0xF1C40F; // Sun Flower Yellow
+            color = 0xF1C40F; 
             titleEmoji = emojis?.warn || '⚠️';
             break;
         case 'info':
         default:
-            color = 0x3498DB; // Peter River Blue
+            color = 0x3498DB; 
             titleEmoji = emojis?.info || 'ℹ️';
     }
 
@@ -33,9 +32,21 @@ const createEmbed = (type, description) => {
         .setDescription(`${titleEmoji} ${description}`);
 };
 
+/**
+ * 
+ * @param {string} description 
+ */
+const createModerationEmbed = (description) => {
+    return new EmbedBuilder()
+        .setColor(0x2ECC71) 
+        .setDescription(description)
+        .setFooter({ text: 'Made by: ukirama' });
+};
+
 module.exports = {
     success: (text) => createEmbed('success', text),
     error: (text) => createEmbed('error', text),
     warn: (text) => createEmbed('warn', text),
-    info: (text) => createEmbed('info', text)
+    info: (text) => createEmbed('info', text),
+    moderation: (text) => createModerationEmbed(text)
 };

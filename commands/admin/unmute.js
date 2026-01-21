@@ -2,9 +2,9 @@ const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, MessageFlags } =
 const db = require('../../utils/db.js');
 const { initializeTimerMap } = require('../../utils/temporary_punishment_handler.js');
 const { emojis } = require('../../utils/config.js');    
-const { success, error } = require('../../utils/embedFactory.js');
+const { success, error, moderation } = require('../../utils/embedFactory.js');
 
-const UNMUTE_COLOR = 0x2ECC71;
+const UNMUTE_COLOR = 0x2ECC71; // Verde
 
 module.exports = {
     deploy: 'main',
@@ -52,30 +52,28 @@ module.exports = {
         const unmuteCaseId = `CASE-${currentTimestamp}`;
         await db.query(`INSERT INTO modlogs (caseid, guildid, action, userid, usertag, moderatorid, moderatortag, reason, timestamp, appealable, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, [unmuteCaseId, guildId, 'UNMUTE', targetUser.id, targetUser.tag, interaction.user.id, cleanModeratorTag, cleanReason, currentTimestamp, 0, 'EXECUTED']);
 
-      
+        // LOG SIMPLE
         const modLogResult = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'modlog'", [guildId]);
         if (modLogResult.rows[0]?.channel_id) {
             const channel = interaction.guild.channels.cache.get(modLogResult.rows[0].channel_id);
             if(channel){
-               const modLogEmbed = new EmbedBuilder().setColor(UNMUTE_COLOR).setAuthor({ name: `${targetUser.tag} has been UNMUTED`, iconURL: targetUser.displayAvatarURL({ dynamic: true }) }).addFields(
-                    { name: `${emojis.user} User`, value: `<@${targetUser.id}> (\`${targetUser.id}\`)`, inline: true },
-                    { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}> (\`${interaction.user.id}\`)`, inline: true },
-                    { name: `${emojis.reason} Reason`, value: cleanReason, inline: false }
-                ).setFooter({ text: `Case ID: ${unmuteCaseId}` }).setTimestamp();
+               const modLogEmbed = new EmbedBuilder()
+                    .setColor(UNMUTE_COLOR)
+                    .setTitle('Unmute')
+                    .addFields(
+                        { name: 'User', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
+                        { name: 'Staff', value: interaction.user.tag, inline: true },
+                        { name: 'Reason', value: cleanReason, inline: false }
+                    )
+                    .setFooter({ text: `Case ID: ${unmuteCaseId}` })
+                    .setTimestamp();
+
                 const sentMessage = await channel.send({ embeds: [modLogEmbed] }).catch(console.error);
                 if (sentMessage) await db.query("UPDATE modlogs SET logmessageid = $1 WHERE caseid = $2", [sentMessage.id, unmuteCaseId]); 
             }
         }
         
-       
-        const publicEmbed = success(`**${targetUser.tag}**'s communication privileges have been **restored**.`)
-            .setTitle(`${emojis.unmute} Unmute Successful`)
-            .addFields(
-                { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}>` },
-                { name: `${emojis.reason} Reason`, value: cleanReason }
-            )
-            .setFooter({ text: `User ID: ${targetUser.id}` });
-        
+        const publicEmbed = moderation(`**${targetUser.tag}** has been unmuted.\n**Reason:** ${cleanReason}`);
         await interaction.editReply({ embeds: [publicEmbed] });
     },
 };

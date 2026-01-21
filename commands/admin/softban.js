@@ -1,9 +1,9 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
 const db = require('../../utils/db.js');
 const { emojis } = require('../../utils/config.js'); 
+const { moderation } = require('../../utils/embedFactory.js');
 
-const SOFTBAN_COLOR = 0xF1C40F;
-const SUCCESS_COLOR = 0x2ECC71;
+const SOFTBAN_COLOR = 0xE67E22; 
 
 module.exports = {
     deploy: 'main',
@@ -33,14 +33,12 @@ module.exports = {
         const cleanReason = reason.trim();
         const currentTimestamp = Date.now();
         
-     
         if (targetUser.id === interaction.user.id) return interaction.editReply({ content: `${emojis.error} You cannot softban yourself.`, flags: [MessageFlags.Ephemeral] });
         if (targetUser.id === interaction.client.user.id) return interaction.editReply({ content: `${emojis.error} You cannot softban me.`, flags: [MessageFlags.Ephemeral] });
         if (targetUser.id === interaction.guild.ownerId) return interaction.editReply({ content: `${emojis.error} You cannot softban the server owner.`, flags: [MessageFlags.Ephemeral] });
 
         const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
 
-    
         if (targetMember) {
             const guildSettingsResult = await db.query('SELECT staff_roles FROM guild_settings WHERE guildid = $1', [guildId]);
             const staffIds = guildSettingsResult.rows[0]?.staff_roles ? guildSettingsResult.rows[0].staff_roles.split(',') : [];
@@ -55,17 +53,17 @@ module.exports = {
         
         let dmSent = false;
         try {
+          
             const dmEmbed = new EmbedBuilder()
                 .setColor(SOFTBAN_COLOR)
-                .setTitle(`${emojis.ban} Softban Executed in ${interaction.guild.name}`)
+                .setTitle(`Softban Executed in ${interaction.guild.name}`)
                 .setDescription(`Your recent messages have been deleted, and you have been temporarily banned and immediately unbanned.`)
-                .setThumbnail(interaction.guild.iconURL({ dynamic: true, size: 128 }))
                 .addFields(
-                    { name: `${emojis.moderator} Moderator`, value: `${cleanModeratorTag}`, inline: true },
-                    { name: `${emojis.reason} Reason for Message Deletion`, value: `\`\`\`\n${cleanReason}\n\`\`\``, inline: false }
+                    { name: 'Reason', value: cleanReason, inline: false }
                 )
-                .setFooter({ text: `Case ID: ${softbanCaseId} | You are immediately free to rejoin.` })
+                .setFooter({ text: `Case ID: ${softbanCaseId} | You are free to rejoin.` })
                 .setTimestamp();
+        
             
             await targetUser.send({ embeds: [dmEmbed] });
             dmSent = true; 
@@ -75,7 +73,6 @@ module.exports = {
         }
 
         try {
-    
             await interaction.guild.bans.create(targetUser.id, { reason: banReason, deleteMessageSeconds });
          
             await db.query(`
@@ -94,16 +91,15 @@ module.exports = {
                 if (channel) {
                       const modLogEmbed = new EmbedBuilder()
                         .setColor(SOFTBAN_COLOR)
-                        .setAuthor({ name: `${targetUser.tag} has been SOFTBANNED`, iconURL: targetUser.displayAvatarURL({ dynamic: true }) })
+                        .setTitle('Softban')
                         .addFields(
-                            { name: `${emojis.user} User`, value: `<@${targetUser.id}> (\`${targetUser.id}\`)`, inline: true },
-                            { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}> (\`${interaction.user.id}\`)`, inline: true },
-                            { name: `Messages Deleted`, value: `${deleteMessageSeconds / 3600} hours`, inline: true },
-                            { name: `${emojis.reason} Reason`, value: cleanReason, inline: false },
-                            { name: `${emojis.dm_sent} DM Sent`, value: dmSent ? '✅ Yes' : '❌ No/Failed', inline: true }
+                            { name: 'User', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
+                            { name: 'Staff', value: interaction.user.tag, inline: true },
+                            { name: 'Messages Deleted', value: `${deleteMessageSeconds / 3600} hours`, inline: true },
+                            { name: 'Reason', value: cleanReason, inline: false }
                         )
                         .setTimestamp()
-                        .setFooter({ text: `Case ID: ${softbanCaseId} | Action: Message Cleaning & Auto-Unban` });
+                        .setFooter({ text: `Case ID: ${softbanCaseId}` });
                         
                     const sentSoftbanLog = await channel.send({ embeds: [modLogEmbed] }).catch(e => console.error(`[ERROR] Failed to send softban modlog: ${e}`));
                     
@@ -113,7 +109,6 @@ module.exports = {
                 }
             }
             
-          
             const unbanReason = `[CMD] Auto-Unban after Softban (Moderator: ${cleanModeratorTag}, Case ID: ${softbanCaseId})`;
             await interaction.guild.bans.remove(targetUser.id, unbanReason); 
          
@@ -132,21 +127,7 @@ module.exports = {
             return interaction.editReply({ content: `${emojis.error} An unexpected error occurred while executing the Softban. Please check my permissions. The user may be temporarily banned or not banned.`, flags: [MessageFlags.Ephemeral] });
         }
 
-   
-        const publicEmbed = new EmbedBuilder()
-            .setColor(SUCCESS_COLOR) 
-            .setTitle(`${emojis.success} Softban Successfully Executed`)
-            .setDescription(`The user **${targetUser.tag}** was softbanned to **clear messages** and immediately unbanned.`)
-            .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 64 }))
-            .addFields(
-                { name: `${emojis.user} Target User`, value: `<@${targetUser.id}> (\`${targetUser.id}\`)`, inline: true },
-                { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}>`, inline: true },
-                { name: `${emojis.case_id} Softban ID`, value: `\`${softbanCaseId}\``, inline: true },
-                { name: `${emojis.reason} Reason`, value: cleanReason, inline: false },
-                { name: `${emojis.dm_sent} DM Status`, value: dmSent ? '✅ Sent' : '❌ Failed', inline: true }
-            )
-            .setTimestamp();
-
+        const publicEmbed = moderation(`**${targetUser.tag}** has been softbanned.\n**Reason:** ${cleanReason}`);
         await interaction.editReply({ embeds: [publicEmbed] });
     },
 };

@@ -1,4 +1,4 @@
-// utils/config.js
+
 require('dotenv').config();
 
 const DEVELOPER_IDS = process.env.DEVELOPER_IDS 

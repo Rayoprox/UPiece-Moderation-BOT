@@ -1,7 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, ChannelType } = require('discord.js');
 const { emojis } = require('../../utils/config.js');
-
-const LOCK_COLOR = 0xE74C3C;
+const { success, error, moderation } = require('../../utils/embedFactory.js');
 
 module.exports = {
     deploy: 'main',
@@ -22,7 +21,6 @@ module.exports = {
     async execute(interaction) {
         const channel = interaction.options.getChannel('channel') || interaction.channel;
         const reason = interaction.options.getString('reason') || 'No specific reason provided.';
-
       
         await interaction.editReply({ 
             content: `${emojis.loading} **Locking Channel...**` 
@@ -30,12 +28,12 @@ module.exports = {
 
         try {
             const everyoneRole = interaction.guild.roles.everyone;
-
          
             const currentPerms = channel.permissionOverwrites.cache.get(everyoneRole.id);
             if (currentPerms && currentPerms.deny.has(PermissionsBitField.Flags.SendMessages)) {
                 return interaction.editReply({ 
-                    content: `${emojis.error} Channel ${channel} is **already locked**.` 
+                    content: null,
+                    embeds: [error(`Channel ${channel} is **already locked**.`)] 
                 });
             }
 
@@ -43,31 +41,20 @@ module.exports = {
                 SendMessages: false 
             }, { reason: `Lockdown by ${interaction.user.tag}` });
 
-            const lockEmbed = new EmbedBuilder()
-                .setColor(LOCK_COLOR)
-                .setTitle(`${emojis.lock} CHANNEL LOCKED`)
-                .setDescription(`This channel has been placed under **lockdown**.`)
-                .addFields(
-                    { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}>`, inline: true },
-                    { name: `${emojis.reason} Reason`, value: reason, inline: true }
-                )
-                .setFooter({ text: 'Members cannot send messages.' })
-                .setTimestamp();
+            const lockEmbed = moderation(`**CHANNEL LOCKED**\nThis channel has been placed under lockdown.\n**Reason:** ${reason}`);
 
             await channel.send({ embeds: [lockEmbed] });
 
             await interaction.editReply({ 
                 content: null,
-                embeds: [new EmbedBuilder()
-                    .setColor(LOCK_COLOR)
-                    .setDescription(`${emojis.success} **Channel Locked Successfully.**`)
-                ]
+                embeds: [success(`**Channel Locked Successfully.**`)]
             });
 
-        } catch (error) {
-            console.error("Lock Error:", error);
+        } catch (err) {
+            console.error("Lock Error:", err);
             await interaction.editReply({ 
-                content: `${emojis.error} **Error:** I couldn't lock the channel. check my permissions.\n\`${error.message}\`` 
+                content: null,
+                embeds: [error(`**Error:** I couldn't lock the channel. check my permissions.\n\`${err.message}\``)] 
             });
         }
     },

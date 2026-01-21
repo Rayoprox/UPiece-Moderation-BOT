@@ -1,7 +1,7 @@
-// commands/admin/reason.js (Corregido para editar el embed de forma fiable)
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
 const db = require('../../utils/db.js');
-const { emojis } = require('../../utils/config.js');
+const { moderation, error } = require('../../utils/embedFactory.js');
+
 module.exports = {
     deploy: 'main',
     isPublic: true,
@@ -21,12 +21,11 @@ module.exports = {
         const log = logResult.rows[0];
 
         if (!log) {
-            return interaction.editReply({ content: `❌ Case ID \`${caseId}\` not found.`, flags: [MessageFlags.Ephemeral] });
+            return interaction.editReply({ embeds: [error(`Case ID \`${caseId}\` not found.`)], flags: [MessageFlags.Ephemeral] });
         }
 
         await db.query("UPDATE modlogs SET reason = $1 WHERE caseid = $2", [newReason, caseId]);
 
-        let editSuccess = false;
         if (log.logmessageid) {
             try {
                 const modLogResult = await db.query("SELECT channel_id FROM log_channels WHERE log_type='modlog' AND guildid = $1", [guildId]);
@@ -39,33 +38,26 @@ module.exports = {
                     if (message && message.embeds.length > 0) {
                         const originalEmbed = message.embeds[0];
                         
-                       
-                        const newEmbed = new EmbedBuilder(originalEmbed.toJSON());
+                        const newEmbed = EmbedBuilder.from(originalEmbed);
                         
-                       
                         const reasonFieldIndex = newEmbed.data.fields.findIndex(field => field.name && field.name.toLowerCase().includes('reason'));
 
                         if (reasonFieldIndex !== -1) {
-                            newEmbed.spliceFields(reasonFieldIndex, 1, { name: '📝 Reason', value: newReason, inline: false });
+                            newEmbed.spliceFields(reasonFieldIndex, 1, { name: 'Reason', value: newReason, inline: false });
                         } else {
-                            newEmbed.addFields({ name: '📝 Reason', value: newReason, inline: false });
+                            newEmbed.addFields({ name: 'Reason', value: newReason, inline: false });
                         }
 
                         await message.edit({ embeds: [newEmbed] });
-                        editSuccess = true;
                     }
                 }
-            } catch (error) {
-                console.warn(`[WARN] Could not edit log message for Case ID ${caseId}: ${error.message}`);
+            } catch (err) {
+                console.warn(`[WARN] Could not edit log message for Case ID ${caseId}: ${err.message}`);
             }
         }
-      const confirmationEmbed = new EmbedBuilder()
-            .setColor(0x3498DB)
-            .setTitle(`${emojis.success} Reason Updated`)
-            .setDescription(`The reason for **Case ID \`${caseId}\`** has been updated.`)
-            .addFields({ name: `${emojis.reason} New Reason`, value: `\`\`\`\n${newReason}\n\`\`\`` })
-            .setFooter({ text: editSuccess ? 'The original log embed has also been updated.' : 'Could not update the original log embed.' });
+
+        const embed = moderation(`**Case ID \`${caseId}\` Updated**\nThe reason has been successfully updated.\n**New Reason:** ${newReason}`);
         
-        await interaction.editReply({ embeds: [confirmationEmbed] });
+        await interaction.editReply({ embeds: [embed] });
     },
 };

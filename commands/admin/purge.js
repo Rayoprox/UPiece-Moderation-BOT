@@ -1,9 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
 const { emojis } = require('../../utils/config.js');
-
-const PURGE_COLOR = 0x3498DB; 
-const ERROR_COLOR = 0xE74C3C; 
-const SUCCESS_COLOR = 0x2ECC71; 
+const { success, error, moderation } = require('../../utils/embedFactory.js');
 
 module.exports = {
     deploy: 'main',
@@ -20,15 +17,14 @@ module.exports = {
                 .setMaxValue(100)),
 
     async execute(interaction) {
-      
-        
         const amount = interaction.options.getInteger('amount');
         const channel = interaction.channel;
         const moderatorTag = interaction.user.tag;
         
         if (!channel.permissionsFor(interaction.client.user).has(PermissionsBitField.Flags.ManageMessages)) {
             return interaction.editReply({ 
-                content: `${emojis.error} I do not have the **Manage Messages** permission in this channel.`
+                content: null,
+                embeds: [error(`I do not have the **Manage Messages** permission in this channel.`)]
             });
         }
         
@@ -39,48 +35,29 @@ module.exports = {
             const result = await channel.bulkDelete(messages, true);
             deletedCount = result.size;
 
-        } catch (error) {
-            console.error('[ERROR] Failed to execute purge:', error);
-            
-            const errorEmbed = new EmbedBuilder()
-                .setColor(ERROR_COLOR)
-                .setTitle(`${emojis.error} Purge Operation Failed`)
-                .setDescription('An unexpected error occurred during message deletion. Remember I cannot delete messages older than 14 days.')
-                .addFields(
-                    { name: 'Attempted Amount', value: `${amount}`, inline: true },
-                    { name: `${emojis.channel} Channel`, value: `<#${channel.id}>`, inline: true }
-                )
-                .setFooter({ text: `Moderator: ${moderatorTag}` })
-                .setTimestamp();
-
-            return interaction.editReply({ embeds: [errorEmbed] });
+        } catch (err) {
+            console.error('[ERROR] Failed to execute purge:', err);
+            return interaction.editReply({ embeds: [error('An unexpected error occurred during message deletion. Remember I cannot delete messages older than 14 days.')] });
         }
         
-        const successEmbed = new EmbedBuilder()
-            .setColor(deletedCount < amount ? PURGE_COLOR : SUCCESS_COLOR)
-            .setTitle(`${emojis.success} Message Purge Complete`)
-            .setDescription(`**${deletedCount}** message(s) deleted in <#${channel.id}>.`)
-            .addFields(
-                { name: 'Total Requested', value: `${amount}`, inline: true },
-                { name: `${emojis.moderator} Moderator`, value: moderatorTag, inline: true }
-            );
-
-        let content = null;
+        let description = `**Message Purge Complete**\nDeleted **${deletedCount}** message(s) in <#${channel.id}>.`;
+        
         if (deletedCount < amount) {
-            content = `${emojis.warn} **Note:** ${amount - deletedCount} message(s) could not be deleted because they are older than 14 days.`;
+            description += `\n\n${emojis.warn || '⚠️'} **Note:** ${amount - deletedCount} message(s) could not be deleted because they are older than 14 days.`;
         }
-        
+
+        const publicEmbed = moderation(description);
+
         try {
             await interaction.editReply({ 
-                content: content,
-                embeds: [successEmbed]
+                content: null,
+                embeds: [publicEmbed]
             });
             
-            
             setTimeout(() => interaction.deleteReply().catch(() => {}), 5000); 
-        } catch (error) {
-            if (error.code !== 10008) {
-                 console.warn('[WARN] Failed to edit or delete the final purge interaction reply:', error);
+        } catch (err) {
+            if (err.code !== 10008) {
+                 console.warn('[WARN] Failed to edit or delete the final purge interaction reply:', err);
             }
         }
     },

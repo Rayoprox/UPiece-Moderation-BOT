@@ -1,9 +1,9 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
 const db = require('../../utils/db.js');
 const { emojis } = require('../../utils/config.js');
-const { success, error } = require('../../utils/embedFactory.js');
+const { success, error, moderation } = require('../../utils/embedFactory.js');
 
-const UNBAN_COLOR = 0x2ECC71; 
+const UNBAN_COLOR = 0x2ECC71; // Verde (Acción positiva)
 
 module.exports = {
     deploy: 'main',
@@ -55,37 +55,28 @@ module.exports = {
         const unbanCaseId = `CASE-${currentTimestamp}`;
         await db.query(`INSERT INTO modlogs (caseid, guildid, action, userid, usertag, moderatorid, moderatortag, reason, timestamp, appealable, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, [unbanCaseId, guildId, 'UNBAN', ban.user.id, ban.user.tag, interaction.user.id, interaction.user.tag, cleanReason, currentTimestamp, 0, 'EXECUTED']);
 
-   
+        // LOG SIMPLE
         const modLogResult = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = $2", [guildId, 'modlog']);
         if (modLogResult.rows[0]?.channel_id) {
             const channel = guild.channels.cache.get(modLogResult.rows[0].channel_id);
             if (channel) {
                 const modLogEmbed = new EmbedBuilder()
                     .setColor(UNBAN_COLOR)
-                    .setAuthor({ name: `${ban.user.tag} has been UNBANNED`, iconURL: ban.user.displayAvatarURL({ dynamic: true }) })
+                    .setTitle('Unban')
                     .addFields(
-                        { name: `${emojis.user} User`, value: `${ban.user.tag} (\`${targetId}\`)`, inline: true },
-                        { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}>`, inline: true },
-                        { name: `${emojis.reason} Reason for Unban`, value: cleanReason, inline: false }
+                        { name: 'User', value: `${ban.user.tag} (${targetId})`, inline: true },
+                        { name: 'Staff', value: interaction.user.tag, inline: true },
+                        { name: 'Reason', value: cleanReason, inline: false }
                     )
                     .setFooter({ text: `Case ID: ${unbanCaseId}` })
                     .setTimestamp();
+
                 const sentMessage = await channel.send({ embeds: [modLogEmbed] }).catch(console.error);
                 if (sentMessage) await db.query("UPDATE modlogs SET logmessageid = $1 WHERE caseid = $2", [sentMessage.id, unbanCaseId]);
             }
         }
         
-  
-        const publicEmbed = success(`The user **${ban.user.tag}** has been **unbanned**.`)
-            .setTitle(`${emojis.unban} Unban Successful`)
-            .setThumbnail(ban.user.displayAvatarURL({ dynamic: true, size: 64 }))
-            .addFields(
-                { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}>`, inline: true },
-                { name: `${emojis.case_id} Case ID`, value: `\`${unbanCaseId}\``, inline: true },
-                { name: `${emojis.reason} Reason`, value: cleanReason, inline: false }
-            )
-            .setFooter({ text: `User ID: ${targetId}` });
-        
+        const publicEmbed = moderation(`**${ban.user.tag}** has been unbanned.\n**Reason:** ${cleanReason}`);
         await interaction.editReply({ embeds: [publicEmbed] });
     },
 };

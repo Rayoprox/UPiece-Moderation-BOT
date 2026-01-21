@@ -1,12 +1,12 @@
 const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const db = require('../../utils/db.js');
-const { success, error } = require('../../utils/embedFactory.js');
+const { success, error, moderation } = require('../../utils/embedFactory.js');
 
 module.exports = {
     deploy: 'main',
     data: new SlashCommandBuilder()
         .setName('lockdown')
-        .setDescription('🚨 LOCKDOWN: Backs up permissions and makes configured channels private.')
+        .setDescription('LOCKDOWN: Backs up permissions and makes configured channels private.')
         .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages),
 
     async execute(interaction) {
@@ -49,6 +49,7 @@ module.exports = {
             }
         }
 
-        await interaction.editReply({ embeds: [success(`🚨 **LOCKDOWN ACTIVE**\n\nChannels Locked: ${lockedCount}\nAll role permissions stripped temporarily.`)] });
+        const embed = moderation(`**SERVER LOCKDOWN ACTIVE**\n\n**Channels Locked:** ${lockedCount}\nAll role permissions stripped temporarily.`);
+        await interaction.editReply({ embeds: [embed] });
     },
 };

@@ -1,7 +1,8 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
 const db = require('../../utils/db.js');
 const { emojis } = require('../../utils/config.js');
-const VOID_COLOR = 0x546E7A;
+
+const VOID_COLOR = 0x546E7A; // Gris Azulado (Void)
 
 module.exports = {
     deploy: 'main',
@@ -22,22 +23,26 @@ module.exports = {
         const log = logResult.rows[0];
 
         if (!log) {
-            return interaction.editReply({ content: `❌ Case ID \`${caseId}\` not found in the logs.`, flags: [MessageFlags.Ephemeral] });
+            const { error } = require('../../utils/embedFactory.js');
+            return interaction.editReply({ embeds: [error(`Case ID \`${caseId}\` not found in the logs.`)], flags: [MessageFlags.Ephemeral] });
         }
         
         if (log.status === 'ACTIVE' && (log.action === 'TIMEOUT' || log.action === 'BAN')) {
-            return interaction.editReply({ content: `❌ This case is still an **ACTIVE** punishment. Please remove the punishment (unban/unmute) before you can void this case.`, flags: [MessageFlags.Ephemeral] });
+            const { error } = require('../../utils/embedFactory.js');
+            return interaction.editReply({ embeds: [error(`This case is still an **ACTIVE** punishment. Please remove the punishment (unban/unmute) before you can void this case.`)], flags: [MessageFlags.Ephemeral] });
         }
 
         if (log.status === 'VOIDED' || log.status === 'REMOVED') {
-            return interaction.editReply({ content: `❌ Case ID \`${caseId}\` is already marked as **${log.status}** and cannot be voided again.`, flags: [MessageFlags.Ephemeral] });
+            const { error } = require('../../utils/embedFactory.js');
+            return interaction.editReply({ embeds: [error(`Case ID \`${caseId}\` is already marked as **${log.status}** and cannot be voided again.`)], flags: [MessageFlags.Ephemeral] });
         }
         
-
-        const newReason = `[VOIDED by ${interaction.user.tag}: ${voidReason}] - Original Reason: ${log.reason}`;
+        // Formato simple de la razón de anulación
+        const newReason = `[VOIDED by ${interaction.user.tag}: ${voidReason}] - Original: ${log.reason}`;
         
         await db.query("UPDATE modlogs SET status = $1, reason = $2 WHERE caseid = $3", ['VOIDED', newReason, caseId]);
 
+        // Actualizar mensaje en canal de logs (SIN EMOJIS)
         if (log.logmessageid) {
             try {
                 const modLogResult = await db.query("SELECT channel_id FROM log_channels WHERE log_type=$1 AND guildid = $2", ['modlog', guildId]);
@@ -51,13 +56,18 @@ module.exports = {
                         const originalEmbed = message.embeds[0];
                         const newEmbed = EmbedBuilder.from(originalEmbed);
                         
-                        newEmbed.setColor(VOID_COLOR).setTitle(`❌ Case Voided: ${log.action.toUpperCase()}`).setFooter({ text: `Case ID: ${caseId} | Status: VOIDED` });
+                     
+                        newEmbed.setColor(VOID_COLOR);
+                        newEmbed.setTitle(`Voided: ${log.action}`); 
+                        newEmbed.setFooter({ text: `Case ID: ${caseId} | Status: VOIDED` });
 
-                        const reasonFieldIndex = originalEmbed.fields.findIndex(field => field.name.includes('Reason'));
+                      
+                        const reasonFieldIndex = newEmbed.data.fields.findIndex(field => field.name && field.name.toLowerCase().includes('reason'));
+
                         if (reasonFieldIndex !== -1) {
-                            newEmbed.spliceFields(reasonFieldIndex, 1, { name: '📝 Void Reason', value: newReason });
+                            newEmbed.spliceFields(reasonFieldIndex, 1, { name: 'Void Reason', value: newReason, inline: false });
                         } else {
-                            newEmbed.addFields({ name: '📝 Void Reason', value: newReason });
+                            newEmbed.addFields({ name: 'Void Reason', value: newReason, inline: false });
                         }
                         
                         await message.edit({ embeds: [newEmbed] });
@@ -68,17 +78,16 @@ module.exports = {
             }
         }
         
-        const user = await interaction.client.users.fetch(log.userid).catch(() => null);
+        
         const confirmationEmbed = new EmbedBuilder()
             .setColor(VOID_COLOR)
-            .setTitle(`${emojis.void} Case Annulled (VOIDED)`)
+            .setTitle(`Case Voided`)
             .setDescription(`The moderation log for **Case ID \`${caseId}\`** has been successfully annulled.`)
-            .setThumbnail(user ? user.displayAvatarURL({ dynamic: true, size: 64 }) : null)
             .addFields(
-                { name: `${emojis.user} User`, value: `<@${log.userid}> (${log.usertag || 'Unknown Tag'})`, inline: true },
-                { name: `${emojis.ban} Original Action`, value: log.action, inline: true },
-                { name: `${emojis.moderator} Moderator`, value: interaction.user.tag, inline: true },
-                { name: `${emojis.reason} Void Reason`, value: voidReason, inline: false }
+                { name: `User`, value: `<@${log.userid}>`, inline: true },
+                { name: `Original Action`, value: log.action, inline: true },
+                { name: `Moderator`, value: interaction.user.tag, inline: true },
+                { name: `Void Reason`, value: voidReason, inline: false }
             )
             .setFooter({ text: `This case will now appear as voided.` })
             .setTimestamp();

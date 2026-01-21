@@ -1,12 +1,12 @@
 const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const ms = require('ms');
-const { success, error } = require('../../utils/embedFactory.js');
+const { success, error, moderation } = require('../../utils/embedFactory.js');
 
 module.exports = {
     deploy: 'main',
     data: new SlashCommandBuilder()
         .setName('slowmode')
-        .setDescription('🐢 Set the slowmode for the current channel.')
+        .setDescription('Set the slowmode for the current channel.')
         .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages)
         .addStringOption(option =>
             option.setName('duration')
@@ -15,7 +15,6 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        
         const input = interaction.options.getString('duration');
         let seconds = 0;
 
@@ -36,11 +35,15 @@ module.exports = {
         try {
             await interaction.channel.setRateLimitPerUser(seconds);
 
+            let description;
             if (seconds === 0) {
-                await interaction.editReply({ embeds: [success('🐢 **Slowmode Disabled**\nThe channel is back to normal speed.')] });
+                description = `**Slowmode Disabled**\nThe channel is back to normal speed.`;
             } else {
-                await interaction.editReply({ embeds: [success(`🐢 **Slowmode Enabled**\nSet to **${input}** (${seconds} seconds).`)] });
+                description = `**Slowmode Enabled**\nSet to **${input}** (${seconds} seconds).`;
             }
+            
+            await interaction.editReply({ embeds: [moderation(description)] });
+
         } catch (err) {
             console.error(err);
             await interaction.editReply({ embeds: [error('Failed to set slowmode. Check my permissions.')] });

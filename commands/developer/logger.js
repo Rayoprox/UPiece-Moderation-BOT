@@ -1,5 +1,7 @@
 const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
-const { setWebhook } = require('../../utils/logger.js');
+const { setWebhook } = require('../../utils/logger.js'); 
+const { moderation, error } = require('../../utils/embedFactory.js'); 
+const { DEVELOPER_IDS } = require('../../utils/config.js');
 
 module.exports = {
     deploy: 'main',
@@ -14,24 +16,28 @@ module.exports = {
 
     async execute(interaction) {
        
-        if (interaction.user.id !== '715926664344895559') {
-            return interaction.editReply({ content: '❌ Access Denied: This command is restricted to the bot developer.' });
+        await interaction.deferReply({ ephemeral: true });
+        
+       
+        if (!DEVELOPER_IDS.includes(interaction.user.id)) {
+            return interaction.editReply({ embeds: [error('Access Denied: This command is restricted to the bot developer.')] });
         }
 
         const url = interaction.options.getString('url');
 
         try {
             const success = await setWebhook(url);
+            
             if (success) {
-                await interaction.editReply({ 
-                    content: '✅ **Persistent Logger Activated.** All console logs are now being mirrored to your channel and saved in the Database.' 
-                });
+                const embed = moderation('**Persistent Logger Activated**\nAll console logs are now being mirrored to your channel and saved in the Database.');
+                await interaction.editReply({ embeds: [embed] });
                 console.log(`📡 Remote Mirror enabled by ${interaction.user.tag}`);
             } else {
-                await interaction.editReply({ content: '❌ Invalid Webhook URL. Please check it and try again.' });
+                await interaction.editReply({ embeds: [error('Invalid Webhook URL. Please check it and try again.')] });
             }
         } catch (err) {
             console.error('Error in logger command:', err);
+            await interaction.editReply({ embeds: [error('An unexpected error occurred.')] });
         }
     },
 };

@@ -10,7 +10,8 @@ module.exports = {
                 { name: '🤖 Automod', value: 'Manage auto-moderation rules.', inline: true },
                 { name: '🔐 Permissions', value: 'Manage Staff Roles and Command Overrides.', inline: true },
                 { name: '🛡️ Protection', value: 'Anti-Nuke system and Lockdown configuration.', inline: true },
-                { name: '🎫 Tickets', value: 'Create and manage support ticket panels.', inline: true }
+                { name: '🎫 Tickets', value: 'Create and manage support ticket panels.', inline: true },
+                { name: '⌨️ Prefix', value: 'Change the server prefix.', inline: true }
             )
             .setColor('#2B2D31') 
             .setThumbnail(interaction.guild.iconURL({ dynamic: true }));
@@ -24,6 +25,7 @@ module.exports = {
         );
 
         const row2 = new ActionRowBuilder().addComponents(
+             new ButtonBuilder().setCustomId('setup_prefix').setLabel('Custom Prefix').setStyle(ButtonStyle.Secondary).setEmoji('⌨️'),
              new ButtonBuilder().setCustomId('delete_all_data').setLabel('Reset Data').setStyle(ButtonStyle.Secondary).setEmoji('🗑️')
         );
 

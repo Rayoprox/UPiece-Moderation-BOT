@@ -1,7 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, ChannelType } = require('discord.js');
 const { emojis } = require('../../utils/config.js');
-
-const UNLOCK_COLOR = 0x2ECC71;
+const { success, error, moderation } = require('../../utils/embedFactory.js');
 
 module.exports = {
     deploy: 'main',
@@ -29,36 +28,25 @@ module.exports = {
 
         try {
             const everyoneRole = interaction.guild.roles.everyone;
-
             
             await channel.permissionOverwrites.edit(everyoneRole, { 
                 SendMessages: null 
             }, { reason: `Unlock by ${interaction.user.tag}` });
 
-            const unlockEmbed = new EmbedBuilder()
-                .setColor(UNLOCK_COLOR)
-                .setTitle(`${emojis.unlock} CHANNEL UNLOCKED`)
-                .setDescription(`Lockdown lifted. Members may now send messages.`)
-                .addFields(
-                    { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}>`, inline: true },
-                    { name: `${emojis.reason} Reason`, value: reason, inline: true }
-                )
-                .setTimestamp();
+            const unlockEmbed = moderation(`**CHANNEL UNLOCKED**\nLockdown lifted. Members may now send messages.\n**Reason:** ${reason}`);
 
             await channel.send({ embeds: [unlockEmbed] });
 
             await interaction.editReply({ 
                 content: null,
-                embeds: [new EmbedBuilder()
-                    .setColor(UNLOCK_COLOR)
-                    .setDescription(`${emojis.success} **Channel Unlocked Successfully.**`)
-                ]
+                embeds: [success(`**Channel Unlocked Successfully.**`)]
             });
 
-        } catch (error) {
-            console.error("Unlock Error:", error);
+        } catch (err) {
+            console.error("Unlock Error:", err);
             await interaction.editReply({ 
-                content: `${emojis.error} **Error:** I couldn't unlock the channel.\n\`${error.message}\`` 
+                content: null,
+                embeds: [error(`**Error:** I couldn't unlock the channel.\n\`${err.message}\``)] 
             });
         }
     },

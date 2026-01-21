@@ -3,10 +3,10 @@ const db = require('../../utils/db.js');
 const ms = require('ms');
 const { emojis } = require('../../utils/config.js'); 
 const { resumePunishmentsOnStart } = require('../../utils/temporary_punishment_handler.js');
-const { success, error } = require('../../utils/embedFactory.js');
+const { success, error, moderation } = require('../../utils/embedFactory.js');
 
 const APPEAL_SERVER_INVITE = process.env.DISCORD_APPEAL_INVITE_LINK;
-const BAN_COLOR = 0xAA0000;
+const BAN_COLOR = 0xAA0000; 
 
 module.exports = {
     deploy: 'main',
@@ -70,7 +70,6 @@ module.exports = {
 
         const caseId = `CASE-${currentTimestamp}`;
 
-      
         const appealChannelRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'banappeal'", [guildId]);
         const appealSystemActive = !!appealChannelRes.rows[0]?.channel_id;
 
@@ -79,30 +78,30 @@ module.exports = {
         }
         
         let dmSent = false; 
+
+       
         const dmEmbed = new EmbedBuilder()
             .setColor(BAN_COLOR)
-            .setTitle(`${emojis.ban} Ban from ${interaction.guild.name}`)
-            .setDescription(`We regret to inform you that you have been **banned** from the server.`)
-            .setThumbnail(interaction.guild.iconURL({ dynamic: true, size: 128 }))
+            .setTitle(`Banned from ${interaction.guild.name}`)
+            .setDescription(`You have been banned from **${interaction.guild.name}**.`)
             .addFields(
-                { name: `${emojis.moderator} Moderator`, value: `${cleanModeratorTag}`, inline: true },
-                { name: `${emojis.duration} Duration`, value: durationStrDisplay, inline: true },
-                { name: `${emojis.reason} Reason`, value: `\`\`\`\n${cleanReason}\n\`\`\``, inline: false }
+                { name: 'Reason', value: cleanReason, inline: false },
+                { name: 'Duration', value: durationStrDisplay, inline: true }
             )
             .setTimestamp();
         
         if (isAppealable && appealSystemActive) {
-            dmEmbed.setFooter({ text: `Case ID: ${caseId} | You will need this if you decide to appeal!` });
+            dmEmbed.setFooter({ text: `Case ID: ${caseId}` });
             if (APPEAL_SERVER_INVITE) {
-                dmEmbed.addFields({
-                    name: '🗣️ How to Appeal',
-                    value: `If you believe this was an error, you can submit an appeal by joining our appeals server: \n[**Click here to appeal**](${APPEAL_SERVER_INVITE})`
-                });
+              
+                dmEmbed.addFields({ name: 'Appeal', value: `[Click here to appeal](${APPEAL_SERVER_INVITE})`, inline: true });
+            } else {
+                 dmEmbed.addFields({ name: 'Appeal', value: `Contact staff to appeal (Case ID required)`, inline: true });
             }
         } else {
-            dmEmbed.setFooter({ text: `Case ID: ${caseId} | This punishment is NOT appealable or appeals are closed. 🚫` });
-            dmEmbed.addFields({ name: '🚫 Appeal Status', value: 'This punishment cannot be appealed at this time.' });
+            dmEmbed.setFooter({ text: `Case ID: ${caseId} | Not Appealable` });
         }
+       
 
         try {
             const dmChannel = await targetUser.createDM().catch(() => null);
@@ -120,7 +119,6 @@ module.exports = {
             return interaction.editReply({ embeds: [error('An unexpected error occurred while trying to ban the user.')] });
         }
 
-    
         await db.query(`
             INSERT INTO modlogs (caseid, guildid, action, userid, usertag, moderatorid, moderatortag, reason, timestamp, endsAt, action_duration, appealable, dmstatus, status) 
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
@@ -133,42 +131,28 @@ module.exports = {
         if (endsAt) resumePunishmentsOnStart(interaction.client); 
         if (shouldBlacklist) await db.query("INSERT INTO appeal_blacklist (userid, guildid) VALUES ($1, $2) ON CONFLICT DO NOTHING", [targetUser.id, guildId]);
 
-    
-        const modLogResult = await db.query('SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = $2', [guildId, 'modlog']);
+        const modLogResult = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'modlog'", [guildId]);
         if (modLogResult.rows[0]?.channel_id) {
             const channel = interaction.guild.channels.cache.get(modLogResult.rows[0].channel_id);
             if (channel) {
                   const modLogEmbed = new EmbedBuilder()
                     .setColor(BAN_COLOR)
-                    .setAuthor({ name: `${targetUser.tag} has been BANNED`, iconURL: targetUser.displayAvatarURL({ dynamic: true }) })
+                    .setTitle('Ban')
                     .addFields(
-                        { name: `${emojis.user} User`, value: `<@${targetUser.id}> (\`${targetUser.id}\`)`, inline: true },
-                        { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}> (\`${interaction.user.id}\`)`, inline: true },
-                        { name: `${emojis.duration} Duration`, value: durationStrDisplay, inline: true },
-                        { name: `${emojis.reason} Reason`, value: cleanReason, inline: false },
-                        { name: `${emojis.dm_sent} DM Sent`, value: dmSent ? '✅ Yes' : '❌ No/Failed', inline: true }
+                        { name: 'User', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
+                        { name: 'Staff', value: interaction.user.tag, inline: true },
+                        { name: 'Reason', value: cleanReason, inline: false },
+                        { name: 'Duration', value: durationStrDisplay, inline: true }
                     )
-                    .setTimestamp()
-                    .setFooter({ text: `Case ID: ${caseId} | Appealable: ${(!shouldBlacklist && appealSystemActive) ? 'Yes' : 'No'}` });
+                    .setFooter({ text: `Case ID: ${caseId}` })
+                    .setTimestamp();
                     
                 const sentMessage = await channel.send({ embeds: [modLogEmbed] }).catch(e => console.error(`[ERROR] Failed to send modlog`));
                 if (sentMessage) await db.query('UPDATE modlogs SET logmessageid = $1 WHERE caseid = $2', [sentMessage.id, caseId]);
             }
         }
         
-        const publicEmbed = success(`The user **${targetUser.tag}** has been **banned**.`)
-            .setTitle(`${emojis.ban} Ban Executed`)
-            .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 64 }))
-            .addFields(
-                { name: `${emojis.user} User`, value: `<@${targetUser.id}> (\`${targetUser.id}\`)`, inline: true },
-                { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}>`, inline: true },
-                { name: `${emojis.duration} Duration`, value: durationStrDisplay, inline: true },
-                { name: `${emojis.case_id} Case ID`, value: `\`${caseId}\``, inline: true },
-                { name: `${emojis.dm_sent} DM Status`, value: dmSent ? '✅ Sent' : '❌ Failed', inline: true },
-                { name: '🗣️ Appealable', value: (!shouldBlacklist && appealSystemActive) ? '✅ Yes' : '❌ No/Closed', inline: true }
-            )
-            .setFooter({ text: `Reason: ${cleanReason.substring(0, 50)}${cleanReason.length > 50 ? '...' : ''}` });
-
+        const publicEmbed = moderation(`**${targetUser.tag}** has been banned.\n**Reason:** ${cleanReason}`);
         await interaction.editReply({ embeds: [publicEmbed] });
     },
 };

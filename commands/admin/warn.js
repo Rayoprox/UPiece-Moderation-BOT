@@ -3,10 +3,10 @@ const db = require('../../utils/db.js');
 const ms = require('ms');
 const { resumePunishmentsOnStart } = require('../../utils/temporary_punishment_handler.js');
 const { emojis } = require('../../utils/config.js'); 
-const { success, error } = require('../../utils/embedFactory.js');
+const { success, error, moderation } = require('../../utils/embedFactory.js');
 
 const APPEAL_SERVER_INVITE = process.env.DISCORD_APPEAL_INVITE_LINK;
-const WARN_COLOR = 0xFFD700;
+const WARN_COLOR = 0xF1C40F; 
 const AUTOMOD_COLOR = 0xAA0000;
 
 module.exports = {
@@ -30,7 +30,6 @@ module.exports = {
         const cleanReason = reason.trim();
         const currentTimestamp = Date.now();
 
-       
         if (targetUser.id === interaction.user.id) return interaction.editReply({ embeds: [error('You cannot warn yourself.')] });
         if (targetUser.id === interaction.client.user.id) return interaction.editReply({ embeds: [error('You cannot warn me.')] });
         if (targetUser.id === interaction.guild.ownerId) return interaction.editReply({ embeds: [error('You cannot warn the server owner.')] });
@@ -46,16 +45,18 @@ module.exports = {
         const caseId = `CASE-${currentTimestamp}`;
         let dmSent = false;
         try {
+          
             const dmEmbed = new EmbedBuilder()
                 .setColor(WARN_COLOR)
-                .setTitle(`${emojis.warn} Official Warning Issued in ${interaction.guild.name}`)
-                .setDescription(`This is an official warning regarding your recent conduct.`)
+                .setTitle(`Warned in ${interaction.guild.name}`)
+                .setDescription(`You have been warned in **${interaction.guild.name}**.`)
                 .addFields(
-                    { name: `${emojis.moderator} Moderator`, value: cleanModeratorTag }, 
-                    { name: `${emojis.reason} Reason`, value: `\`\`\`${cleanReason}\`\`\`` }
+                    { name: 'Reason', value: cleanReason, inline: false }
                 )
                 .setFooter({ text: `Case ID: ${caseId}` })
                 .setTimestamp();
+          
+            
             await targetUser.send({ embeds: [dmEmbed] });
             dmSent = true;
         } catch (error) { console.warn(`[WARN] Could not send Manual Warn DM`); }
@@ -65,23 +66,22 @@ module.exports = {
         const countResult = await db.query("SELECT COUNT(*) as count FROM modlogs WHERE userid = $1 AND guildid = $2 AND action = 'WARN' AND status = 'ACTIVE'", [targetUser.id, guildId]);
         const activeWarningsCount = Number(countResult.rows[0].count);
 
- 
         const modLogResult = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'modlog'", [guildId]);
         if (modLogResult.rows[0]?.channel_id) {
             const modLogChannel = interaction.guild.channels.cache.get(modLogResult.rows[0].channel_id);
             if (modLogChannel) {
                 const warnLogEmbed = new EmbedBuilder()
                     .setColor(WARN_COLOR)
-                    .setAuthor({ name: `${targetUser.tag} has been WARNED`, iconURL: targetUser.displayAvatarURL({ dynamic: true }) })
+                    .setTitle('Warn')
                     .addFields(
-                        { name: `${emojis.user} User`, value: `<@${targetUser.id}> (\`${targetUser.id}\`)`, inline: true },
-                        { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}> (\`${interaction.user.id}\`)`, inline: true },
-                        { name: `${emojis.warn} Active Warnings`, value: `${activeWarningsCount}`, inline: true },
-                        { name: `${emojis.reason} Reason`, value: cleanReason, inline: false },
-                        { name: `${emojis.dm_sent} DM Sent`, value: dmSent ? '✅ Yes' : '❌ No/Failed', inline: true }
+                        { name: 'User', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
+                        { name: 'Staff', value: interaction.user.tag, inline: true },
+                        { name: 'Active Warnings', value: `${activeWarningsCount}`, inline: true },
+                        { name: 'Reason', value: cleanReason, inline: false }
                     )
                     .setFooter({ text: `Case ID: ${caseId}` })
                     .setTimestamp();
+
                 const sent = await modLogChannel.send({ embeds: [warnLogEmbed] }).catch(console.error);
                 if(sent) await db.query('UPDATE modlogs SET logmessageid = $1 WHERE caseid = $2', [sent.id, caseId]);
             }
@@ -102,22 +102,19 @@ module.exports = {
 
             try {
                 if (action === 'BAN' || action === 'TIMEOUT') {
-                    const actionEmoji = action === 'BAN' ? emojis.ban : emojis.mute;
+                 
                     const dmPunishmentEmbed = new EmbedBuilder()
                         .setColor(AUTOMOD_COLOR)
-                        .setTitle(`${emojis.rules} Automated Action from ${interaction.guild.name}`)
-                        .setDescription(`Due to accumulating **${activeWarningsCount} active warnings**, an automated punishment has been applied to you.`)
-                        .setThumbnail(interaction.guild.iconURL({ dynamic: true, size: 128 }))
+                        .setTitle(`Automod Action: ${action} from ${interaction.guild.name}`)
+                        .setDescription(`Automated punishment for reaching **${activeWarningsCount} warnings**.`)
                         .addFields(
-                            { name: `${emojis.moderator} Moderator`, value: `${interaction.client.user.tag} (Automod)`, inline: true },
-                            { name: `${emojis.duration} Duration`, value: durationStr || (action === 'BAN' ? 'Permanent' : 'Timed'), inline: true },
-                            { name: `${actionEmoji} Action`, value: action, inline: true},
-                            { name: `${emojis.reason} Reason`, value: `\`\`\`\n${autoReason}\n\`\`\``, inline: false }
+                            { name: 'Reason', value: autoReason, inline: false }
                         );
 
+                    if (durationStr) dmPunishmentEmbed.addFields({ name: 'Duration', value: durationStr, inline: true });
+
                     if (action === 'BAN' && APPEAL_SERVER_INVITE) {
-                        dmPunishmentEmbed.setFooter({ text: `Case ID: ${autoCaseId} | Appeal Code` });
-                        dmPunishmentEmbed.addFields({ name: '🗣️ Appeal', value: `[Appeal Here](${APPEAL_SERVER_INVITE})` });
+                        dmPunishmentEmbed.addFields({ name: 'Appeal', value: `[Appeal Link](${APPEAL_SERVER_INVITE})` });
                     }
                     await targetUser.send({ embeds: [dmPunishmentEmbed] });
                     autoDmSent = true;
@@ -140,38 +137,16 @@ module.exports = {
                     if (durationMs) await targetMember.timeout(durationMs, autoReason);
                 }
 
-               
-                finalReplyEmbed = new EmbedBuilder()
-                    .setColor(AUTOMOD_COLOR)
-                    .setTitle(`${emojis.rules} Automod Triggered: ${action}`)
-                    .setDescription(`**${targetUser.tag}** was warned, reaching **${activeWarningsCount}** warnings and triggering an automatic action.`)
-                    .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 64 }))
-                    .addFields(
-                        { name: `${emojis.moderator} Moderator (Warn)`, value: `<@${interaction.user.id}>`, inline: true },
-                        { name: `${emojis.rules} Punishment`, value: `${action}`, inline: true },
-                        { name: `${emojis.duration} Duration`, value: durationStr || 'Permanent', inline: true },
-                        { name: `${emojis.case_id} Warn Case ID`, value: `\`${caseId}\``, inline: false },
-                        { name: `${emojis.case_id} Automod Case ID`, value: `\`${autoCaseId}\``, inline: false }
-                    )
-                    .setTimestamp();
+                finalReplyEmbed = moderation(`**${targetUser.tag}** warned. Automod triggered **${action}** (Warnings: ${activeWarningsCount}).`);
+
             } catch (autoError) {
                 console.error('[ERROR] AUTOMOD FAILED:', autoError);
-                finalReplyEmbed = success(`**${targetUser.tag}** warned, but automated **${action}** failed.`)
-                    .setTitle(`${emojis.success} Warning Issued (Automod Failed)`);
+                finalReplyEmbed = moderation(`**${targetUser.tag}** warned, but automated **${action}** failed.`);
             }
         }
 
         if (!finalReplyEmbed) {
-         
-            finalReplyEmbed = success(`**${targetUser.tag}** has been warned.`)
-                .setTitle(`${emojis.success} Warning Successfully Issued`)
-                .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 64 }))
-                .addFields(
-                    { name: `${emojis.moderator} Moderator`, value: `<@${interaction.user.id}>`, inline: true },
-                    { name: `${emojis.warn} Active Warnings`, value: `${activeWarningsCount}`, inline: true },
-                    { name: `${emojis.case_id} Case ID`, value: `\`${caseId}\``, inline: true }
-                )
-                .setFooter({ text: `Reason: ${cleanReason.substring(0, 100)}${cleanReason.length > 100 ? '...' : ''}` });
+            finalReplyEmbed = moderation(`**${targetUser.tag}** has been warned.\n**Reason:** ${cleanReason}`);
         }
         
         await interaction.editReply({ embeds: [finalReplyEmbed] });
