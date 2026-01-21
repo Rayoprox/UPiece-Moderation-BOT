@@ -12,7 +12,6 @@ module.exports = {
 
     async execute(interaction) {
        
-        await interaction.deferReply();
 
         try {
            
@@ -21,18 +20,13 @@ module.exports = {
          
             const response = await interaction.editReply({ embeds: [embed], components: components });
 
-          
             const collector = response.createMessageComponentCollector({ 
                 filter: (i) => i.user.id === interaction.user.id, 
                 idle: 60000 
             });
 
-          
-
             collector.on('end', async (collected, reason) => {
-              
                 if (reason === 'idle') {
-                 
                     await interaction.deleteReply().catch(() => {}); 
                 }
             });

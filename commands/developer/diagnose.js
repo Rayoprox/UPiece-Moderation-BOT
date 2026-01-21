@@ -8,17 +8,17 @@ module.exports = {
     deploy: 'main',
     data: new SlashCommandBuilder()
         .setName('diagnose')
-        .setDescription('👑 Developer: Runs a silent system integrity check (Console Output).')
+        .setDescription('Developer: Runs a silent system integrity check (Console Output).')
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
 
     async execute(interaction) {
-        // 1. Verificación de Developer
+     
         if (!DEVELOPER_IDS.includes(interaction.user.id)) {
-            return interaction.reply({ content: '⛔ Developer only.', ephemeral: true });
+            return interaction.editReply({ content: '⛔ Developer only.' });
         }
 
-        // 2. Mensaje inicial (Ephemeral para no molestar)
-        await interaction.reply({ content: `${emojis.loading || '⏳'} **Running silent diagnostics...**`, ephemeral: true });
+      
+        await interaction.editReply({ content: `${emojis.loading || '⏳'} **Running silent diagnostics...**` });
 
         console.log("\n================================================");
         console.log(`[DIAGNOSTIC] STARTING SYSTEM CHECK - ${new Date().toISOString()}`);
@@ -26,9 +26,7 @@ module.exports = {
 
         let errors = 0;
 
-        // ---------------------------------------------------------
-        // 1. COMANDOS (Command Integrity)
-        // ---------------------------------------------------------
+      
         console.log(`\n[1/4] CHECKING COMMANDS (${interaction.client.commands.size} total)`);
         
         interaction.client.commands.forEach((cmd, name) => {
@@ -36,8 +34,6 @@ module.exports = {
                 if (!cmd.data || !cmd.execute) {
                     throw new Error('Invalid structure (missing data/execute)');
                 }
-                // Si todo está bien, no imprimimos nada para no spammear, o solo un punto.
-                // console.log(`  OK: /${name}`); 
             } catch (err) {
                 errors++;
                 console.error(`  ❌ FAILED: /${name} - ${err.message}`);
@@ -45,9 +41,7 @@ module.exports = {
         });
         console.log(`  ✅ Command Structure Verification Complete.`);
 
-        // ---------------------------------------------------------
-        // 2. BASE DE DATOS (DB Connectivity)
-        // ---------------------------------------------------------
+    
         console.log(`\n[2/4] CHECKING DATABASE CONNECTIVITY`);
         const tablesToCheck = [
             'modlogs', 'guild_settings', 'licenses', 'generated_licenses', 
@@ -57,7 +51,6 @@ module.exports = {
         for (const table of tablesToCheck) {
             try {
                 await db.query(`SELECT 1 FROM ${table} LIMIT 1`);
-                // console.log(`  OK: Table '${table}'`);
             } catch (err) {
                 if (err.code === '42P01') {
                     errors++;
@@ -69,9 +62,7 @@ module.exports = {
         }
         console.log(`  ✅ Database Schema Verification Complete.`);
 
-        // ---------------------------------------------------------
-        // 3. PERMISOS DEL BOT (Self-Check)
-        // ---------------------------------------------------------
+      
         console.log(`\n[3/4] CHECKING BOT PERMISSIONS`);
         const requiredPerms = [
             PermissionsBitField.Flags.BanMembers,
@@ -92,9 +83,6 @@ module.exports = {
             console.log(`  ✅ Bot Permissions Verified.`);
         }
 
-        // ---------------------------------------------------------
-        // 4. HANDLERS (Filesystem Check)
-        // ---------------------------------------------------------
         console.log(`\n[4/4] CHECKING CORE FILES`);
         const criticalFiles = [
             'handlers/commandHandler.js',
@@ -113,15 +101,13 @@ module.exports = {
         });
         console.log(`  ✅ Core Files Verification Complete.`);
 
-        // ---------------------------------------------------------
-        // RESUMEN FINAL
-        // ---------------------------------------------------------
+      
         console.log("\n================================================");
         const statusText = errors === 0 ? "ALL SYSTEMS OPERATIONAL" : `${errors} CRITICAL ISSUES DETECTED`;
         console.log(`[DIAGNOSTIC] RESULT: ${statusText}`);
         console.log("================================================\n");
 
-        // Mensaje final simple al usuario
+      
         const finalEmbed = new EmbedBuilder()
             .setColor(errors === 0 ? 0x2ECC71 : 0xE74C3C)
             .setDescription(`${errors === 0 ? emojis.success : emojis.error} **Diagnostic Completed.**\nCheck your console logs for the full report.`);

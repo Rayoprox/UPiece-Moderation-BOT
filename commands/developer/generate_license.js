@@ -22,7 +22,7 @@ module.exports = {
         }
 
         const durationInput = interaction.options.getString('duration').toLowerCase();
-        const licenseKey = `UPIECE-${uuidv4().toUpperCase()}`;
+        const licenseKey = `BOT-${uuidv4().toUpperCase()}`;
         
         let durationDays = null; 
         let durationText = "Permanent / Lifetime";

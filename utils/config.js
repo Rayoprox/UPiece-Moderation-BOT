@@ -22,7 +22,7 @@ module.exports = {
     emojis: {
         success: '<:checkemoji:1427318689014874175>',
         error: '<:cross:1427318691627929610>',
-        loading: '<:loading:1427318696145064036>',
+        loading: '<a:loading:1427318696145064036>',
         info: 'ℹ️',
 
         warn: '<:warning:1427318722233893144>',
