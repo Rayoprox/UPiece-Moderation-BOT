@@ -22,7 +22,7 @@ module.exports = {
             seconds = 0;
         } else {
             const milliseconds = ms(input);
-            if (!milliseconds || isNaN(milliseconds)) {
+            if (milliseconds === undefined || isNaN(milliseconds)) {
                 return interaction.editReply({ embeds: [error('Invalid time format.\nTry using: `5s`, `10m`, `2h`, or `off`.')] });
             }
             seconds = Math.floor(milliseconds / 1000);

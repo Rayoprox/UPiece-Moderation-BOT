@@ -62,20 +62,17 @@ module.exports = {
             let rawArg = args[argIndex];
 
             if (optionDef.name === 'duration') {
-          
-          
                 const isTimeFormat = /^(\d+)(s|m|h|d|w|y|mo)?$/i.test(rawArg);
+                const isOff = rawArg.toLowerCase() === 'off';
                 
-                if (isTimeFormat) {
-                   
+                if (isTimeFormat || isOff) {
                     resolvedOptions[optionDef.name] = rawArg;
                     argIndex++;
                 } else {
-                    
                     if (!optionDef.required) {
                         continue; 
                     } else {
-                         return message.reply({ embeds: [error(`Invalid duration format for **${optionDef.name}**. Expected format like 10m, 1h.`)] });
+                         return message.reply({ embeds: [error(`Invalid duration format for **${optionDef.name}**. Expected format like 10m, 1h or 'off'.`)] });
                     }
                 }
             } 
@@ -83,7 +80,6 @@ module.exports = {
                 resolvedOptions[optionDef.name] = args.slice(argIndex).join(' ');
                 argIndex = args.length; 
             } 
-       
             else {
                 const resolvedValue = await resolveArgument(message.guild, optionDef.type, rawArg);
                 
