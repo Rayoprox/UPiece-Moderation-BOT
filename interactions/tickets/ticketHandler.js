@@ -15,15 +15,17 @@ async function handleTicketOpen(interaction, client) {
 
     const ticketLimit = panel.ticket_limit || 1; 
 
+    
     const activeTicketsRes = await db.query(
-        "SELECT COUNT(*) FROM tickets WHERE user_id = $1 AND panel_id = $2 AND status = 'OPEN'", 
+        "SELECT channel_id FROM tickets WHERE user_id = $1 AND panel_id = $2 AND status = 'OPEN'", 
         [user.id, panelId]
     );
-    const openTicketsCount = parseInt(activeTicketsRes.rows[0].count);
+
+    const openTicketsCount = activeTicketsRes.rows.filter(row => guild.channels.cache.get(row.channel_id)).length;
 
     if (openTicketsCount >= ticketLimit) {
         return await smartReply(interaction, { 
-            embeds: [error(`⛔ **Limit Reached:** You can only have **${ticketLimit}** open ticket(s) in this panel category.\n\nPlease close your existing ticket before opening a new one.`)] 
+            embeds: [error(` **Limit Reached:** You can only have **${ticketLimit}** open ticket(s) in this panel category.\n\nPlease close your existing ticket before opening a new one.`)] 
         }, true);
     }
 
