@@ -16,6 +16,9 @@ module.exports = {
         const member = interaction.member;
         const guildId = guild.id;
 
+        const settingsRes = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guildId]);
+        const prefix = settingsRes.rows[0]?.prefix || '!';
+
         const book = emojis?.book || '📖';
         const commandCategories = { admin: [], utility: [], appeal: [] };
         
@@ -42,24 +45,17 @@ module.exports = {
 
             if (hasPermission) {
                 const options = command.data.options.map(opt => opt.required ? `<${opt.name}>` : `[${opt.name}]`);
-                let commandHeader = `> **/${command.data.name}**`;
-                if (options.length > 0) commandHeader += ` \`${options.join(' ')}\``;
+                const argsString = options.length > 0 ? ` \`${options.join(' ')}\`` : '';
+                
+                const commandHeader = `> **/${command.data.name}** | **${prefix}${command.data.name}**${argsString}`;
                 const formattedCommand = `${commandHeader}\n> *${command.data.description}*`;
 
-                switch(command.deploy) {
-                    case 'main':
-                        if (['ban', 'kick', 'mute', 'unmute', 'modlogs', 'warnings', 'purge', 'reason', 'void', 'warn', 'unban', 'blmanage', 'setup', 'lock', 'unlock', 'softban', 'case', 'whois', 'lockdown', 'unlockdown', 'slowmode'].includes(command.data.name)) {
-                            commandCategories.admin.push(formattedCommand);
-                        } else {
-                            commandCategories.utility.push(formattedCommand);
-                        }
-                        break;
-                    case 'appeal':
-                        commandCategories.appeal.push(formattedCommand);
-                        break;
-                    case 'all':
-                         if (command.data.name !== 'help') commandCategories.utility.push(formattedCommand);
-                        break;
+                if (command.deploy === 'appeal') {
+                    commandCategories.appeal.push(formattedCommand);
+                } else if (command.deploy === 'main') {
+                    commandCategories.admin.push(formattedCommand);
+                } else {
+                    if (command.data.name !== 'help') commandCategories.utility.push(formattedCommand);
                 }
             }
         }
@@ -67,10 +63,10 @@ module.exports = {
         const helpEmbed = new EmbedBuilder()
             .setColor(0x5865F2)
             .setTitle(`${book} ${guild.name} Help Menu`) 
-            .setDescription(`Here is a comprehensive list of commands available to **${user.username}** in **${guild.name}**.`)
+            .setDescription(`Here is a list of commands available to **${user.username}**. You can use Slash Commands (\`/\`) or Prefix Commands (\`${prefix}\`).`)
             .setThumbnail(client.user.displayAvatarURL({ dynamic: true, size: 256 }))
             .setFooter({ 
-                text: `Requested by ${user.username} • Made by: ukirama`, 
+                text: `Prefix: ${prefix} • Requested by ${user.username}`, 
                 iconURL: user.displayAvatarURL({ dynamic: true }) 
             })
             .setTimestamp();

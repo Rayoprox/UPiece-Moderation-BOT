@@ -19,7 +19,7 @@ module.exports = {
         const isLocked = res.rows[0]?.universal_lock || false;
 
         const embed = new EmbedBuilder()
-            .setTitle('👑 Management Control Panel')
+            .setTitle('Management Control Panel')
             .setDescription(`Absolute control for Instance Owners in **${interaction.guild.name}**.`)
             .addFields(
                 { name: `${isLocked ? '🔒' : '🔓'} Universal Lock`, value: isLocked ? 'Admins are **RESTRICTED**. Permissions are role-based only.' : 'Admins have **FULL ACCESS** (Standard).' },

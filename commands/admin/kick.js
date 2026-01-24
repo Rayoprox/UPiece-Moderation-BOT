@@ -81,7 +81,7 @@ module.exports = {
                     .setTitle('Kick')
                     .addFields(
                         { name: 'User', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
-                        { name: 'Staff', value: interaction.user.tag, inline: true },
+                        { name: 'Staff', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
                         { name: 'Reason', value: cleanReason, inline: false }
                     )
                     .setFooter({ text: `Case ID: ${caseId}` })

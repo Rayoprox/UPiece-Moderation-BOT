@@ -94,7 +94,7 @@ module.exports = {
                         .setTitle('Softban')
                         .addFields(
                             { name: 'User', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
-                            { name: 'Staff', value: interaction.user.tag, inline: true },
+                            { name: 'Staff', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
                             { name: 'Messages Deleted', value: `${deleteMessageSeconds / 3600} hours`, inline: true },
                             { name: 'Reason', value: cleanReason, inline: false }
                         )

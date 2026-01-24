@@ -48,7 +48,7 @@ module.exports = {
             .setTitle(`Case ${log.caseid}`) 
             .addFields(
                 { name: 'User', value: `${log.usertag} (${log.userid})`, inline: true },
-                { name: 'Staff', value: log.moderatortag || 'Unknown', inline: true },
+                { name: 'Staff', value: log.moderatortag ? `${log.moderatortag} (${log.moderatorid})` : 'Unknown', inline: true },
                 { name: 'Action', value: actionUpper, inline: true },
                 { name: 'Reason', value: log.reason || 'No reason specified', inline: false }
             );

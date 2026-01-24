@@ -2,7 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, MessageFlags } =
 const db = require('../../utils/db.js');
 const { emojis } = require('../../utils/config.js');
 
-const VOID_COLOR = 0x546E7A; // Gris Azulado (Void)
+const VOID_COLOR = 0x546E7A; 
 
 module.exports = {
     deploy: 'main',
@@ -37,12 +37,10 @@ module.exports = {
             return interaction.editReply({ embeds: [error(`Case ID \`${caseId}\` is already marked as **${log.status}** and cannot be voided again.`)], flags: [MessageFlags.Ephemeral] });
         }
         
-        // Formato simple de la razón de anulación
         const newReason = `[VOIDED by ${interaction.user.tag}: ${voidReason}] - Original: ${log.reason}`;
         
         await db.query("UPDATE modlogs SET status = $1, reason = $2 WHERE caseid = $3", ['VOIDED', newReason, caseId]);
 
-        // Actualizar mensaje en canal de logs (SIN EMOJIS)
         if (log.logmessageid) {
             try {
                 const modLogResult = await db.query("SELECT channel_id FROM log_channels WHERE log_type=$1 AND guildid = $2", ['modlog', guildId]);
@@ -86,7 +84,7 @@ module.exports = {
             .addFields(
                 { name: `User`, value: `<@${log.userid}>`, inline: true },
                 { name: `Original Action`, value: log.action, inline: true },
-                { name: `Moderator`, value: interaction.user.tag, inline: true },
+                { name: `Moderator`, value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
                 { name: `Void Reason`, value: voidReason, inline: false }
             )
             .setFooter({ text: `This case will now appear as voided.` })
