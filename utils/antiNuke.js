@@ -1,13 +1,12 @@
 const { AuditLogEvent, PermissionFlagsBits, ChannelType, EmbedBuilder, UserFlags, OverwriteType } = require('discord.js');
 const db = require('./db.js');
-const { emojis } = require('./config.js'); // <--- Importamos emojis
+const { emojis } = require('./config.js'); 
 
 const limitCache = new Map(); 
 const triggeredUsers = new Set(); 
 const restoringGuilds = new Set();
 const backingUpGuilds = new Set();
 
-// Restaurar
 async function createBackup(guild) {
     if (!guild) return false;
     if (backingUpGuilds.has(guild.id)) {
@@ -18,16 +17,22 @@ async function createBackup(guild) {
 
     try {
         const channels = guild.channels.cache.map(c => ({
-            id: c.id, name: c.name, type: c.type, parentId: c.parentId, parentName: c.parent ? c.parent.name : null, position: c.position, 
-            permissionOverwrites: c.permissionOverwrites.cache.map(p => {
+            id: c.id, 
+            name: c.name, 
+            type: c.type, 
+            parentId: c.parentId, 
+            parentName: c.parent ? c.parent.name : null, 
+            position: c.position, 
+            permissionOverwrites: c.permissionOverwrites ? c.permissionOverwrites.cache.map(p => {
                 let roleName = null;
                 if (p.type === OverwriteType.Role) {
                     const role = guild.roles.cache.get(p.id);
                     if (role) roleName = role.name;
                 }
                 return { id: p.id, type: p.type, allow: p.allow.bitfield.toString(), deny: p.deny.bitfield.toString(), roleName: roleName };
-            })
+            }) : [] 
         }));
+
         const roles = guild.roles.cache.filter(r => r.name !== '@everyone' && !r.managed).map(r => ({
             id: r.id, name: r.name, color: r.color, hoist: r.hoist, permissions: r.permissions.bitfield.toString(), position: r.position 
         }));
@@ -51,7 +56,6 @@ async function restoreGuild(guild) {
         const { roles: backupRoles, channels: backupChannels } = result.rows[0].data;
         console.log(`[RESTORE] ${emojis.warn || '🛡️'} Starting DEEP restoration for ${guild.name}...`);
 
-        // Fimpieza
         const currentRoles = guild.roles.cache.filter(r => r.name !== '@everyone' && !r.managed && r.editable);
         for (const role of currentRoles.values()) {
             const isInBackup = backupRoles.some(br => br.name === role.name); 
@@ -63,7 +67,7 @@ async function restoreGuild(guild) {
             if (!isInBackup) await channel.delete('Anti-Nuke Cleanup').catch(() => {});
         }
 
-        // Rest Roles
+
         backupRoles.sort((a, b) => b.position - a.position);
         for (const r of backupRoles) {
             const exists = guild.roles.cache.find(role => role.name === r.name);
@@ -72,8 +76,8 @@ async function restoreGuild(guild) {
             }
         }
 
-        // Rest Canales
         const resolveOverwrites = (savedOverwrites) => {
+            if (!savedOverwrites) return []; 
             return savedOverwrites.map(o => {
                 let targetId = o.id; 
                 if (o.type === OverwriteType.Role) {
@@ -110,7 +114,6 @@ async function restoreGuild(guild) {
     } finally { restoringGuilds.delete(guild.id); }
 }
 
-// Detectar
 async function handleAction(guild, executorId, actionType) {
     const triggerKey = `${guild.id}_${executorId}`;
     if (triggeredUsers.has(triggerKey)) return; 
@@ -160,7 +163,6 @@ async function triggerProtection(guild, user, type) {
     await restoreGuild(guild);
 }
 
-// AntiUnv Bot
 async function checkBotJoin(member) {
     if (!member.user.bot) return; 
     const settings = await db.query('SELECT antinuke_enabled FROM guild_backups WHERE guildid = $1', [member.guild.id]);
