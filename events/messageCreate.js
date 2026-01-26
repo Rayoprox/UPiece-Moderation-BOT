@@ -17,12 +17,23 @@ module.exports = {
         const { guild, author, member } = message;
 
         let guildData = guildCache.get(guild.id);
-        if (!guildData || !guildData.settings) {
-            const settingsRes = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guild.id]);
-            if (!guildData) guildData = { settings: {}, permissions: [] };
-            guildData.settings = settingsRes.rows[0] || { prefix: '!' };
+      
+        if (!guildData || !guildData.settings || guildData.settings.staff_roles === undefined) {
+            const [settingsRes, permsRes] = await Promise.all([
+                db.query('SELECT * FROM guild_settings WHERE guildid = $1', [guild.id]),
+                db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guild.id])
+            ]);
+
+            guildData = { 
+                settings: settingsRes.rows[0] || { prefix: '!' }, 
+                permissions: permsRes.rows || [] 
+            };
+            
+            
             guildCache.set(guild.id, guildData);
         }
+      
+
         const SERVER_PREFIX = guildData.settings.prefix || '!';
 
         if (!message.content.startsWith(SERVER_PREFIX)) return;
@@ -48,11 +59,9 @@ module.exports = {
 
         const resolvedOptions = {};
         
-       
         let definedOptions = command.data.options || [];
         let activeSubcommand = null;
 
-      
         const hasSubcommands = definedOptions.some(opt => opt.constructor.name === 'SlashCommandSubcommandBuilder' || opt.type === 1);
 
         if (hasSubcommands) {
@@ -67,10 +76,8 @@ module.exports = {
                 if (args.length > 0) {
                      return message.reply({ embeds: [error(`Invalid subcommand. Available: ${definedOptions.map(o => o.name).join(', ')}`)] });
                 }
-               
             }
         }
-
         
         let argIndex = 0;
 

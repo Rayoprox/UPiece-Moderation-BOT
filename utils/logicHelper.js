@@ -7,7 +7,6 @@ async function validateCommandPermissions(client, guild, member, user, commandNa
     const command = client.commands.get(commandName);
     if (!command) return { valid: false, reason: 'Command not found' };
 
-   
     if (DEVELOPER_IDS.includes(user.id)) {
         return { valid: true, isAdmin: true, bypass: true };
     }
@@ -29,8 +28,8 @@ async function validateCommandPermissions(client, guild, member, user, commandNa
         return { valid: true, isAdmin: true, bypass: true };
     }
 
- 
     let guildData = guildCache.get(guild.id);
+    
     if (!guildData) {
         const [settingsRes, permsRes] = await Promise.all([
             db.query('SELECT universal_lock, staff_roles FROM guild_settings WHERE guildid = $1', [guild.id]),
@@ -41,30 +40,35 @@ async function validateCommandPermissions(client, guild, member, user, commandNa
     }
 
     const universalLock = guildData.settings.universal_lock === true;
-    const staffRoles = guildData.settings.staff_roles?.split(',') || [];
-    const specificRoles = guildData.permissions.filter(p => p.command_name === commandName).map(r => r.role_id);
+    
+    const staffRoles = guildData.settings.staff_roles?.split(',').map(r => r.trim()) || [];
+    
+    const specificRoles = guildData.permissions
+        .filter(p => p.command_name === commandName)
+        .map(r => r.role_id);
     
     let isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
-    
- 
     if (universalLock) isAdmin = false; 
 
     const isGlobalStaff = member.roles.cache.some(r => staffRoles.includes(r.id));
     const hasSpecificRules = specificRoles.length > 0;
     const hasSpecificPermission = hasSpecificRules && member.roles.cache.some(r => specificRoles.includes(r.id));
     const isPublic = command.isPublic ?? false;
+    const isStaffCommand = STAFF_COMMANDS.includes(commandName);
 
     let allowed = false;
 
     if (isAdmin) allowed = true;
-    else if (hasSpecificRules) { if (hasSpecificPermission) allowed = true; }
-    else if (isGlobalStaff && STAFF_COMMANDS.includes(commandName)) allowed = true;
+    else if (hasSpecificRules) { 
+        if (hasSpecificPermission) allowed = true; 
+    }
+    else if (isGlobalStaff && isStaffCommand) allowed = true;
     else if (isPublic) allowed = true;
 
     if (!allowed) {
         const msg = universalLock && member.permissions.has(PermissionsBitField.Flags.Administrator)
-            ? "🔒 **Universal Lockdown Active.**\nAdmin permissions are temporarily suspended. Contact the Server Owners."
-            : "⛔ You do not have permission to use this command.";
+            ? "**Universal Lockdown Active.**\nAdmin permissions are temporarily suspended. Contact the Server Management."
+            : "You do not have permission to use this command.";
         return { valid: false, reason: msg };
     }
 
@@ -74,6 +78,7 @@ async function validateCommandPermissions(client, guild, member, user, commandNa
 async function sendCommandLog(interaction, db, isAdmin) {
     try {
         if (!interaction.guild) return; 
+
         const cmdLogResult = await db.query('SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = $2', [interaction.guild.id, 'cmdlog']);
         if (!cmdLogResult.rows[0]?.channel_id) return;
 
