@@ -4,18 +4,9 @@ const { Client, Collection, GatewayIntentBits, Partials, REST, Routes } = requir
 const fs = require('fs');
 const path = require('path');
 const db = require('./utils/db.js'); 
-const http = require('http');
 
 
-const PORT = process.env.PORT || 3000; 
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot is Live & Commands Auto-Updated');
-});
 
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ HTTP Server running on port ${PORT} (Render Health Check)`);
-});
 
 
 const client = new Client({ 
