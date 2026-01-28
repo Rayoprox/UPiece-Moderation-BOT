@@ -5,8 +5,19 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
+pool.on('error', (err, client) => {
+    console.error('❌ Unexpected error on idle client', err);
+});
+
 const db = {
-    query: (text, params) => pool.query(text, params),
+    query: async (text, params) => {
+        try {
+            return await pool.query(text, params);
+        } catch (error) {
+            console.error(`❌ Database Query Error: ${error.message} | Query: ${text}`);
+            throw error;
+        }
+    },
 
     ensureTables: async () => {
         await db.query(`CREATE TABLE IF NOT EXISTS global_settings (key TEXT PRIMARY KEY, value TEXT);`);
@@ -95,7 +106,6 @@ const db = {
             );
         `);
 
-        
         try { await db.query(`ALTER TABLE modlogs RENAME COLUMN modid TO moderatorid`); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN moderatorid TEXT`); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN dmstatus TEXT`); } catch (e) {}
@@ -109,7 +119,6 @@ const db = {
         try { await db.query(`ALTER TABLE guild_settings ADD COLUMN prefix TEXT DEFAULT '!'`); } catch (e) {}
         try { await db.query(`ALTER TABLE log_channels DROP CONSTRAINT log_channels_guildid_key`); } catch (e) {}
 
-        
         try { await db.query(`ALTER TABLE ticket_panels ADD COLUMN ticket_limit INTEGER DEFAULT 1`); } catch (e) {}
         try { await db.query(`ALTER TABLE ticket_panels ADD COLUMN welcome_color TEXT DEFAULT '#5865F2'`); } catch (e) {} 
         try { await db.query(`ALTER TABLE ticket_panels ADD COLUMN panel_color TEXT DEFAULT '#5865F2'`); } catch (e) {}
