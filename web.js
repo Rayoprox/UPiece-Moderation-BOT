@@ -33,14 +33,15 @@ app.set('views', join(__dirname, 'views'));
 app.use(express.static(join(__dirname, 'public')));
 app.use(express.json());
 app.use(session({
-
-    name: `session_${process.env.CLIENT_ID.slice(-5)}`, 
-    secret: process.env.SESSION_SECRET,
+   
+    name: `session_${(process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID || 'default').slice(-5)}`, 
+    secret: process.env.SESSION_SECRET || 'rayus_secret_default',
     resave: false,
     saveUninitialized: false,
     cookie: {
         secure: true, 
-        httpOnly: true
+        httpOnly: true,
+        maxAge: 1000 * 60 * 60 * 24 * 7 
     }
 }));
 app.use(passport.initialize());
