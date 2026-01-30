@@ -119,7 +119,16 @@ const db = {
                 UNIQUE (guildid, name)
             );
         `);
-
+const createTranscriptsTable = `
+            CREATE TABLE IF NOT EXISTS transcripts (
+                ticket_id TEXT PRIMARY KEY,
+                guild_id TEXT NOT NULL,
+                closed_by TEXT,
+                closed_at BIGINT,
+                messages JSONB NOT NULL
+            );`;
+            
+        await db.query(createTranscriptsTable); 
       
         try { await db.query(`ALTER TABLE modlogs RENAME COLUMN modid TO moderatorid`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN moderatorid TEXT`, [], true); } catch (e) {}

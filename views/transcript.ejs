@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transcript #<%= ticketId %></title>
+    <style>
+        :root { --bg-primary: #36393f; --bg-secondary: #2f3136; --text-normal: #dcddde; --text-muted: #72767d; --divider: #202225; }
+        body { font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: var(--bg-primary); color: var(--text-normal); margin: 0; padding: 0; }
+        .header { background-color: var(--bg-secondary); padding: 15px 20px; border-bottom: 1px solid var(--divider); box-shadow: 0 1px 3px rgba(0,0,0,0.2); display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { margin: 0; font-size: 1.2rem; display: flex; align-items: center; gap: 10px; }
+        .tag { background: #5865F2; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; text-transform: uppercase; }
+        .chat-container { padding: 20px; max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+        .message { display: flex; gap: 15px; padding: 5px 0; }
+        .message:hover { background-color: rgba(4, 4, 5, 0.07); }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; background-color: var(--bg-secondary); flex-shrink: 0; background-size: cover; }
+        .content { display: flex; flex-direction: column; width: 100%; }
+        .meta { display: flex; align-items: baseline; gap: 8px; }
+        .username { font-weight: 600; font-size: 1rem; color: #fff; }
+        .bot-tag { background: #5865F2; color: white; font-size: 0.625rem; padding: 1px 4px; border-radius: 3px; vertical-align: middle; }
+        .timestamp { font-size: 0.75rem; color: var(--text-muted); }
+        .text { font-size: 0.95rem; line-height: 1.4; white-space: pre-wrap; margin-top: 4px; }
+        .attachment { margin-top: 5px; max-width: 400px; border-radius: 5px; overflow: hidden; }
+        .attachment img { max-width: 100%; display: block; }
+        .system-message { text-align: center; color: var(--text-muted); margin: 20px 0; font-size: 0.9rem; font-style: italic; border-top: 1px solid var(--divider); border-bottom: 1px solid var(--divider); padding: 10px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>
+            <span style="color: #99aab5">#</span>
+            Ticket-<%= ticketId %>
+            <span class="tag">Cerrado</span>
+        </h1>
+        <div style="font-size: 0.9rem; color: #b9bbbe;">
+            Cerrado el: <%= new Date(parseInt(closedAt)).toLocaleString() %>
+        </div>
+    </div>
+
+    <div class="chat-container">
+        <div class="system-message">Inicio del historial del ticket.</div>
+        
+        <% messages.forEach(msg => { %>
+            <div class="message">
+                <div class="avatar" style="background-image: url('<%= msg.avatar %>');"></div>
+                <div class="content">
+                    <div class="meta">
+                        <span class="username" style="color: <%= msg.color || '#fff' %>"><%= msg.username %></span>
+                        <% if(msg.bot) { %><span class="bot-tag">BOT</span><% } %>
+                        <span class="timestamp"><%= new Date(msg.timestamp).toLocaleString() %></span>
+                    </div>
+                    <div class="text">
+                        <%= msg.content %>
+                    </div>
+                    <% if(msg.image) { %>
+                        <div class="attachment"><img src="<%= msg.image %>"></div>
+                    <% } %>
+                </div>
+            </div>
+        <% }) %>
+    </div>
+</body>
+</html>
