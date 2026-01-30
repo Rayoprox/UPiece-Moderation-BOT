@@ -22,13 +22,42 @@ function isValidEmoji(emoji) {
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
+// --- DEBUG DE ESTRATEGIA ---
 passport.use(new Strategy({
     clientID: process.env.DISCORD_CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
     callbackURL: process.env.CALLBACK_URL,
     scope: SCOPES
-}, (_, __, profile, done) => process.nextTick(() => done(null, profile))));
+}, (accessToken, refreshToken, profile, done) => {
+    // Este log te dirá si Discord llegó a hablar con tu bot
+    console.log(`[DEBUG] Login exitoso para: ${profile.username} (${profile.id})`);
+    process.nextTick(() => done(null, profile));
+}));
 
+// --- RUTA CALLBACK CON DEBUG ---
+app.get('/auth/discord/callback', (req, res, next) => {
+    console.log(`[DEBUG] Callback recibido. Query code: ${req.query.code ? 'SI' : 'NO'}`);
+    
+    passport.authenticate('discord', (err, user, info) => {
+        if (err) {
+            console.error('[DEBUG ERROR] Error en Passport Authenticate:', err);
+            return res.status(500).send(`Error de Autenticación: ${err.message}`);
+        }
+        if (!user) {
+            console.error('[DEBUG ERROR] No se obtuvo usuario. Info:', info);
+            return res.redirect('/auth/discord'); // Aquí es donde se suele crear el bucle
+        }
+        
+        req.logIn(user, (err) => {
+            if (err) {
+                console.error('[DEBUG ERROR] Error al crear sesión (logIn):', err);
+                return next(err);
+            }
+            console.log(`[DEBUG] Sesión creada para ${user.username}. Redirigiendo a /`);
+            return res.redirect('/');
+        });
+    })(req, res, next);
+});
 app.set('view engine', 'ejs');
 app.set('views', join(__dirname, 'views'));
 app.use(express.static(join(__dirname, 'public')));
