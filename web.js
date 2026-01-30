@@ -35,80 +35,48 @@ app.use(passport.session());
 
 const auth = (req, res, next) => req.isAuthenticated() ? next() : res.redirect('/auth/discord');
 
-
+// --- MIDDLEWARE DE SEGURIDAD ---
 const protectRoute = async (req, res, next) => {
     const { botClient } = req.app.locals;
     const userId = req.user.id;
-  
     const targetGuildId = req.params.guildId || req.body.guildId;
 
     if (!targetGuildId) return next();
-
-   
-    if (SUPREME_IDS.includes(userId)) {
-        return next();
-    }
+    if (SUPREME_IDS.includes(userId)) return next();
 
     try {
-       
         const settingsRes = await db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [targetGuildId]);
-        const isLockdown = settingsRes.rows[0]?.universal_lock;
-
-        if (isLockdown) {
-            if (req.xhr || req.headers.accept.indexOf('json') > -1) {
-                return res.status(403).json({ error: '⛔ Universal Lockdown Active. Access Restricted.' });
-            }
-            return res.render('error', { message: '⛔ <b>Lockdown Active</b><br>Access has been restricted by Supreme Administration.' });
+        if (settingsRes.rows[0]?.universal_lock) {
+            if (req.xhr || req.headers.accept.indexOf('json') > -1) return res.status(403).json({ error: '⛔ Universal Lockdown Active.' });
+            return res.render('error', { message: '⛔ <b>Lockdown Active</b><br>Access restricted by Administration.' });
         }
 
-        
         const mainGuildId = process.env.DISCORD_GUILD_ID;
         const mainGuild = botClient.guilds.cache.get(mainGuildId);
-        
-        if (!mainGuild) return res.status(404).send('Main Server not accessible by Bot.');
+        if (!mainGuild) return res.status(404).send('Main Server not accessible.');
 
         const memberInMain = await mainGuild.members.fetch(userId).catch(() => null);
-        if (!memberInMain) {
-            return res.render('error', { message: '⛔ <b>Access Denied</b><br>You must be a member of the <b>Main Server</b> to access this panel.' });
-        }
+        if (!memberInMain) return res.render('error', { message: '⛔ <b>Access Denied</b><br>You must be a member of the <b>Main Server</b>.' });
 
-      
-        
-     
         const isAdmin = memberInMain.permissions.has(PermissionsBitField.Flags.Administrator);
-
-        
         const setupPerms = await db.query("SELECT role_id FROM command_permissions WHERE guildid = $1 AND command_name = 'setup'", [mainGuildId]);
         const hasSetupRole = setupPerms.rows.some(row => memberInMain.roles.cache.has(row.role_id));
-
         
         const staffRes = await db.query('SELECT staff_roles FROM guild_settings WHERE guildid = $1', [mainGuildId]);
         let hasStaffRole = false;
         if (staffRes.rows[0]?.staff_roles) {
-            const staffRoles = staffRes.rows[0].staff_roles.split(',');
-            hasStaffRole = staffRoles.some(rId => memberInMain.roles.cache.has(rId));
+            hasStaffRole = staffRes.rows[0].staff_roles.split(',').some(rId => memberInMain.roles.cache.has(rId));
         }
 
-      
-
-       
         if (targetGuildId === process.env.DISCORD_GUILD_ID) {
-            if (isAdmin || hasSetupRole) {
-                return next();
-            }
-            return res.render('error', { message: '⛔ <b>Access Denied</b><br>To manage the Main Server, you need <b>Administrator</b> permissions or the <b>Setup Role</b>.' });
+            if (isAdmin || hasSetupRole) return next();
+            return res.render('error', { message: '⛔ <b>Access Denied</b><br>Requires <b>Administrator</b> or <b>Setup Role</b>.' });
         }
-
-       
         if (targetGuildId === process.env.DISCORD_APPEAL_GUILD_ID) {
-            if (isAdmin || hasSetupRole || hasStaffRole) {
-                return next();
-            }
-            return res.render('error', { message: '⛔ <b>Access Denied</b><br>To view Appeals, you need to be <b>Staff</b>, <b>Admin</b>, or hold the <b>Setup Role</b> in the Main Server.' });
+            if (isAdmin || hasSetupRole || hasStaffRole) return next();
+            return res.render('error', { message: '⛔ <b>Access Denied</b><br>Requires <b>Staff</b>, <b>Admin</b>, or <b>Setup Role</b>.' });
         }
-
-      
-        return res.status(403).send('Invalid Guild Access Context');
+        return res.status(403).send('Invalid Guild Context');
 
     } catch (err) {
         console.error("Security Error:", err);
@@ -116,6 +84,7 @@ const protectRoute = async (req, res, next) => {
     }
 };
 
+// --- RUTAS WEB ---
 app.get('/auth/discord', passport.authenticate('discord', { scope: SCOPES }));
 app.get('/auth/discord/callback', passport.authenticate('discord', { failureRedirect: '/' }), (req, res) => res.redirect('/'));
 app.get('/logout', (req, res) => req.logout(() => res.redirect('/')));
@@ -130,7 +99,6 @@ app.get('/guilds', auth, async (req, res) => {
 
         for (const uGuild of userGuilds) {
             if (!ALLOWED.includes(uGuild.id)) continue;
-            
             if (botClient) {
                 const guild = botClient.guilds.cache.get(uGuild.id);
                 if (guild) {
@@ -155,14 +123,9 @@ app.get('/manage/:guildId', auth, protectRoute, async (req, res) => {
         const { botClient } = req.app.locals;
         const guildId = req.params.guildId;
 
-        if (guildId !== process.env.DISCORD_GUILD_ID && guildId !== process.env.DISCORD_APPEAL_GUILD_ID) return res.redirect('/guilds');
-
         if (guildId === process.env.DISCORD_APPEAL_GUILD_ID) {
             const result = await db.query("SELECT * FROM ban_appeals WHERE status = 'PENDING' ORDER BY timestamp DESC");
-            return res.render('appeals', {
-                bot: botClient?.user, user: req.user, guildId,
-                appeals: result.rows
-            });
+            return res.render('appeals', { bot: botClient?.user, user: req.user, guildId, appeals: result.rows });
         }
 
         const modlogs = await db.query('SELECT COUNT(*) as count FROM modlogs WHERE guildid = $1', [guildId]);
@@ -176,7 +139,6 @@ app.get('/manage/:guildId', auth, protectRoute, async (req, res) => {
             bot: botClient?.user, user: req.user, guildId,
             totalModlogs: modlogs.rows[0].count, activeTickets
         });
-
     } catch (e) { console.error(e); res.status(500).send('Server Error'); }
 });
 
@@ -188,8 +150,116 @@ app.get('/modlogs/:guildId', auth, protectRoute, async (req, res) => {
     } catch (e) { res.status(500).send('Error'); }
 });
 
+// --- RUTA SETUP COMPLETA ---
+app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
+    try {
+        const { botClient } = req.app.locals;
+        const guildId = req.params.guildId;
+        const guild = botClient.guilds.cache.get(guildId);
+
+        if (!guild) return res.redirect('/guilds');
+
+        // Configuración General
+        const settingsRes = await db.query('SELECT * FROM guild_settings WHERE guildid = $1', [guildId]);
+        const settings = settingsRes.rows[0] || {};
+
+        // Logs
+        const logsRes = await db.query('SELECT log_type, channel_id FROM log_channels WHERE guildid = $1', [guildId]);
+        const logs = {};
+        logsRes.rows.forEach(row => logs[row.log_type] = row.channel_id);
+
+        // Protección
+        const backupsRes = await db.query('SELECT antinuke_enabled FROM guild_backups WHERE guildid = $1', [guildId]);
+        const antinuke = backupsRes.rows[0]?.antinuke_enabled || false;
+
+        const lockdownRes = await db.query('SELECT channel_id FROM lockdown_channels WHERE guildid = $1', [guildId]);
+        const lockdownChannels = lockdownRes.rows.map(r => r.channel_id).join(', ');
+
+        // Automod (MAPEO CORRECTO)
+        const automodRes = await db.query('SELECT * FROM automod_rules WHERE guildid = $1 ORDER BY warnings_count ASC', [guildId]);
+        const automodRules = automodRes.rows.map(r => ({
+            warnings: r.warnings_count, // DB: warnings_count -> Frontend: warnings
+            action: r.action_type,      // DB: action_type -> Frontend: action
+            duration: r.action_duration // DB: action_duration -> Frontend: duration
+        }));
+        
+        // Permisos (Sin Setup Role en el override)
+        const cmdPermsRes = await db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guildId]);
+        const commandOverrides = {};
+        cmdPermsRes.rows.forEach(r => {
+            if(r.command_name === 'setup') return;
+            if(!commandOverrides[r.command_name]) commandOverrides[r.command_name] = [];
+            commandOverrides[r.command_name].push(r.role_id);
+        });
+
+        const botCommands = botClient.commands.map(c => c.data.name).filter(n => n !== 'setup').sort();
+        const guildRoles = guild.roles.cache.map(r => ({ id: r.id, name: r.name, color: r.hexColor })).sort((a,b) => b.position - a.position);
+
+        res.render('setup', { 
+            bot: botClient.user, user: req.user, guild, 
+            settings, logs, antinuke, lockdownChannels,
+            automodRules,
+            commandOverrides,
+            botCommands,
+            guildRoles
+        });
+    } catch (e) { console.error(e); res.status(500).send("Error loading setup"); }
+});
+
+// --- API SETUP SAVE ---
+app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
+    const guildId = req.params.guildId;
+    const { 
+        prefix, staff_roles, 
+        log_mod, log_cmd, log_appeal, log_nuke,
+        antinuke_enabled, lockdown_channels,
+        automod_rules, command_overrides
+    } = req.body;
+
+    try {
+        await db.query(`INSERT INTO guild_settings (guildid, prefix, staff_roles) VALUES ($1, $2, $3) ON CONFLICT (guildid) DO UPDATE SET prefix = $2, staff_roles = $3`, [guildId, prefix || '!', staff_roles || null]);
+
+        const updateLog = async (type, chId) => {
+            if (chId) await db.query(`INSERT INTO log_channels (guildid, log_type, channel_id) VALUES ($1, $2, $3) ON CONFLICT (guildid, log_type) DO UPDATE SET channel_id = $3`, [guildId, type, chId]);
+            else await db.query("DELETE FROM log_channels WHERE guildid = $1 AND log_type = $2", [guildId, type]);
+        };
+        await updateLog('modlog', log_mod);
+        await updateLog('cmdlog', log_cmd);
+        await updateLog('banappeal', log_appeal);
+        await updateLog('antinuke', log_nuke);
+
+        await db.query(`INSERT INTO guild_backups (guildid, antinuke_enabled) VALUES ($1, $2) ON CONFLICT (guildid) DO UPDATE SET antinuke_enabled = $2`, [guildId, antinuke_enabled === 'on']);
+        
+        await db.query("DELETE FROM lockdown_channels WHERE guildid = $1", [guildId]);
+        if (lockdown_channels) {
+            const channels = lockdown_channels.split(',').map(c => c.trim()).filter(c => c);
+            for (const c of channels) await db.query("INSERT INTO lockdown_channels (guildid, channel_id) VALUES ($1, $2)", [guildId, c]);
+        }
+
+        // Automod Save
+        await db.query("DELETE FROM automod_rules WHERE guildid = $1", [guildId]);
+        if (automod_rules && Array.isArray(automod_rules)) {
+            for (const [idx, rule] of automod_rules.entries()) {
+                await db.query(`INSERT INTO automod_rules (guildid, rule_order, warnings_count, action_type, action_duration) VALUES ($1, $2, $3, $4, $5)`, 
+                    [guildId, idx + 1, rule.warnings, rule.action, rule.duration || null]);
+            }
+        }
+
+        // Permissions Save
+        await db.query("DELETE FROM command_permissions WHERE guildid = $1 AND command_name != 'setup'", [guildId]);
+        if (command_overrides && Array.isArray(command_overrides)) {
+            for (const ov of command_overrides) {
+                for (const rId of ov.roles) {
+                    await db.query("INSERT INTO command_permissions (guildid, command_name, role_id) VALUES ($1, $2, $3)", [guildId, ov.command, rId]);
+                }
+            }
+        }
+
+        res.json({ success: true });
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/appeals/:action', auth, async (req, res, next) => {
- 
     req.body.guildId = process.env.DISCORD_APPEAL_GUILD_ID;
     next();
 }, protectRoute, async (req, res) => {

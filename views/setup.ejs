@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup - <%= guild.name %></title>
+    <style>
+        :root{--bg:#050505;--panel:#101012;--text:#fff;--sub:#a1a1aa;--acc:#8b5cf6;--border:#27272a;--input:#18181b}
+        body{font-family:'Segoe UI',sans-serif;background:var(--bg);margin:0;color:var(--text);display:flex;flex-direction:column;align-items:center;min-height:100vh}
+        
+        header{
+            background:linear-gradient(180deg, rgba(139,92,246,0.1) 0%, transparent 100%);
+            width:100%;padding:30px 20px;text-align:center;border-bottom:1px solid var(--border);
+            display: flex; justify-content: center; align-items: center; position: relative;
+        }
+        .back-btn{
+            position:absolute;left:30px; top:50%; transform:translateY(-50%);
+            color:var(--sub); text-decoration:none; font-weight:600; font-size:0.9rem;
+            padding: 8px 15px; border: 1px solid var(--border); border-radius: 20px; transition:0.3s;
+        }
+        .back-btn:hover{ background:var(--acc); color:#000; box-shadow:0 0 15px rgba(139,92,246,0.4); border-color:var(--acc); }
+        
+        h1{margin:0;font-size:1.8rem;text-shadow:0 0 10px rgba(139,92,246,0.3);}
+        
+        .layout { display: flex; width: 90%; max-width: 1200px; margin-top: 40px; gap: 30px; flex-wrap: wrap; padding-bottom: 50px; }
+        .sidebar { flex: 1; min-width: 250px; display: flex; flex-direction: column; gap: 10px; }
+        .tab-btn {
+            background: var(--panel); border: 1px solid var(--border); color: var(--sub);
+            padding: 15px 20px; text-align: left; cursor: pointer; border-radius: 12px;
+            font-weight: 600; transition: 0.3s; display: flex; align-items: center; gap: 10px;
+        }
+        .tab-btn:hover { background: #1f1f23; color: var(--text); }
+        .tab-btn.active { background: var(--acc); color: #000; border-color: var(--acc); box-shadow: 0 0 20px rgba(139,92,246,0.3); }
+
+        .content-area { flex: 3; min-width: 300px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 40px; }
+        .section { display: none; animation: fadeIn 0.3s ease; }
+        .section.active { display: block; }
+        @keyframes fadeIn { from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:translateY(0)} }
+
+        h2 { margin-top: 0; border-bottom: 1px solid var(--border); padding-bottom: 15px; margin-bottom: 25px; color: var(--acc); }
+        h3 { color: var(--text); margin-bottom: 10px; border-left: 3px solid var(--acc); padding-left: 10px; }
+
+        .form-group { margin-bottom: 25px; }
+        .label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--sub); font-size: 0.9rem; }
+        .hint { display: block; margin-top: 5px; font-size: 0.8rem; color: #52525b; }
+
+        input[type="text"], input[type="number"], select {
+            width: 100%; padding: 12px; background: var(--input); border: 1px solid var(--border);
+            color: var(--text); border-radius: 8px; font-family: inherit; box-sizing: border-box;
+            transition: 0.3s;
+        }
+        input:focus, select:focus { outline: none; border-color: var(--acc); box-shadow: 0 0 10px rgba(139,92,246,0.2); }
+
+        .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #27272a; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--acc); box-shadow: 0 0 15px rgba(139,92,246,0.5); }
+        input:checked + .slider:before { transform: translateX(24px); }
+
+        /* Estilos listas */
+        .item-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+        .item-row { 
+            background: #18181b; padding: 15px; border-radius: 8px; border: 1px solid var(--border); 
+            display: flex; align-items: center; justify-content: space-between; 
+        }
+        .item-info { display: flex; gap: 15px; align-items: center; flex: 1; flex-wrap: wrap; }
+        .tag { background: #27272a; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-family: monospace; border: 1px solid var(--border); }
+        .role-tag { color: var(--acc); background: rgba(139,92,246,0.1); border-color: rgba(139,92,246,0.3); }
+        
+        .btn-del { background: #ef4444; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
+        
+        .add-box { background: #18181b; padding: 20px; border-radius: 12px; border: 1px solid var(--border); margin-top: 15px; }
+        .add-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+        .add-row > div { flex: 1; min-width: 150px; }
+        .btn-add { background: var(--acc); color: black; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; height: 42px; }
+
+        .save-bar { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border); text-align: right; }
+        .btn-save {
+            background: #00ff9d; color: #000; border: none; padding: 12px 30px;
+            border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.3s;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .btn-save:hover { box-shadow: 0 0 20px rgba(0,255,157,0.4); transform: scale(1.05); }
+    </style>
+    <script>
+        // Data stores (con nombres de propiedades alineados)
+        let automodRules = <%- JSON.stringify(automodRules) %>;
+        let commandOverrides = <%- JSON.stringify(Object.entries(commandOverrides).map(([k,v]) => ({command: k, roles: v}))) %>;
+        const guildRolesMap = <%- JSON.stringify(guildRoles.reduce((acc, r) => { acc[r.id] = r.name; return acc; }, {})) %>;
+
+        // --- AUTOMOD LOGIC ---
+        function updateDurationField() {
+            const action = document.getElementById('am_action').value;
+            const durationDiv = document.getElementById('div_duration');
+            const durationInput = document.getElementById('am_duration');
+
+            if (action === 'Kick') {
+                durationDiv.style.display = 'none';
+                durationInput.value = ''; 
+            } else if (action === 'Timeout') {
+                durationDiv.style.display = 'block';
+                durationInput.placeholder = "Required (e.g. 10m, 1h)";
+            } else if (action === 'Ban') {
+                durationDiv.style.display = 'block';
+                durationInput.placeholder = "Optional (Empty = Perma)";
+            }
+        }
+
+        function renderAutomod() {
+            const list = document.getElementById('automod-list');
+            list.innerHTML = '';
+            automodRules.forEach((rule, idx) => {
+                // Aquí usamos rule.warnings y rule.action y rule.duration
+                list.innerHTML += `
+                    <div class="item-row">
+                        <div class="item-info">
+                            <span style="font-weight:bold; color:#facc15">${rule.warnings} Warns</span>
+                            <span>➔</span>
+                            <span class="tag" style="text-transform:uppercase; font-weight:bold;">${rule.action}</span>
+                            ${rule.duration ? `<span class="tag">${rule.duration}</span>` : ''}
+                        </div>
+                        <button class="btn-del" onclick="removeAutomod(${idx})">🗑️</button>
+                    </div>`;
+            });
+        }
+
+        function addAutomod() {
+            const warningsInput = document.getElementById('am_warns');
+            const action = document.getElementById('am_action').value;
+            const durationInput = document.getElementById('am_duration');
+            
+            const warnings = parseInt(warningsInput.value);
+            const duration = durationInput.value.trim();
+
+            if (isNaN(warnings) || warnings < 1 || warnings > 10) {
+                return alert("⚠️ Warnings must be a number between 1 and 10.");
+            }
+
+            if (action === 'Timeout' && !duration) {
+                return alert("⚠️ Timeout requires a duration (e.g., 10m, 1h).");
+            }
+
+            automodRules.push({ warnings: warnings, action: action, duration: duration });
+            automodRules.sort((a,b) => a.warnings - b.warnings);
+
+            renderAutomod();
+            warningsInput.value = '';
+            durationInput.value = '';
+            updateDurationField();
+        }
+
+        function removeAutomod(idx) { automodRules.splice(idx, 1); renderAutomod(); }
+
+        // --- PERMISSIONS LOGIC ---
+        function renderPerms() {
+            const list = document.getElementById('perms-list');
+            list.innerHTML = '';
+            commandOverrides.forEach((ov, idx) => {
+                const roleNames = ov.roles.map(rId => 
+                    `<span class="tag role-tag">@${guildRolesMap[rId] || 'Unknown'}</span>`
+                ).join(' ');
+
+                list.innerHTML += `
+                    <div class="item-row">
+                        <div class="item-info">
+                            <span style="color:#8b5cf6; font-weight:bold">/${ov.command}</span>
+                            <span style="color:#555">Allowed:</span>
+                            <div style="display:flex; flex-wrap:wrap; gap:5px;">${roleNames}</div>
+                        </div>
+                        <button class="btn-del" onclick="removePerm(${idx})">🗑️</button>
+                    </div>`;
+            });
+        }
+
+        function addPerm() {
+            const cmd = document.getElementById('perm_cmd').value;
+            const select = document.getElementById('perm_roles');
+            const roles = Array.from(select.selectedOptions).map(opt => opt.value);
+            
+            if(roles.length === 0) return alert("Select at least one role");
+            
+            commandOverrides = commandOverrides.filter(o => o.command !== cmd);
+            commandOverrides.push({ command: cmd, roles: roles });
+            renderPerms();
+            select.value = "";
+        }
+
+        function removePerm(idx) { commandOverrides.splice(idx, 1); renderPerms(); }
+
+        // --- TABS & SAVE ---
+        function openTab(name) {
+            document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(name).classList.add('active');
+            document.getElementById('btn-' + name).classList.add('active');
+        }
+
+        async function saveConfig() {
+            const btn = document.getElementById('saveBtn');
+            btn.innerText = "SAVING..."; btn.style.opacity = "0.7";
+
+            const data = {
+                prefix: document.getElementById('prefix').value,
+                staff_roles: document.getElementById('staff_roles').value,
+                log_mod: document.getElementById('log_mod').value,
+                log_cmd: document.getElementById('log_cmd').value,
+                log_appeal: document.getElementById('log_appeal').value,
+                log_nuke: document.getElementById('log_nuke').value,
+                antinuke_enabled: document.getElementById('antinuke').checked ? 'on' : 'off',
+                lockdown_channels: document.getElementById('lockdown_channels').value,
+                automod_rules: automodRules,
+                command_overrides: commandOverrides
+            };
+
+            try {
+                const res = await fetch('/api/setup/<%= guild.id %>', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                if(res.ok) {
+                    btn.innerText = "SAVED!"; btn.style.background = "#00ff9d";
+                    setTimeout(() => { btn.innerText = "SAVE CHANGES"; btn.style.background = "#00ff9d"; }, 2000);
+                } else {
+                    btn.innerText = "ERROR"; btn.style.background = "#ff0055";
+                }
+            } catch(e) { alert("Connection error"); }
+            btn.style.opacity = "1";
+        }
+
+        window.onload = () => { 
+            renderAutomod(); 
+            renderPerms(); 
+            updateDurationField(); 
+        };
+    </script>
+</head>
+<body>
+    <header>
+        <a href="/manage/<%= guild.id %>" class="back-btn">← Dashboard</a>
+        <h1>System Configuration</h1>
+    </header>
+
+    <div class="layout">
+        <div class="sidebar">
+            <div id="btn-channels" class="tab-btn active" onclick="openTab('channels')"><span>📺</span> Channels</div>
+            <div id="btn-automod" class="tab-btn" onclick="openTab('automod')"><span>🤖</span> Automod</div>
+            <div id="btn-roles" class="tab-btn" onclick="openTab('roles')"><span>🔐</span> Permissions</div>
+            <div id="btn-protection" class="tab-btn" onclick="openTab('protection')"><span>🛡️</span> Protection</div>
+            <div id="btn-general" class="tab-btn" onclick="openTab('general')"><span>⌨️</span> General</div>
+        </div>
+
+        <div class="content-area">
+            
+            <div id="channels" class="section active">
+                <h2>Log Channels</h2>
+                <div class="form-group"><label class="label">Mod Logs Channel ID</label><input type="text" id="log_mod" value="<%= logs.modlog || '' %>"></div>
+                <div class="form-group"><label class="label">Command Logs Channel ID</label><input type="text" id="log_cmd" value="<%= logs.cmdlog || '' %>"></div>
+                <div class="form-group"><label class="label">Ban Appeals Channel ID</label><input type="text" id="log_appeal" value="<%= logs.banappeal || '' %>"></div>
+                <div class="form-group"><label class="label">Anti-Nuke Logs Channel ID</label><input type="text" id="log_nuke" value="<%= logs.antinuke || '' %>"></div>
+            </div>
+
+            <div id="automod" class="section">
+                <h2>Automod Rules</h2>
+                <div id="automod-list" class="item-list"></div>
+                
+                <div class="add-box">
+                    <h3>Add Rule</h3>
+                    <div class="add-row">
+                        <div>
+                            <label class="label">Warnings (1-10)</label>
+                            <input type="number" id="am_warns" placeholder="e.g. 3" min="1" max="10">
+                        </div>
+                        <div>
+                            <label class="label">Action</label>
+                            <select id="am_action" onchange="updateDurationField()">
+                                <option value="Timeout">Timeout</option>
+                                <option value="Kick">Kick</option>
+                                <option value="Ban">Ban</option>
+                            </select>
+                        </div>
+                        <div id="div_duration">
+                            <label class="label">Duration</label>
+                            <input type="text" id="am_duration" placeholder="e.g. 10m">
+                        </div>
+                        <button class="btn-add" onclick="addAutomod()">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="roles" class="section">
+                <h2>Permissions</h2>
+                
+                <div class="form-group">
+                    <label class="label">Staff Roles IDs</label>
+                    <input type="text" id="staff_roles" value="<%= settings.staff_roles || '' %>" placeholder="ID1, ID2, ID3">
+                    <span class="hint">General staff access roles.</span>
+                </div>
+
+                <hr style="border:0; border-top:1px solid var(--border); margin: 30px 0;">
+
+                <h3>Command Overrides</h3>
+                <div id="perms-list" class="item-list"></div>
+
+                <div class="add-box">
+                    <h3>Add Override</h3>
+                    <div class="add-row">
+                        <div style="flex:1">
+                            <label class="label">Command</label>
+                            <select id="perm_cmd">
+                                <% botCommands.forEach(cmd => { %>
+                                    <option value="<%= cmd %>">/<%= cmd %></option>
+                                <% }) %>
+                            </select>
+                        </div>
+                        <div style="flex:2">
+                            <label class="label">Allowed Roles (Multi-select)</label>
+                            <select id="perm_roles" multiple style="height:100px">
+                                <% guildRoles.forEach(r => { %>
+                                    <option value="<%= r.id %>" style="color:<%= r.color %>"><%= r.name %></option>
+                                <% }) %>
+                            </select>
+                        </div>
+                        <button class="btn-add" onclick="addPerm()">Add</button>
+                    </div>
+                    <span class="hint">Hold Ctrl/Cmd to select multiple roles.</span>
+                </div>
+            </div>
+
+            <div id="protection" class="section">
+                <h2>Protection</h2>
+                <div class="form-group">
+                    <label class="label">Anti-Nuke System</label>
+                    <label class="switch">
+                        <input type="checkbox" id="antinuke" <%= antinuke ? 'checked' : '' %>>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="label">Lockdown Channels IDs</label>
+                    <input type="text" id="lockdown_channels" value="<%= lockdownChannels %>" placeholder="ID1, ID2">
+                </div>
+            </div>
+
+            <div id="general" class="section">
+                <h2>General</h2>
+                <div class="form-group">
+                    <label class="label">Bot Prefix</label>
+                    <input type="text" id="prefix" value="<%= settings.prefix || '!' %>">
+                </div>
+            </div>
+
+            <div class="save-bar">
+                <button id="saveBtn" class="btn-save" onclick="saveConfig()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
