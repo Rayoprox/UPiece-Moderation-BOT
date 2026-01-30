@@ -129,6 +129,20 @@ const createTranscriptsTable = `
             );`;
             
         await db.query(createTranscriptsTable); 
+
+        const createAppealsTable = `
+    CREATE TABLE IF NOT EXISTS ban_appeals (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        username TEXT NOT NULL,
+        guild_id TEXT NOT NULL,
+        reason TEXT,
+        status TEXT DEFAULT 'PENDING', -- PENDING, APPROVED, REJECTED, BLACKLISTED
+        message_id TEXT, -- ID del mensaje en el canal de staff para editarlo luego
+        timestamp BIGINT
+    );`;
+
+await db.query(createAppealsTable);
       
         try { await db.query(`ALTER TABLE modlogs RENAME COLUMN modid TO moderatorid`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN moderatorid TEXT`, [], true); } catch (e) {}
