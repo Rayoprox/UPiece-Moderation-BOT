@@ -5,36 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><%= bot ? bot.username : 'Bot' %> Panel</title>
     <style>
-        :root{--bg:#f2f3f5;--card:#fff;--text:#23272a;--sub:#99aab5;--acc:#5865F2;--acc-h:#4752c4}
+        :root{--bg:#050505;--card:#101012;--text:#ffffff;--sub:#a1a1aa;--acc:#8b5cf6;--acc-glow:rgba(139,92,246,0.5);--border:#27272a}
         body{font-family:'Segoe UI',sans-serif;background:var(--bg);margin:0;color:var(--text);display:flex;flex-direction:column;align-items:center;min-height:100vh;user-select:none}
-        header{background:linear-gradient(135deg,var(--acc),var(--acc-h));width:100%;padding:40px 20px;text-align:center;color:#fff;box-shadow:0 4px 15px rgba(88,101,242,.3);margin-bottom:40px;position:relative}
         
-        .back-btn{position:absolute;top:20px;left:20px;color:white;text-decoration:none;font-weight:bold;background:rgba(0,0,0,0.2);padding:8px 15px;border-radius:20px;font-size:0.9rem;transition:0.2s}
-        .back-btn:hover{background:rgba(0,0,0,0.3)}
+        header{
+            background:linear-gradient(180deg, rgba(139,92,246,0.15) 0%, transparent 100%);
+            width:100%;padding:40px 20px;text-align:center;
+            border-bottom:1px solid var(--border); margin-bottom:40px; position:relative;
+        }
+        
+        .back-btn{
+            position:absolute;top:20px;left:20px;
+            color:var(--text);text-decoration:none;font-weight:600;
+            background:rgba(255,255,255,0.05);border:1px solid var(--border);
+            padding:8px 20px;border-radius:30px;font-size:0.9rem;transition:0.3s;
+        }
+        .back-btn:hover{background:var(--acc);color:#000;box-shadow:0 0 15px var(--acc-glow);border-color:var(--acc);}
 
         .profile{display:flex;flex-direction:column;align-items:center;gap:15px}
-        .avatar{width:120px;height:120px;border-radius:50%;border:5px solid rgba(255,255,255,.3);transition:transform .3s}
-        .avatar:hover{transform:scale(1.05)}
-        h1{margin:0;font-size:2.5rem;font-weight:700}
-        .sub{font-size:1.1rem;opacity:.9;margin-top:5px}
+        .avatar{
+            width:120px;height:120px;border-radius:50%;
+            border:3px solid var(--border);
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            transition:transform .3s;
+        }
+        .avatar:hover{transform:scale(1.05); border-color:var(--acc); box-shadow:0 0 20px var(--acc-glow);}
         
-        .nav{background:var(--card);padding:10px 30px;border-radius:50px;box-shadow:0 4px 6px rgba(0,0,0,.05);margin-top:-25px;display:flex;gap:20px;z-index:10}
-        .link{text-decoration:none;color:var(--text);font-weight:600;padding:10px 20px;border-radius:25px;transition:.2s}
-        .link:hover{background:#f0f0f0;color:var(--acc)}
-        .link.active{background:var(--acc);color:#fff}
+        h1{margin:0;font-size:2.5rem;font-weight:800;text-shadow:0 0 20px rgba(0,0,0,0.5);}
+        .sub{font-size:1.1rem;color:var(--sub);margin-top:5px;font-family:monospace}
         
-        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:30px;max-width:1000px;width:90%;margin:40px 0}
-        .card{background:var(--card);padding:30px;border-radius:16px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.05);transition:.2s;border-top:5px solid var(--acc)}
-        .card:hover{transform:translateY(-5px);box-shadow:0 8px 24px rgba(0,0,0,.1)}
-        .num{font-size:3.5rem;font-weight:800;color:var(--acc);margin:10px 0;line-height:1}
-        .label{font-size:1.2rem;color:var(--sub);font-weight:600;text-transform:uppercase;letter-spacing:1px}
+        .nav{
+            background:var(--card);padding:10px 15px;border-radius:50px;
+            border:1px solid var(--border); margin-top:-30px;
+            display:flex;gap:10px;z-index:10; backdrop-filter: blur(10px);
+        }
+        .link{
+            text-decoration:none;color:var(--sub);font-weight:600;
+            padding:10px 25px;border-radius:25px;transition:.3s;
+        }
+        .link:hover{color:var(--text);background:rgba(255,255,255,0.05)}
+        .link.active{background:var(--acc);color:#000;box-shadow:0 0 15px var(--acc-glow);}
+        
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:30px;max-width:1000px;width:90%;margin:50px 0}
+        
+        .card{
+            background:var(--card);padding:40px;border-radius:20px;
+            text-align:center; border:1px solid var(--border);
+            transition:.3s; position:relative; overflow:hidden;
+        }
+        .card::before {
+            content:''; position:absolute; top:0; left:0; width:100%; height:4px;
+            background:var(--acc); box-shadow:0 0 10px var(--acc);
+        }
+        
+        .card:hover{transform:translateY(-5px); border-color:var(--acc); box-shadow:0 10px 40px -10px rgba(0,0,0,0.5);}
+        
+        .num{font-size:4rem;font-weight:800;color:var(--text);margin:15px 0;line-height:1;text-shadow:0 0 10px rgba(255,255,255,0.1);}
+        .label{font-size:1rem;color:var(--acc);font-weight:700;text-transform:uppercase;letter-spacing:2px;}
     </style>
-    <script>
-        document.addEventListener('contextmenu', e => e.preventDefault());
-        document.addEventListener('keydown', e => {
-            if (e.key === 'F12' || (e.ctrlKey && ['u','I','J','C'].some(k => e.key.toUpperCase() === k))) e.preventDefault();
-        });
-    </script>
 </head>
 <body>
     <header>
@@ -44,26 +72,27 @@
                 <img src="https://cdn.discordapp.com/avatars/<%= bot.id %>/<%= bot.avatar %>.png" class="avatar">
             <% } %>
             <div>
-                <h1><%= bot ? bot.username : 'Bot' %></h1>
-                <div class="sub">Management Panel • <%= user.username %></div>
+                <h1><%= bot ? bot.username : 'System' %></h1>
+                <div class="sub">OPERATOR: <%= user.username.toUpperCase() %></div>
             </div>
         </div>
     </header>
 
     <div class="nav">
-        <a href="#" class="link active">Dashboard</a>
-        <a href="/modlogs/<%= guildId %>" class="link">Mod Logs</a>
+        <a href="#" class="link active">Overview</a>
+        <a href="/modlogs/<%= guildId %>" class="link">Audit Logs</a>
     </div>
 
     <main class="grid">
         <div class="card">
-            <div class="label">Total Infractions</div>
+            <div class="label">Infractions</div>
             <div class="num"><%= totalModlogs %></div>
-            <p style="color:var(--sub);margin:0">For this server</p>
+            <p style="color:var(--sub);margin:0">Total Database Records</p>
         </div>
-        <div class="card" style="border-top-color:#3ba55c">
-            <div class="label">Active Tickets</div>
-            <div class="num" style="color:#3ba55c"><%= activeTickets %></div>
+        <div class="card">
+            <style>.card:nth-child(2)::before{background:#00ff9d;box-shadow:0 0 10px #00ff9d}</style>
+            <div class="label" style="color:#00ff9d">Active Tickets</div>
+            <div class="num"><%= activeTickets %></div>
             <p style="color:var(--sub);margin:0">Open Support Channels</p>
         </div>
     </main>

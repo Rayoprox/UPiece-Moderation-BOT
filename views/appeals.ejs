@@ -5,69 +5,91 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ban Appeals Management</title>
     <style>
-        :root{--bg:#f2f3f5;--card:#fff;--text:#23272a;--acc:#5865F2;--green:#2ecc71;--red:#e74c3c;--black:#2c2f33}
+        :root{
+            --bg:#050505;
+            --card:#101012;
+            --text:#ffffff;
+            --sub:#a1a1aa;
+            --acc:#ff0055; 
+            --acc-glow:rgba(255,0,85,0.5);
+            --green:#00ff9d;
+            --border:#27272a;
+        }
         body{font-family:'Segoe UI',sans-serif;background:var(--bg);margin:0;display:flex;flex-direction:column;align-items:center;min-height:100vh;color:var(--text)}
         
-        header{background:linear-gradient(135deg,#d32f2f,#b71c1c);width:100%;padding:40px 20px;text-align:center;color:#fff;box-shadow:0 4px 15px rgba(211,47,47,0.3);position:relative}
-        h1{margin:0;font-size:2rem;font-weight:700}
+        header{
+            background:linear-gradient(180deg, rgba(255,0,85,0.15) 0%, transparent 100%);
+            width:100%;padding:40px 20px;text-align:center;
+            border-bottom:1px solid var(--border); position:relative;
+        }
+        h1{margin:0;font-size:2rem;font-weight:700;text-shadow:0 0 15px var(--acc-glow);}
+        p{color:var(--sub); margin-top:5px;}
         
-        .back-btn{position:absolute;top:20px;left:20px;color:white;text-decoration:none;font-weight:bold;background:rgba(0,0,0,0.2);padding:8px 15px;border-radius:20px;font-size:0.9rem;transition:0.2s}
-        .back-btn:hover{background:rgba(0,0,0,0.3)}
+        .back-btn{
+            position:absolute;top:20px;left:20px;color:var(--text);text-decoration:none;
+            font-weight:600;background:rgba(255,255,255,0.05);border:1px solid var(--border);
+            padding:8px 20px;border-radius:30px;font-size:0.9rem;transition:0.3s;
+        }
+        .back-btn:hover{background:var(--acc);color:#fff;border-color:var(--acc);box-shadow:0 0 15px var(--acc-glow);}
         
         .container {
-            width: 90%; max-width: 1000px; margin-top: -30px; display: grid; gap: 25px; padding-bottom: 50px; z-index: 10;
+            width: 90%; max-width: 900px; margin-top: 30px; display: grid; gap: 25px; padding-bottom: 50px; z-index: 10;
         }
 
         .appeal-card {
-            background: white; border-radius: 12px; padding: 25px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #f1c40f; /* Amarillo Pending */
+            background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 30px;
+            position:relative;
             display: flex; flex-direction: column; gap: 20px;
-            transition: transform 0.2s;
+            transition: transform 0.3s;
+        }
+        .appeal-card::before {
+            content:''; position:absolute; left:0; top:0; height:100%; width:4px;
+            background:#ffae00; 
+            border-radius: 4px 0 0 4px; box-shadow: 0 0 10px #ffae00;
         }
 
-        .header-info { display: flex; align-items: center; gap: 15px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
-        .avatar { width: 50px; height: 50px; border-radius: 50%; background: #eee; background-size: cover; border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .user-details h3 { margin: 0; font-size: 1.1rem; }
-        .user-details span { font-size: 0.85rem; color: #72767d; font-family: monospace; }
-        .time-badge { margin-left: auto; background: #f8f9fa; padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; color: #72767d; border: 1px solid #eee; }
+        .header-info { display: flex; align-items: center; gap: 20px; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
+        .avatar { width: 60px; height: 60px; border-radius: 50%; background: #27272a; background-size: cover; border: 2px solid var(--border); }
+        .user-details h3 { margin: 0; font-size: 1.2rem; color:var(--text); }
+        .user-details span { font-size: 0.9rem; color: var(--sub); font-family: monospace; background: #18181b; padding: 2px 6px; border-radius: 4px; }
+        .time-badge { margin-left: auto; color: var(--sub); font-size: 0.9rem; }
 
-        /* Estilos mejorados para el contenido estructurado */
         .content-section { display: flex; flex-direction: column; gap: 15px; }
-        .field-group { display: flex; flex-direction: column; gap: 5px; }
+        .field-group { display: flex; flex-direction: column; gap: 8px; }
         
         .label { 
-            font-weight: 700; font-size: 0.85rem; color: #5865F2; 
-            text-transform: uppercase; letter-spacing: 0.5px; 
-            margin-bottom: 2px;
+            font-weight: 700; font-size: 0.8rem; color: var(--acc); 
+            text-transform: uppercase; letter-spacing: 1px; 
         }
         
         .text-box { 
-            background: #f8f9fa; padding: 12px 15px; border-radius: 8px; 
-            border: 1px solid #e3e5e8; font-size: 0.95rem; line-height: 1.5; 
-            white-space: pre-wrap; color: #2c2f33;
+            background: #18181b; padding: 15px; border-radius: 8px; 
+            border: 1px solid var(--border); font-size: 0.95rem; line-height: 1.6; 
+            white-space: pre-wrap; color: #d4d4d8;
         }
 
-        .action-area { margin-top: 10px; border-top: 1px solid #eee; padding-top: 20px; }
+        .action-area { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 25px; }
         .response-input {
-            width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px;
-            margin-bottom: 15px; font-family: inherit; resize: vertical; box-sizing: border-box;
-            background-color: #fff; transition: border-color 0.2s;
+            width: 100%; padding: 15px; border: 1px solid var(--border); border-radius: 8px;
+            margin-bottom: 20px; font-family: inherit; resize: vertical; box-sizing: border-box;
+            background-color: #000; color: white; transition: 0.3s;
         }
-        .response-input:focus { outline: none; border-color: var(--acc); }
+        .response-input:focus { outline: none; border-color: var(--acc); box-shadow: 0 0 10px var(--acc-glow); }
 
-        .buttons { display: flex; gap: 10px; }
+        .buttons { display: flex; gap: 15px; }
         
         button {
-            flex: 1; padding: 12px; border: none; border-radius: 6px; cursor: pointer;
-            font-weight: bold; color: white; font-size: 0.95rem; transition: filter 0.2s;
+            flex: 1; padding: 14px; border: none; border-radius: 8px; cursor: pointer;
+            font-weight: 700; color: #000; font-size: 0.95rem; transition: 0.3s;
             display: flex; align-items: center; justify-content: center; gap: 8px;
+            text-transform: uppercase; letter-spacing: 0.5px;
         }
-        button:hover { filter: brightness(90%); }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .btn-approve { background: var(--green); }
-        .btn-reject { background: var(--red); }
-        .btn-black { background: var(--black); }
+        button:hover { transform: translateY(-2px); filter: brightness(110%); }
+        
+        .btn-approve { background: var(--green); box-shadow: 0 0 15px rgba(0,255,157,0.3); }
+        .btn-reject { background: var(--acc); box-shadow: 0 0 15px var(--acc-glow); color: white;}
+        .btn-black { background: #27272a; color: white; border:1px solid var(--border); }
+        .btn-black:hover { background: #000; border-color: #fff; }
 
     </style>
     <script>
@@ -78,10 +100,10 @@
             const btnContainer = document.getElementById(`btns-${id}`);
 
             if (!reason && action !== 'approve') {
-                return alert("⚠️ Please write a reason for rejection/blacklisting to send to the user.");
+                return alert("⚠️ Please write a reason for rejection/blacklisting.");
             }
 
-            if(!confirm(`Are you sure you want to ${action.toUpperCase()} this appeal? This action is irreversible.`)) return;
+            if(!confirm(`ACTION: ${action.toUpperCase()}\nAre you sure? This is irreversible.`)) return;
 
             btnContainer.style.opacity = '0.5';
             btnContainer.style.pointerEvents = 'none';
@@ -100,9 +122,7 @@
                     card.style.transform = 'scale(0.95)';
                     card.style.opacity = '0';
                     setTimeout(() => card.remove(), 300);
-                    
-                    const remaining = document.querySelectorAll('.appeal-card').length;
-                    if(remaining <= 1) location.reload(); 
+                    if(document.querySelectorAll('.appeal-card').length <= 1) location.reload(); 
                 } else {
                     alert("Error: " + (data.error || "Unknown error"));
                     btnContainer.style.opacity = '1';
@@ -122,15 +142,15 @@
     <header>
         <a href="/guilds" class="back-btn">← Switch Server</a>
         <h1>Ban Appeals</h1>
-        <p>Review and manage unban requests</p>
+        <p>Pending Unban Requests</p>
     </header>
 
     <div class="container">
         <% if(appeals.length === 0) { %>
-            <div style="text-align:center; padding:60px; background:white; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.05);">
-                <div style="font-size:3rem; margin-bottom:10px">🎉</div>
-                <h2 style="color:#2c2f33; margin:0">All caught up!</h2>
-                <p style="color:#72767d">There are no pending ban appeals at the moment.</p>
+            <div style="text-align:center; padding:80px 20px; background:var(--card); border-radius:20px; border:1px solid var(--border);">
+                <div style="font-size:3rem; margin-bottom:15px; opacity:0.7">✅</div>
+                <h2 style="color:var(--text); margin:0">All Clean</h2>
+                <p style="color:var(--sub)">No pending appeals found.</p>
             </div>
         <% } %>
 
@@ -143,28 +163,17 @@
                         <span>ID: <%= app.user_id %></span>
                     </div>
                     <div class="time-badge">
-                        <%= new Date(parseInt(app.timestamp)).toLocaleDateString() %> <%= new Date(parseInt(app.timestamp)).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) %>
+                        <%= new Date(parseInt(app.timestamp)).toLocaleDateString() %>
                     </div>
                 </div>
 
                 <div class="content-section">
                     <% 
-                        /* LÓGICA DE PARSEO: Separamos el texto que viene de Discord con asteriscos */
                         let reasonText = app.reason || "";
                         let q1 = "N/A", q2 = "N/A", q3 = "N/A";
-                        
-                        // Intentamos detectar el formato "**Why banned:** ... **Why unban:** ..."
-                        // Usamos Regex para capturar lo que hay entre las etiquetas
                         const match = reasonText.match(/\*\*Why banned:\*\* ([\s\S]*?)\n\*\*Why unban:\*\* ([\s\S]*?)\n\*\*Extra:\*\* ([\s\S]*)/);
-
-                        if (match) {
-                            q1 = match[1].trim();
-                            q2 = match[2].trim();
-                            q3 = match[3].trim();
-                        } else {
-                            // Si el formato es antiguo o diferente, mostramos todo en la primera caja
-                            q1 = reasonText;
-                        }
+                        if (match) { q1 = match[1].trim(); q2 = match[2].trim(); q3 = match[3].trim(); } 
+                        else { q1 = reasonText; }
                     %>
 
                     <% if (match) { %>
@@ -182,25 +191,19 @@
                         </div>
                     <% } else { %>
                         <div class="field-group">
-                            <div class="label">Appeal Content</div>
+                            <div class="label">Content</div>
                             <div class="text-box"><%= app.reason %></div>
                         </div>
                     <% } %>
                 </div>
 
                 <div class="action-area">
-                    <textarea id="reason-<%= app.id %>" class="response-input" rows="2" placeholder="Write a message to the user (Rejection reason, or Welcome back message)..."></textarea>
+                    <textarea id="reason-<%= app.id %>" class="response-input" rows="2" placeholder="Enter response / reason..."></textarea>
                     
                     <div class="buttons" id="btns-<%= app.id %>">
-                        <button class="btn-approve" onclick="processAppeal('<%= app.id %>', 'approve')">
-                            ✅ Approve
-                        </button>
-                        <button class="btn-reject" onclick="processAppeal('<%= app.id %>', 'reject')">
-                            ❌ Reject
-                        </button>
-                        <button class="btn-black" onclick="processAppeal('<%= app.id %>', 'blacklist')">
-                            ⛔ Blacklist
-                        </button>
+                        <button class="btn-approve" onclick="processAppeal('<%= app.id %>', 'approve')">Approve</button>
+                        <button class="btn-reject" onclick="processAppeal('<%= app.id %>', 'reject')">Reject</button>
+                        <button class="btn-black" onclick="processAppeal('<%= app.id %>', 'blacklist')">Blacklist</button>
                     </div>
                 </div>
             </div>

@@ -5,7 +5,7 @@ const { Strategy } = require('passport-discord');
 const { join } = require('path');
 const { EmbedBuilder, PermissionsBitField } = require('discord.js');
 const db = require('./utils/db');
-
+const { SUPREME_IDS } = require('./utils/config');
 
 const app = express();
 const SCOPES = ['identify', 'guilds'];
@@ -36,11 +36,90 @@ app.use(passport.session());
 const auth = (req, res, next) => req.isAuthenticated() ? next() : res.redirect('/auth/discord');
 
 
+const protectRoute = async (req, res, next) => {
+    const { botClient } = req.app.locals;
+    const userId = req.user.id;
+  
+    const targetGuildId = req.params.guildId || req.body.guildId;
+
+    if (!targetGuildId) return next();
+
+   
+    if (SUPREME_IDS.includes(userId)) {
+        return next();
+    }
+
+    try {
+       
+        const settingsRes = await db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [targetGuildId]);
+        const isLockdown = settingsRes.rows[0]?.universal_lock;
+
+        if (isLockdown) {
+            if (req.xhr || req.headers.accept.indexOf('json') > -1) {
+                return res.status(403).json({ error: '⛔ Universal Lockdown Active. Access Restricted.' });
+            }
+            return res.render('error', { message: '⛔ <b>Lockdown Active</b><br>Access has been restricted by Supreme Administration.' });
+        }
+
+        
+        const mainGuildId = process.env.DISCORD_GUILD_ID;
+        const mainGuild = botClient.guilds.cache.get(mainGuildId);
+        
+        if (!mainGuild) return res.status(404).send('Main Server not accessible by Bot.');
+
+        const memberInMain = await mainGuild.members.fetch(userId).catch(() => null);
+        if (!memberInMain) {
+            return res.render('error', { message: '⛔ <b>Access Denied</b><br>You must be a member of the <b>Main Server</b> to access this panel.' });
+        }
+
+      
+        
+     
+        const isAdmin = memberInMain.permissions.has(PermissionsBitField.Flags.Administrator);
+
+        
+        const setupPerms = await db.query("SELECT role_id FROM command_permissions WHERE guildid = $1 AND command_name = 'setup'", [mainGuildId]);
+        const hasSetupRole = setupPerms.rows.some(row => memberInMain.roles.cache.has(row.role_id));
+
+        
+        const staffRes = await db.query('SELECT staff_roles FROM guild_settings WHERE guildid = $1', [mainGuildId]);
+        let hasStaffRole = false;
+        if (staffRes.rows[0]?.staff_roles) {
+            const staffRoles = staffRes.rows[0].staff_roles.split(',');
+            hasStaffRole = staffRoles.some(rId => memberInMain.roles.cache.has(rId));
+        }
+
+      
+
+       
+        if (targetGuildId === process.env.DISCORD_GUILD_ID) {
+            if (isAdmin || hasSetupRole) {
+                return next();
+            }
+            return res.render('error', { message: '⛔ <b>Access Denied</b><br>To manage the Main Server, you need <b>Administrator</b> permissions or the <b>Setup Role</b>.' });
+        }
+
+       
+        if (targetGuildId === process.env.DISCORD_APPEAL_GUILD_ID) {
+            if (isAdmin || hasSetupRole || hasStaffRole) {
+                return next();
+            }
+            return res.render('error', { message: '⛔ <b>Access Denied</b><br>To view Appeals, you need to be <b>Staff</b>, <b>Admin</b>, or hold the <b>Setup Role</b> in the Main Server.' });
+        }
+
+      
+        return res.status(403).send('Invalid Guild Access Context');
+
+    } catch (err) {
+        console.error("Security Error:", err);
+        return res.status(500).send("Internal Security Error");
+    }
+};
+
 app.get('/auth/discord', passport.authenticate('discord', { scope: SCOPES }));
 app.get('/auth/discord/callback', passport.authenticate('discord', { failureRedirect: '/' }), (req, res) => res.redirect('/'));
 app.get('/logout', (req, res) => req.logout(() => res.redirect('/')));
 app.get('/', auth, (req, res) => res.redirect('/guilds'));
-
 
 app.get('/guilds', auth, async (req, res) => {
     try {
@@ -51,9 +130,8 @@ app.get('/guilds', auth, async (req, res) => {
 
         for (const uGuild of userGuilds) {
             if (!ALLOWED.includes(uGuild.id)) continue;
-            const isAdmin = (uGuild.permissions & 0x8) === 0x8;
             
-            if (isAdmin && botClient) {
+            if (botClient) {
                 const guild = botClient.guilds.cache.get(uGuild.id);
                 if (guild) {
                     const dbSettings = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guild.id]);
@@ -72,7 +150,7 @@ app.get('/guilds', auth, async (req, res) => {
     } catch (e) { console.error(e); res.status(500).send('Error'); }
 });
 
-app.get('/manage/:guildId', auth, async (req, res) => {
+app.get('/manage/:guildId', auth, protectRoute, async (req, res) => {
     try {
         const { botClient } = req.app.locals;
         const guildId = req.params.guildId;
@@ -102,17 +180,20 @@ app.get('/manage/:guildId', auth, async (req, res) => {
     } catch (e) { console.error(e); res.status(500).send('Server Error'); }
 });
 
-app.get('/modlogs/:guildId', auth, async (req, res) => {
+app.get('/modlogs/:guildId', auth, protectRoute, async (req, res) => {
     try {
         const guildId = req.params.guildId;
-        if (guildId !== process.env.DISCORD_GUILD_ID) return res.redirect('/guilds');
         const { rows } = await db.query('SELECT * FROM modlogs WHERE guildid = $1 ORDER BY timestamp DESC LIMIT 50', [guildId]);
         res.render('modlogs', { bot: req.app.locals.botClient?.user, user: req.user, modlogs: rows, guildId });
     } catch (e) { res.status(500).send('Error'); }
 });
 
-app.post('/api/appeals/:action', auth, async (req, res) => {
-    const { action } = req.params; 
+app.post('/api/appeals/:action', auth, async (req, res, next) => {
+ 
+    req.body.guildId = process.env.DISCORD_APPEAL_GUILD_ID;
+    next();
+}, protectRoute, async (req, res) => {
+    const { action } = req.params;
     const { appealId, reason } = req.body;
     const { botClient } = req.app.locals;
 
@@ -121,53 +202,34 @@ app.post('/api/appeals/:action', auth, async (req, res) => {
         if (!appealRes.rows[0]) return res.status(404).json({ error: 'Appeal not found' });
         const appeal = appealRes.rows[0];
 
-        const mainGuildId = process.env.DISCORD_GUILD_ID;
-        const mainGuild = await botClient.guilds.fetch(mainGuildId).catch(() => null);
+        const mainGuild = await botClient.guilds.fetch(process.env.DISCORD_GUILD_ID).catch(() => null);
         const targetUser = await botClient.users.fetch(appeal.user_id).catch(() => null);
         const moderator = req.user;
 
-        if (!mainGuild) return res.status(500).json({ error: 'Main guild not accessible' });
+        if (!mainGuild) return res.status(500).json({ error: 'Main guild unavailable' });
 
-        let dbStatus = 'PENDING';
-        let embedColor = 0xF1C40F;
-        let embedTitle = 'Appeal Updated';
-        let embedDesc = '';
+        let dbStatus = 'PENDING', embedColor = 0xF1C40F, embedTitle = 'Updated', embedDesc = '';
 
         if (action === 'approve') {
-            dbStatus = 'APPROVED';
-            embedColor = 0x2ECC71;
-            embedTitle = '✅ Appeal Accepted';
-            embedDesc = `This appeal has been **APPROVED** by <@${moderator.id}>.`;
-
-            await mainGuild.members.unban(appeal.user_id, `Web Appeal Accepted by ${moderator.username}`).catch(() => {});
-            
+            dbStatus = 'APPROVED'; embedColor = 0x2ECC71; embedTitle = '✅ Appeal Accepted'; embedDesc = `Approved by <@${moderator.id}>`;
+            await mainGuild.members.unban(appeal.user_id, `Web Unban by ${moderator.username}`).catch(() => {});
             if (targetUser) {
                 const dm = new EmbedBuilder().setColor(0x2ECC71).setTitle('✅ Appeal Approved').setDescription(`Your appeal for **${mainGuild.name}** was accepted.`).addFields({ name: 'Message', value: reason || 'Welcome back!' });
                 if (process.env.DISCORD_MAIN_INVITE) dm.addFields({ name: 'Link', value: process.env.DISCORD_MAIN_INVITE });
                 await targetUser.send({ embeds: [dm] }).catch(() => {});
             }
-
-            await db.query(`UPDATE modlogs SET status = 'EXPIRED', endsAt = NULL WHERE guildid = $1 AND userid = $2 AND status = 'ACTIVE' AND action = 'BAN'`, [mainGuild.id, appeal.user_id]);
-            const unbanId = `UNBAN-${Date.now()}`;
-            await db.query(`INSERT INTO modlogs (caseid, guildid, action, userid, usertag, moderatorid, moderatortag, reason, timestamp, status, appealable) VALUES ($1, $2, 'UNBAN', $3, $4, $5, $6, $7, $8, 'EXECUTED', false)`, [unbanId, mainGuild.id, appeal.user_id, appeal.username, moderator.id, moderator.username, reason || 'Web Accept', Date.now()]);
-
+            await db.query(`UPDATE modlogs SET status = 'EXPIRED', endsAt = NULL WHERE guildid = $1 AND userid = $2 AND action = 'BAN'`, [mainGuild.id, appeal.user_id]);
+            await db.query(`INSERT INTO modlogs (caseid, guildid, action, userid, usertag, moderatorid, moderatortag, reason, timestamp, status, appealable) VALUES ($1, $2, 'UNBAN', $3, $4, $5, $6, $7, $8, 'EXECUTED', false)`, [`UNBAN-${Date.now()}`, mainGuild.id, appeal.user_id, appeal.username, moderator.id, moderator.username, reason || 'Web Accept', Date.now()]);
+        
         } else if (action === 'reject') {
-            dbStatus = 'REJECTED';
-            embedColor = 0xE74C3C;
-            embedTitle = '❌ Appeal Rejected';
-            embedDesc = `This appeal has been **REJECTED** by <@${moderator.id}>.`;
-
+            dbStatus = 'REJECTED'; embedColor = 0xE74C3C; embedTitle = '❌ Appeal Rejected'; embedDesc = `Rejected by <@${moderator.id}>`;
             if (targetUser) {
                 const dm = new EmbedBuilder().setColor(0xE74C3C).setTitle('❌ Appeal Rejected').setDescription(`Your appeal for **${mainGuild.name}** was rejected.`).addFields({ name: 'Reason', value: reason || 'No details provided.' });
                 await targetUser.send({ embeds: [dm] }).catch(() => {});
             }
 
         } else if (action === 'blacklist') {
-            dbStatus = 'BLACKLISTED';
-            embedColor = 0x000000;
-            embedTitle = '⛔ Appeal Blacklisted';
-            embedDesc = `User has been **BLOCKED** from appealing by <@${moderator.id}>.`;
-
+            dbStatus = 'BLACKLISTED'; embedColor = 0x000000; embedTitle = '⛔ Appeal Blacklisted'; embedDesc = `Blacklisted by <@${moderator.id}>`;
             await db.query("INSERT INTO appeal_blacklist (userid, guildid) VALUES ($1, $2) ON CONFLICT DO NOTHING", [appeal.user_id, mainGuild.id]);
             if (targetUser) {
                 const dm = new EmbedBuilder().setColor(0x000000).setTitle('⛔ Appeal Blocked').setDescription(`Your appeal was rejected and you are blocked from future appeals.`);
@@ -178,41 +240,20 @@ app.post('/api/appeals/:action', auth, async (req, res) => {
         await db.query("UPDATE ban_appeals SET status = $1 WHERE id = $2", [dbStatus, appealId]);
 
         if (appeal.message_id) {
-            try {
-                const chRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'banappeal'", [process.env.DISCORD_GUILD_ID]);
-                
-                if (chRes.rows[0]?.channel_id) {
-                    const appealChannel = await botClient.channels.fetch(chRes.rows[0].channel_id).catch(() => null);
-                    
-                    if (appealChannel) {
-                        const msg = await appealChannel.messages.fetch(appeal.message_id).catch(() => null);
-                        
-                        if (msg && msg.editable) {
-                           
-                            const newEmbed = EmbedBuilder.from(msg.embeds[0])
-                                .setColor(embedColor)
-                                .setTitle(embedTitle)
-                                .setDescription(embedDesc)
-                                .setFooter({ text: `${dbStatus} by ${moderator.username}` })
-                                .setTimestamp();
-
-                            await msg.edit({ embeds: [newEmbed], components: [] });
-                        }
+            const chRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'banappeal'", [process.env.DISCORD_GUILD_ID]);
+            if (chRes.rows[0]?.channel_id) {
+                const ch = await botClient.channels.fetch(chRes.rows[0].channel_id).catch(() => null);
+                if (ch) {
+                    const msg = await ch.messages.fetch(appeal.message_id).catch(() => null);
+                    if (msg && msg.editable) {
+                        const newEmbed = EmbedBuilder.from(msg.embeds[0]).setColor(embedColor).setTitle(embedTitle).setDescription(embedDesc).setFooter({ text: `${dbStatus} by ${moderator.username}` }).setTimestamp();
+                        await msg.edit({ embeds: [newEmbed], components: [] });
                     }
-                } else {
-                    console.warn("No appeal channel configured in DB (log_channels). Cannot edit embed.");
                 }
-            } catch (err) {
-                console.error("Error editing Discord message:", err);
             }
         }
-
         res.json({ success: true });
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: error.message });
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/transcript/:id', async (req, res) => {

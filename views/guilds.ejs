@@ -5,58 +5,87 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Select Server</title>
     <style>
-        :root{--bg:#f2f3f5;--card:#fff;--text:#23272a;--acc:#5865F2}
-        body{font-family:'Segoe UI',sans-serif;background:var(--bg);margin:0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+        :root{--bg:#050505;--card:#101012;--text:#ffffff;--sub:#a1a1aa;--acc:#8b5cf6;--acc-glow:rgba(139,92,246,0.5);--border:#27272a}
+        body{font-family:'Segoe UI',sans-serif;background:var(--bg);margin:0;display:flex;flex-direction:column;align-items:center;min-height:100vh;color:var(--text)}
         
-        header{background:linear-gradient(135deg,var(--acc),#4752c4);width:100%;padding:40px 20px;text-align:center;color:#fff;box-shadow:0 4px 15px rgba(88,101,242,.3)}
-        h1{margin:0;font-size:2rem;font-weight:700}
+        header{
+            background:linear-gradient(180deg, rgba(139,92,246,0.15) 0%, transparent 100%);
+            width:100%;padding:50px 20px;text-align:center;
+            border-bottom:1px solid var(--border);
+            margin-bottom: 40px;
+        }
+        h1{margin:0;font-size:2.5rem;font-weight:800;text-shadow: 0 0 20px var(--acc-glow);}
         
-        .logout-btn{position:absolute;top:20px;right:20px;text-decoration:none;color:white;background:rgba(0,0,0,0.2);padding:8px 16px;border-radius:20px;font-weight:bold;font-size:0.9rem;transition:0.2s}
-        .logout-btn:hover{background:rgba(237,66,69,0.8)}
+        .logout-btn{
+            position:absolute;top:20px;right:20px;
+            text-decoration:none;color:var(--text);
+            background:rgba(255,255,255,0.05);border:1px solid var(--border);
+            padding:8px 20px;border-radius:30px;font-weight:600;font-size:0.9rem;
+            transition:0.3s;
+        }
+        .logout-btn:hover{background:var(--acc);color:#000;box-shadow:0 0 15px var(--acc-glow);border-color:var(--acc);}
 
         .container {
-            width: 90%; max-width: 800px; margin-top: -40px; z-index: 10;
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px;
+            width: 90%; max-width: 900px;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px;
+            padding-bottom: 50px;
         }
 
         .server-card {
-            background: #fff; border-radius: 16px; padding: 30px;
+            background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 35px;
             display: flex; flex-direction: column; align-items: center; text-align: center;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.05); transition: transform 0.2s;
-            text-decoration: none; color: inherit;
+            text-decoration: none; color: inherit; transition: 0.3s;
+            position: relative; overflow: hidden;
         }
-        .server-card:hover { transform: translateY(-5px); }
+        
+        .server-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--acc);
+            box-shadow: 0 0 30px rgba(139,92,246,0.15);
+        }
         
         .server-icon {
-            width: 90px; height: 90px; border-radius: 50%; background: #eee;
-            object-fit: cover; margin-bottom: 20px; border: 4px solid #f8f9fa;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            width: 100px; height: 100px; border-radius: 50%;
+            background: #18181b; object-fit: cover; margin-bottom: 20px;
+            border: 3px solid var(--border);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            transition: 0.3s;
         }
-        .no-icon { display: flex; align-items: center; justify-content: center; background: #5865F2; color: white; font-size: 2rem; font-weight: bold; }
+        .server-card:hover .server-icon { border-color: var(--acc); box-shadow: 0 0 15px var(--acc-glow); }
+
+        .no-icon { display: flex; align-items: center; justify-content: center; background: #27272a; color: var(--text); font-size: 2rem; font-weight: bold; }
 
         .badge {
-            background: #eee; color: #555; padding: 4px 10px; border-radius: 20px;
+            background: #18181b; color: var(--sub); padding: 5px 12px; border-radius: 20px;
             font-size: 0.75rem; text-transform: uppercase; font-weight: bold;
-            margin-bottom: 15px; letter-spacing: 1px;
+            margin-bottom: 20px; border: 1px solid var(--border); letter-spacing: 1px;
         }
-        .badge-Main { background: #e3f2fd; color: #1976d2; }
-        .badge-Appeals { background: #ffebee; color: #d32f2f; }
+        .badge-Appeals { color: #ff0055; border-color: rgba(255,0,85,0.3); }
+        .badge-Main { color: #00ff9d; border-color: rgba(0,255,157,0.3); }
 
-        h3 { margin: 0 0 10px; font-size: 1.4rem; color: #2c2f33; }
+        h3 { margin: 0 0 10px; font-size: 1.5rem; letter-spacing: 0.5px; }
         
         .btn {
-            margin-top: 25px; background: var(--acc); color: white; padding: 12px 0;
-            border-radius: 8px; font-weight: 600; width: 100%; transition: 0.2s;
+            margin-top: 25px;
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 12px 0; border-radius: 12px;
+            font-weight: 600; width: 100%; transition: 0.3s;
         }
-        .server-card:hover .btn { background: #4752c4; }
+        .server-card:hover .btn {
+            background: var(--acc);
+            border-color: var(--acc);
+            color: #000;
+            box-shadow: 0 0 20px var(--acc-glow);
+        }
     </style>
 </head>
 <body>
     <header>
         <a href="/logout" class="logout-btn">Logout</a>
         <h1>My Servers</h1>
-        <p style="opacity:0.9;margin-top:5px">Select a server to manage</p>
-        <div style="height:40px"></div>
+        <p style="color:var(--sub);margin-top:10px">Select a terminal to manage</p>
     </header>
 
     <div class="container">
@@ -72,13 +101,13 @@
                     <% } %>
                     
                     <h3><%= g.name %></h3>
-                    <div class="btn">Manage Server</div>
+                    <div class="btn">Access Terminal</div>
                 </a>
             <% }) %>
         <% } else { %>
-            <div style="grid-column:1/-1;background:white;padding:40px;border-radius:16px;text-align:center">
-                <h2>No servers found</h2>
-                <p style="color:#72767d">Make sure the bot is invited and your ID is in the .env configuration.</p>
+            <div style="grid-column:1/-1;background:var(--card);padding:50px;border-radius:20px;border:1px solid var(--border);text-align:center">
+                <h2 style="margin-bottom:10px">No signals detected</h2>
+                <p style="color:var(--sub)">Ensure the bot is invited and you have the correct permissions.</p>
             </div>
         <% } %>
     </div>
