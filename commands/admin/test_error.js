@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
+const { DEVELOPER_IDS } = require('../../utils/config');
 
 module.exports = {
     deploy: 'main',
@@ -8,7 +9,7 @@ module.exports = {
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
 
     async execute(interaction) {
-        if (interaction.user.id !== '715926664344895559') {
+        if (!DEVELOPER_IDS.includes(interaction.user.id)) {
             return interaction.reply({ content: '❌ Access Denied: Only the developer can use this command.', ephemeral: true });
         }
 
