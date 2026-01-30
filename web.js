@@ -8,6 +8,7 @@ const db = require('./utils/db');
 const { SUPREME_IDS } = require('./utils/config');
 
 const app = express();
+app.set('trust proxy', 1);
 const SCOPES = ['identify', 'guilds'];
 
 function isValidEmoji(emoji) {
@@ -34,14 +35,16 @@ app.use(express.static(join(__dirname, 'public')));
 app.use(express.json());
 app.use(session({
    
-    name: `session_${(process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID || 'default').slice(-5)}`, 
-    secret: process.env.SESSION_SECRET || 'rayus_secret_default',
+    name: `session_${(process.env.DISCORD_CLIENT_ID || 'default').slice(-5)}`,
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    proxy: true, 
     cookie: {
-        secure: true, 
+        secure: true,   
         httpOnly: true,
-        maxAge: 1000 * 60 * 60 * 24 * 7 
+        sameSite: 'lax',
+        maxAge: 1000 * 60 * 60 * 24 * 7
     }
 }));
 app.use(passport.initialize());
