@@ -5,7 +5,7 @@ module.exports = {
     deploy: 'main',
     data: new SlashCommandBuilder()
         .setName('test_error')
-        .setDescription('Error Testing ')
+        .setDescription('Error Testing')
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
 
     async execute(interaction) {
