@@ -30,7 +30,6 @@ passport.use(new Strategy({
     callbackURL: process.env.CALLBACK_URL,
     scope: SCOPES
 }, (accessToken, refreshToken, profile, done) => {
-    console.log(`[DEBUG] Discord validó a: ${profile.username} (${profile.id})`);
     process.nextTick(() => done(null, profile));
 }));
 
@@ -39,6 +38,7 @@ app.set('views', join(__dirname, 'views'));
 app.use(express.static(join(__dirname, 'public')));
 app.use(express.json());
 
+const isProduction = process.env.NODE_ENV === 'production';
 
 app.use(session({
     name: `session_${(process.env.DISCORD_CLIENT_ID || 'default').slice(-5)}`,
@@ -47,46 +47,30 @@ app.use(session({
     saveUninitialized: false,
     proxy: true, 
     cookie: {
-        secure: true,   
+        secure: isProduction,   
         httpOnly: true,
         sameSite: 'lax',
         maxAge: 1000 * 60 * 60 * 24 * 7 
     }
 }));
 
-
 app.use(passport.initialize());
 app.use(passport.session());
 
-
 app.use((req, res, next) => {
     if (req.path.includes('/auth')) return next();
-   
     next();
 });
-
 
 app.get('/auth/discord', passport.authenticate('discord', { scope: SCOPES }));
 
 app.get('/auth/discord/callback', (req, res, next) => {
-    console.log(`[DEBUG] Callback recibido de Discord. Code: ${req.query.code ? 'OK' : 'FALTA'}`);
-    
     passport.authenticate('discord', (err, user, info) => {
-        if (err) {
-            console.error('[DEBUG ERROR] Fallo en intercambio de token:', err);
-            return res.status(500).send(`Error de Autenticación: ${err.message}`);
-        }
-        if (!user) {
-            console.error('[DEBUG ERROR] Discord no devolvió usuario. Info:', info);
-            return res.redirect('/auth/discord');
-        }
+        if (err) return res.status(500).send(`Error de Autenticación: ${err.message}`);
+        if (!user) return res.redirect('/auth/discord');
 
         req.logIn(user, (loginErr) => {
-            if (loginErr) {
-                console.error('[DEBUG ERROR] No se pudo guardar la sesión:', loginErr);
-                return next(loginErr);
-            }
-            console.log(`[DEBUG] Sesión guardada para ${user.username}. Entrando al panel...`);
+            if (loginErr) return next(loginErr);
             return res.redirect('/guilds');
         });
     })(req, res, next);
