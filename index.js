@@ -9,7 +9,7 @@ const { startScheduler, resumePunishmentsOnStart } = require('./utils/temporary_
 const { initLogger } = require('./utils/logger.js');
 
 if (!process.env.DISCORD_TOKEN) {
-    console.error("❌Discord Toeken");
+    console.error("❌ Discord Token missing");
     process.exit(1);
 }
 
@@ -46,26 +46,15 @@ for (const folder of commandFolders) {
             client.commands.set(command.data.name, command);
 
             switch (command.deploy) {
-                case 'main':
-                    mainGuildCommands.push(command.data.toJSON());
-                    break;
-                case 'appeal':
-                    appealGuildCommands.push(command.data.toJSON());
-                    break;
+                case 'main': mainGuildCommands.push(command.data.toJSON()); break;
+                case 'appeal': appealGuildCommands.push(command.data.toJSON()); break;
                 case 'all': 
-                case 'global': 
-                    globalCommands.push(command.data.toJSON());
-                    break;
-                default:
-                    console.warn(`[WARNING] El comando ${command.data.name} no tiene propiedad "deploy" válida. Se ignorará en el deploy.`);
-                    break;
+                case 'global': globalCommands.push(command.data.toJSON()); break;
+                default: console.warn(`[WARNING] Comando ${command.data.name} sin deploy válido.`); break;
             }
-        } else {
-            console.warn(`[WARNING] El comando en ${filePath} le falta "data" o "execute".`);
         }
     }
 }
-
 
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
@@ -73,77 +62,77 @@ const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'
 for (const file of eventFiles) {
     const filePath = path.join(eventsPath, file);
     const event = require(filePath);
-    if (event.once) {
-        client.once(event.name, (...args) => event.execute(...args));
-    } else {
-        client.on(event.name, (...args) => event.execute(...args)); 
+    if (event.once) client.once(event.name, (...args) => event.execute(...args));
+    else client.on(event.name, (...args) => event.execute(...args)); 
+}
+
+
+async function deployCommandsBackground() {
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+    console.log('🔄 [BACKGROUND] Iniciando actualización de comandos...');
+
+    const deployPromises = [];
+
+  
+    if (process.env.DISCORD_GUILD_ID && mainGuildCommands.length > 0) {
+        deployPromises.push(
+            rest.put(Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID), { body: mainGuildCommands })
+                .then(() => console.log(`✅ [MAIN] ${mainGuildCommands.length} comandos actualizados.`))
+                .catch(e => console.error(`❌ [MAIN] Error: ${e.message}`))
+        );
     }
+
+    if (process.env.DISCORD_APPEAL_GUILD_ID && appealGuildCommands.length > 0) {
+        deployPromises.push(
+            rest.put(Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_APPEAL_GUILD_ID), { body: appealGuildCommands })
+                .then(() => console.log(`✅ [APPEAL] ${appealGuildCommands.length} comandos actualizados.`))
+                .catch(e => console.error(`❌ [APPEAL] Error: ${e.message}`))
+        );
+    }
+
+    if (globalCommands.length > 0) {
+        deployPromises.push(
+            rest.put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), { body: globalCommands })
+                .then(() => console.log(`✅ [GLOBAL] ${globalCommands.length} comandos actualizados.`))
+                .catch(e => console.error(`❌ [GLOBAL] Error: ${e.message}`))
+        );
+    }
+
+   
+    await Promise.all(deployPromises);
+    console.log('✨ [BACKGROUND] Todos los comandos han sido procesados.');
 }
 
 
 (async () => {
     try {
-     
-        if (initLogger) {
-            await initLogger();
-            console.log('✅ Persistent Logger initialized');
-        }
-
-   
+       
         await db.ensureTables();
-        console.log('✅ All tables ensured in PostgreSQL.');
+        console.log('✅ DB Tables ensured.');
 
-
-        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-        console.log('🔄 Started refreshing application (/) commands.');
-
-
-        if (process.env.DISCORD_GUILD_ID && mainGuildCommands.length > 0) {
-            try {
-                await rest.put(
-                    Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID),
-                    { body: mainGuildCommands },
-                );
-                console.log(`✅ [MAIN] Successfully reloaded ${mainGuildCommands.length} commands.`);
-            } catch (e) { console.error(`❌ [MAIN] Error deploy: ${e.message}`); }
+       
+        if (initLogger) {
+            await initLogger().catch(() => console.log("⚠️ Logger skipped (non-critical)"));
+            console.log('✅ Logger checked.');
         }
 
-
-        if (process.env.DISCORD_APPEAL_GUILD_ID && appealGuildCommands.length > 0) {
-            try {
-                await rest.put(
-                    Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_APPEAL_GUILD_ID),
-                    { body: appealGuildCommands },
-                );
-                console.log(`✅ [APPEAL] Successfully reloaded ${appealGuildCommands.length} commands.`);
-            } catch (e) { console.error(`❌ [APPEAL] Error deploy: ${e.message}`); }
-        }
-
-
-        if (globalCommands.length > 0) {
-            try {
-                await rest.put(
-                    Routes.applicationCommands(process.env.DISCORD_CLIENT_ID),
-                    { body: globalCommands },
-                );
-                console.log(`✅ [GLOBAL] Successfully reloaded ${globalCommands.length} commands.`);
-            } catch (e) { console.error(`❌ [GLOBAL] Error deploy: ${e.message}`); }
-        }
         
-
+        console.log(" Logging in...");
         await client.login(process.env.DISCORD_TOKEN);
-        
+        console.log(` Logged in as ${client.user.tag}!`);
 
+        
         const webApp = require('./web.js');
         webApp.locals.botClient = client;
-
         const PORT = process.env.PORT || 3001; 
         webApp.listen(PORT, () => {
             console.log(`🌐 Web dashboard running on port ${PORT}`);
         });
 
+       
+        deployCommandsBackground(); 
         startScheduler(client);
-        await resumePunishmentsOnStart(client);
+        resumePunishmentsOnStart(client);
 
     } catch (error) {
         console.error('❌ CRITICAL ERROR during startup:', error);
@@ -155,12 +144,9 @@ process.on('unhandledRejection', (reason, promise) => {
     if (reason?.code === 10062 || reason?.code === 40060 || reason?.code === 10008) return;
     console.error(' [ANTI-CRASH] Unhandled Rejection:', reason);
 });
-
-process.on('uncaughtException', (err, origin) => {
+process.on('uncaughtException', (err) => {
     console.error(' [ANTI-CRASH] Uncaught Exception:', err);
-    console.error('Origen:', origin);
 });
-
-process.on('uncaughtExceptionMonitor', (err, origin) => {
+process.on('uncaughtExceptionMonitor', (err) => {
     console.error(' [ANTI-CRASH] Monitor:', err);
 });
