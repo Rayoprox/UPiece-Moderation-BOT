@@ -1,0 +1,16 @@
+<div id="overlay-cc" class="overlay"><div class="overlay-content">
+    <div class="overlay-header"><h2>Edit Command</h2><button class="close-btn" onclick="document.getElementById('overlay-cc').style.display='none'">✖</button></div>
+    <div class="sub-tabs"><div id="btn-cc_msg" class="sub-tab active" onclick="switchSubTab('btn-cc_msg')">Message</div><div id="btn-cc_perm" class="sub-tab" onclick="switchSubTab('btn-cc_perm')">Permissions</div></div>
+    <div id="cc_msg" class="sub-section active">
+        <div class="form-group"><label class="label">Name</label><input type="text" id="edit_cc_name" placeholder="rules"></div>
+        <div class="form-group"><label class="label">Type</label><select id="cc_mode" onchange="toggleCCMode()"><option value="text">Simple Text</option><option value="embed">Advanced Embed</option></select></div>
+        <div id="cc_section_text"><div class="form-group"><label class="label">Content</label><textarea id="cc_content" rows="4"></textarea></div></div>
+        <div id="cc_section_embed" style="display:none">
+            <div class="form-group"><label class="label">Title</label><input type="text" id="cc_emb_title"></div>
+            <div class="form-group"><label class="label">Description</label><textarea id="cc_emb_desc" rows="3"></textarea></div>
+            <div class="add-row"><div><label class="label">Color (Hex)</label><input type="text" id="cc_emb_color" placeholder="#5865F2"></div><div><label class="label">Image URL</label><input type="text" id="cc_emb_img"></div></div>
+        </div>
+    </div>
+    <div id="cc_perm" class="sub-section"><div class="form-group"><label class="label">Allowed Roles</label><select id="edit_cc_roles" multiple style="height:150px"><% guildRoles.forEach(r=>{ %><option value="<%= r.id %>" style="color:<%= r.color %>"><%= r.name %></option><% }) %></select></div></div>
+    <button class="btn-save" style="width:100%;margin-top:20px" onclick="saveCC()">Save Command</button>
+</div></div>

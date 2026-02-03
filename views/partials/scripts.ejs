@@ -1,0 +1,460 @@
+<script>
+    let automodRules = <%- JSON.stringify(automodRules) %>;
+    let commandOverrides = <%- JSON.stringify(Object.entries(commandOverrides).map(([k,v])=>({command:k, roles:v}))) %>;
+    let customCommands = <%- JSON.stringify(customCommands.map(c => {
+        let parsed;
+        try { parsed = JSON.parse(c.response_json); } catch { parsed = { content: c.response_json }; }
+        return {
+            name: c.name, 
+            type: parsed.embeds ? 'embed' : 'text',
+            content: parsed.content || '',
+            embedData: parsed.embeds ? parsed.embeds[0] : { title: '', description: '', color: 5814783, image: {url:''} },
+            roles: c.allowed_roles ? c.allowed_roles.split(',') : []
+        };
+    })) %>;
+    let ticketPanels = <%- JSON.stringify(ticketPanels.map(p => ({
+        id: p.panel_id, title: p.title, description: p.description, 
+        btnLabel: p.button_label, btnEmoji: p.button_emoji, btnStyle: p.button_style,
+        supportRole: p.support_role_id, blacklistRole: p.blacklist_role_id,
+        category: p.ticket_category_id, logChannel: p.log_channel_id, welcomeMsg: p.welcome_message,
+        panelColor: p.panel_color, welcomeColor: p.welcome_color,
+        ticketLimit: p.ticket_limit || 1
+    }))) %>;
+    
+    const guildRolesMap = <%- JSON.stringify(guildRoles.reduce((acc,r)=>{acc[r.id]=r.name;return acc},{})) %>;
+    const textChannelsMap = <%- JSON.stringify(textChannels.reduce((acc,c)=>{acc[c.id]=c.name;return acc},{})) %>;
+    const categoriesMap = <%- JSON.stringify(categories.reduce((acc,c)=>{acc[c.id]=c.name;return acc},{})) %>;
+    function isValidEmoji(emoji) {
+        const regex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])|<?(a)?:?(\w{2,32}):(\d{17,19})>?|^\d{17,19}$/;
+        return regex.test(emoji);
+    }
+
+    function showToast(msg, type='info') {
+        const t = document.getElementById('toast');
+        t.className = `toast toast-${type} show`;
+        t.innerHTML = `<span>${type==='success'?'✅':type==='error'?'❌':'ℹ️'}</span> ${msg}`;
+        setTimeout(()=>t.classList.remove('show'), 3000);
+    }
+
+    function togglePanelSelection(checkbox) {
+        const label = checkbox.closest('.panel-option');
+        if (checkbox.checked) label.classList.add('selected');
+        else label.classList.remove('selected');
+    }
+
+    function openDeployModal(mode, panelId = null) {
+        const title = document.getElementById('deploy-title');
+        const content = document.getElementById('deploy-content');
+        const btn = document.getElementById('deploy-btn');
+        
+        let html = `
+            <div class="form-group">
+                <label class="label">📢 Destination Channel</label>
+                <select id="deploy-channel">
+                    <option value="">Select Channel...</option>
+                    <% textChannels.forEach(c => { %>
+                        <option value="<%= c.id %>">#<%= c.name %></option>
+                    <% }) %>
+                </select>
+            </div>
+        `;
+        if (mode === 'single') {
+            title.innerText = "Post Single Panel";
+            btn.innerText = "Post Now";
+            content.innerHTML = html;
+            
+            btn.onclick = () => {
+                const chId = document.getElementById('deploy-channel').value;
+                if (!chId) return showToast("Select a channel", 'error');
+                fetch('/api/tickets/post-panel', {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({guildId:'<%= guild.id %>', panelId: panelId, channelId: chId})
+                }).then(res => res.json()).then(data => {
+                    if(data.success) { showToast("Panel Posted!", 'success'); document.getElementById('overlay-deploy').style.display = 'none'; }
+                    else showToast("Error: " + data.error, 'error');
+                });
+            };
+        } else if (mode === 'multi') {
+            title.innerText = "Create Multipanel";
+            btn.innerText = "Create Multipanel";
+            
+            let gridHtml = '<div class="form-group"><label class="label">🧩 Select Panels to Merge</label><div class="panel-grid">';
+            ticketPanels.forEach(p => {
+                gridHtml += `
+                <label class="panel-option">
+                    <input type="checkbox" class="panel-chk" value="${p.id}" onchange="togglePanelSelection(this)">
+                    <div class="check-icon">✔</div>
+                    <span class="panel-emoji">${p.btnEmoji || '🎫'}</span>
+                    <span class="panel-title">${p.title}</span>
+                </label>`;
+            });
+            gridHtml += '</div></div>';
+            
+            content.innerHTML = gridHtml + html;
+
+            btn.onclick = () => {
+                const chId = document.getElementById('deploy-channel').value;
+                const selected = Array.from(document.querySelectorAll('.panel-chk:checked')).map(cb => cb.value);
+                
+                if (!chId) return showToast("Select a channel", 'error');
+                if (selected.length < 2) return showToast("Select at least 2 panels", 'error');
+                fetch('/api/tickets/post-multipanel', {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({guildId:'<%= guild.id %>', panels: selected, channelId: chId})
+                }).then(res => res.json()).then(data => {
+                    if(data.success) { showToast("Multipanel Posted!", 'success'); document.getElementById('overlay-deploy').style.display = 'none'; }
+                    else showToast("Error: " + data.error, 'error');
+                });
+            };
+        }
+
+        document.getElementById('overlay-deploy').style.display = 'flex';
+    }
+
+    function updateDurationField() {
+        const action = document.getElementById('am_action').value;
+        const durationDiv = document.getElementById('div_duration');
+        if(action==='Kick'){ durationDiv.style.display='none'; }
+        else { durationDiv.style.display='block'; }
+    }
+    function renderAutomod() {
+        document.getElementById('automod-list').innerHTML = automodRules.map((r,i) => `
+            <div class="item-row">
+                <div class="item-info">
+                    <span style="font-weight:bold;color:#facc15">${r.warnings} Warns</span><span>➔</span>
+                    <span class="tag">${r.action}</span>${r.duration?`<span class="tag">${r.duration}</span>`:''}
+                </div>
+                <button class="btn-act btn-del" onclick="automodRules.splice(${i},1);renderAutomod()">🗑️</button>
+            </div>`).join('');
+    }
+    function addAutomod() {
+        const w = parseInt(document.getElementById('am_warns').value), a = document.getElementById('am_action').value, d = document.getElementById('am_duration').value;
+        if(isNaN(w)||w<1||w>10) return showToast("Warnings must be 1-10", 'error');
+        if(a==='Timeout'&&!d) return showToast("Timeout requires duration", 'error');
+        automodRules.push({warnings:w, action:a, duration:d}); automodRules.sort((a,b)=>a.warnings-b.warnings);
+        renderAutomod(); document.getElementById('am_warns').value=''; document.getElementById('am_duration').value='';
+    }
+
+    function renderPerms() {
+        document.getElementById('perms-list').innerHTML = commandOverrides.map((o,i) => `
+            <div class="item-row">
+                <div class="item-info"><span style="color:#8b5cf6;font-weight:bold">/${o.command}</span><span style="color:#555">Allowed:</span>
+                    ${o.roles.map(r=>`<span class="tag role-tag">@${guildRolesMap[r]||r}</span>`).join('')}
+                </div>
+                <button class="btn-act btn-del" onclick="commandOverrides.splice(${i},1);renderPerms()">🗑️</button>
+            </div>`).join('');
+    }
+    function addPerm() {
+        const c = document.getElementById('perm_cmd').value, rs = Array.from(document.getElementById('perm_roles').selectedOptions).map(o=>o.value);
+        if(rs.length===0) return showToast("Select at least one role", 'error');
+        commandOverrides = commandOverrides.filter(o=>o.command!==c); commandOverrides.push({command:c, roles:rs}); renderPerms();
+        document.getElementById('perm_roles').value = "";
+    }
+
+    let currentCCIndex = -1;
+    function renderCC() {
+        document.getElementById('cc-list').innerHTML = customCommands.map((c,i) => `
+            <div class="item-row">
+                <div class="item-info"><span style="color:#8b5cf6;font-weight:bold">!${c.name}</span>
+                    <span class="tag">${c.type.toUpperCase()}</span>
+                    ${c.roles.length ? c.roles.map(r=>`<span class="tag role-tag">@${guildRolesMap[r]||r}</span>`).join('') : '<span class="tag">All</span>'}
+                </div>
+                <div class="btn-group">
+                    <button class="btn-act btn-edit" onclick="openCCEditor(${i})">✏️</button>
+                    <button class="btn-act btn-del" onclick="customCommands.splice(${i},1);renderCC()">🗑️</button>
+                </div>
+            </div>`).join('');
+    }
+    function toggleCCMode() {
+        const mode = document.getElementById('cc_mode').value;
+        document.getElementById('cc_section_text').style.display = mode === 'text' ? 'block' : 'none';
+        document.getElementById('cc_section_embed').style.display = mode === 'embed' ? 'block' : 'none';
+    }
+    function openCCEditor(i) {
+        currentCCIndex = i;
+        const c = i === -1 ? {name:'', type:'text', content:'', embedData:{title:'', description:'', color:'#5865F2', image:{url:''}}, roles:[]} : customCommands[i];
+        document.getElementById('edit_cc_name').value = c.name;
+        document.getElementById('cc_mode').value = c.type;
+        document.getElementById('cc_content').value = c.content;
+        document.getElementById('cc_emb_title').value = c.embedData?.title || '';
+        document.getElementById('cc_emb_desc').value = c.embedData?.description || '';
+        document.getElementById('cc_emb_color').value = c.embedData?.color ? '#' + parseInt(c.embedData.color).toString(16) : '#5865F2';
+        document.getElementById('cc_emb_img').value = c.embedData?.image?.url || '';
+        const rolesSel = document.getElementById('edit_cc_roles');
+        Array.from(rolesSel.options).forEach(o => o.selected = c.roles.includes(o.value));
+        toggleCCMode();
+        switchSubTab('btn-cc_msg'); 
+        document.getElementById('overlay-cc').style.display = 'flex';
+    }
+    function saveCC() {
+        const name = document.getElementById('edit_cc_name').value.trim();
+        const type = document.getElementById('cc_mode').value;
+        const roles = Array.from(document.getElementById('edit_cc_roles').selectedOptions).map(o=>o.value);
+        if(!name) return showToast("Command Name required", 'error');
+        const newCmd = {
+            name, type, roles,
+            content: document.getElementById('cc_content').value,
+            embedData: {
+                title: document.getElementById('cc_emb_title').value,
+                description: document.getElementById('cc_emb_desc').value,
+                color: parseInt(document.getElementById('cc_emb_color').value.replace('#',''), 16),
+                image: { url: document.getElementById('cc_emb_img').value }
+            }
+        };
+        if(currentCCIndex === -1) customCommands.push(newCmd);
+        else customCommands[currentCCIndex] = newCmd;
+        renderCC(); document.getElementById('overlay-cc').style.display = 'none';
+    }
+
+    let currentTicketIndex = -1;
+    function renderTickets() {
+        document.getElementById('tickets-list').innerHTML = ticketPanels.map((p,i) => `
+            <div class="item-row">
+                <div class="item-info">
+                    <span style="font-weight:bold">${p.title}</span><span class="tag">${p.id}</span>
+                    <span class="tag">#${categoriesMap[p.category] || 'Unknown'}</span>
+                </div>
+                <div class="btn-group">
+                    <button class="btn-act btn-edit" onclick="openTicketEditor(${i})">✏️</button>
+                    <button class="btn-act btn-del" onclick="ticketPanels.splice(${i},1);renderTickets()">🗑️</button>
+                </div>
+            </div>`).join('');
+    }
+    function openTicketEditor(i) {
+        currentTicketIndex = i;
+        const p = i === -1 ? {id:'', title:'Support', description:'Open ticket', category:'', supportRole:'', blacklistRole:'', logChannel:'', btnLabel:'Open', btnEmoji:'📩', btnStyle:'Primary', welcomeMsg:'Hello {user}', panelColor:'#5865F2', welcomeColor:'#5865F2', ticketLimit: 1} : ticketPanels[i];
+        document.getElementById('tk_id').value = p.id;
+        document.getElementById('tk_title').value = p.title;
+        document.getElementById('tk_desc').value = p.description;
+        document.getElementById('tk_cat').value = p.category;
+        document.getElementById('tk_role_supp').value = p.supportRole;
+        document.getElementById('tk_role_black').value = p.blacklistRole;
+        document.getElementById('tk_log').value = p.logChannel;
+        document.getElementById('tk_btn_lbl').value = p.btnLabel;
+        document.getElementById('tk_btn_emoji').value = p.btnEmoji;
+        document.getElementById('tk_btn_style').value = p.btnStyle;
+        document.getElementById('tk_welcome').value = p.welcomeMsg;
+        document.getElementById('tk_col_panel').value = p.panelColor;
+        document.getElementById('tk_col_welcome').value = p.welcomeColor;
+        document.getElementById('tk_limit').value = p.ticketLimit;
+        document.getElementById('tk_id').disabled = (i !== -1);
+        switchSubTab('btn-tk_app');
+        document.getElementById('overlay-ticket').style.display = 'flex';
+    }
+    function saveTicket() {
+        const id = document.getElementById('tk_id').value.trim();
+        const emoji = document.getElementById('tk_btn_emoji').value.trim();
+        const limit = parseInt(document.getElementById('tk_limit').value);
+        if(!id) return showToast("Panel ID Required", 'error');
+        if(emoji && !isValidEmoji(emoji)) return showToast("Invalid Emoji", 'error');
+        if(limit < 1) return showToast("Limit must be at least 1", 'error');
+        const panel = {
+            id: id,
+            title: document.getElementById('tk_title').value,
+            description: document.getElementById('tk_desc').value,
+            category: document.getElementById('tk_cat').value,
+            supportRole: document.getElementById('tk_role_supp').value,
+            blacklistRole: document.getElementById('tk_role_black').value,
+            logChannel: document.getElementById('tk_log').value,
+            btnLabel: document.getElementById('tk_btn_lbl').value,
+            btnEmoji: emoji,
+            btnStyle: document.getElementById('tk_btn_style').value,
+            welcomeMsg: document.getElementById('tk_welcome').value,
+            panelColor: document.getElementById('tk_col_panel').value,
+            welcomeColor: document.getElementById('tk_col_welcome').value,
+            ticketLimit: limit
+        };
+        if(currentTicketIndex === -1) ticketPanels.push(panel);
+        else ticketPanels[currentTicketIndex] = panel;
+        renderTickets(); document.getElementById('overlay-ticket').style.display = 'none';
+    }
+    function postTicketPanel() {
+        if(currentTicketIndex === -1) return showToast("Save panel first", 'error');
+        openDeployModal('single', ticketPanels[currentTicketIndex].id);
+    }
+    function createMultipanel() {
+        if(ticketPanels.length < 2) return showToast("Need at least 2 panels", 'error');
+        openDeployModal('multi');
+    }
+
+    function switchSubTab(id) {
+        const parent = document.getElementById(id).closest('.overlay-content');
+        parent.querySelectorAll('.sub-tab').forEach(e=>e.classList.remove('active'));
+        parent.querySelectorAll('.sub-section').forEach(e=>e.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        const sectionId = id.replace('btn-', '');
+        document.getElementById(sectionId).classList.add('active');
+    }
+    function openTab(name) {
+        document.querySelectorAll('.section,.tab-btn').forEach(e=>e.classList.remove('active'));
+        document.getElementById(name).classList.add('active'); document.getElementById('btn-'+name).classList.add('active');
+    }
+    async function saveConfig() {
+        const btn = document.getElementById('saveBtn');
+        btn.innerText = "SAVING..."; btn.style.opacity = "0.7";
+        const finalCC = customCommands.map(c => ({
+            name: c.name,
+            roles: c.roles,
+            response: JSON.stringify(c.type === 'embed' ? { embeds: [c.embedData] } : { content: c.content })
+        }));
+        const data = {
+            prefix: document.getElementById('prefix').value,
+            staff_roles: document.getElementById('staff_roles').value,
+            log_mod: document.getElementById('log_mod').value,
+            log_cmd: document.getElementById('log_cmd').value,
+            log_appeal: document.getElementById('log_appeal').value,
+            log_nuke: document.getElementById('log_nuke').value,
+            antinuke_enabled: document.getElementById('antinuke').checked ? 'on':'off',
+            lockdown_channels: Array.from(document.getElementById('lockdown_channels').selectedOptions).map(o=>o.value),
+            automod_rules: automodRules, command_overrides: commandOverrides,
+            custom_commands: finalCC, ticket_panels: ticketPanels
+        };
+        try {
+            const res = await fetch('/api/setup/<%= guild.id %>', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+            if(res.ok) { 
+                btn.innerText = "SAVED!";
+                btn.style.background = "#00ff9d"; 
+                showToast("Configuration saved successfully", 'success');
+                setTimeout(() => { btn.innerText = "SAVE CHANGES"; btn.style.background = "#00ff9d"; }, 2000);
+            }
+            else { 
+                const err = await res.json();
+                btn.innerText = "ERROR"; btn.style.background = "#ff0055"; 
+                showToast(err.error || "Failed to save configuration", 'error');
+            }
+        } catch(e){ showToast("Connection error", 'error'); }
+        btn.style.opacity = "1";
+    }
+
+    function enhanceAllSelects() {
+        document.querySelectorAll('select').forEach(el => {
+            if (el.classList.contains('enhanced') || el.id === 'deploy-channel') return;
+            
+            el.style.display = 'none'; 
+            el.classList.add('enhanced');
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'custom-select-wrapper';
+            el.parentNode.insertBefore(wrapper, el);
+            wrapper.appendChild(el);
+
+            const customSelect = document.createElement('div');
+            customSelect.className = 'custom-select';
+            
+            const trigger = document.createElement('div');
+            trigger.className = 'custom-select-trigger';
+            trigger.innerHTML = `<div class="selection-text">Select...</div><div class="arrow"></div>`;
+            customSelect.appendChild(trigger);
+
+            const optionsDiv = document.createElement('div');
+            optionsDiv.className = 'custom-options';
+            
+            const searchInput = document.createElement('input');
+            searchInput.className = 'select-search';
+            searchInput.placeholder = '🔍 Search...';
+            searchInput.onclick = (e) => e.stopPropagation(); 
+            searchInput.onkeyup = function() {
+                const filter = this.value.toLowerCase();
+                const opts = optionsDiv.querySelectorAll('.custom-option');
+                opts.forEach(opt => {
+                    const txt = opt.textContent || opt.innerText;
+                    opt.style.display = txt.toLowerCase().indexOf(filter) > -1 ? 'flex' : 'none';
+                });
+            };
+            optionsDiv.appendChild(searchInput);
+
+            function populateOptions() {
+                while(optionsDiv.children.length > 1) optionsDiv.removeChild(optionsDiv.lastChild);
+                
+                Array.from(el.options).forEach(opt => {
+                    if(opt.value === "") return; 
+                    const div = document.createElement('div');
+                    div.className = 'custom-option';
+                    div.dataset.value = opt.value;
+                    
+                    const color = opt.style.color || null;
+                    div.innerHTML = `${color ? `<span class="color-dot" style="background:${color}"></span>` : ''}${opt.text}`;
+                    
+                    if (opt.selected) div.classList.add('selected');
+
+                    div.addEventListener('click', function(e) {
+                        e.stopPropagation(); 
+                        if (el.multiple) {
+                            opt.selected = !opt.selected;
+                            this.classList.toggle('selected');
+                            updateTrigger();
+                        } else {
+                            el.value = this.dataset.value;
+                            el.dispatchEvent(new Event('change')); 
+                            
+                            optionsDiv.querySelectorAll('.custom-option').forEach(c => c.classList.remove('selected'));
+                            this.classList.add('selected');
+                            updateTrigger();
+                            customSelect.classList.remove('open');
+                        }
+                    });
+                    optionsDiv.appendChild(div);
+                });
+            }
+            populateOptions();
+            customSelect.appendChild(optionsDiv);
+            wrapper.appendChild(customSelect);
+
+            function updateTrigger() {
+                const selected = Array.from(el.selectedOptions);
+                const textDiv = trigger.querySelector('.selection-text');
+                if (selected.length === 0) {
+                    textDiv.innerHTML = '<span style="color:var(--sub)">Select option...</span>';
+                } else if (el.multiple) {
+                    textDiv.innerHTML = selected.map(s => 
+                        `<span class="select-badge">${s.text}<span class="badge-close" onclick="deselect('${el.id}', '${s.value}', event)">×</span></span>`
+                    ).join('');
+                } else {
+                    const s = selected[0];
+                    const color = s.style.color;
+                    textDiv.innerHTML = `${color ? `<span class="color-dot" style="background:${color}"></span>` : ''}${s.text}`;
+                }
+            }
+            
+            window.deselect = function(selectId, val, e) {
+                e.stopPropagation();
+                const select = document.getElementById(selectId);
+                const opt = Array.from(select.options).find(o => o.value === val);
+                if(opt) opt.selected = false;
+                const parent = select.closest('.custom-select-wrapper');
+                parent.querySelector(`.custom-option[data-value="${val}"]`).classList.remove('selected');
+                const event = new Event('change');
+                select.dispatchEvent(event);
+                const textContainer = parent.querySelector('.selection-text');
+                const newSelected = Array.from(select.selectedOptions);
+                if (newSelected.length === 0) {
+                    textContainer.innerHTML = '<span style="color:var(--sub)">Select option...</span>';
+                } else {
+                    textContainer.innerHTML = newSelected.map(s => 
+                        `<span class="select-badge">${s.text}<span class="badge-close" onclick="deselect('${selectId}', '${s.value}', event)">×</span></span>`
+                    ).join('');
+                }
+            };
+
+            updateTrigger();
+
+            trigger.addEventListener('click', function() {
+                document.querySelectorAll('.custom-select').forEach(s => {
+                    if(s !== customSelect) s.classList.remove('open');
+                });
+                customSelect.classList.toggle('open');
+                if(customSelect.classList.contains('open')) searchInput.focus();
+            });
+            
+            el.addEventListener('change', updateTrigger);
+        });
+
+        window.addEventListener('click', function(e) {
+            if (!e.target.closest('.custom-select-wrapper')) {
+                document.querySelectorAll('.custom-select').forEach(s => s.classList.remove('open'));
+            }
+        });
+    }
+
+    window.onload = () => { renderAutomod(); renderPerms(); renderCC(); renderTickets(); updateDurationField(); enhanceAllSelects(); };
+</script>

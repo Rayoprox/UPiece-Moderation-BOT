@@ -1,0 +1,7 @@
+<div id="channels" class="section active">
+    <h2>Log Channels</h2>
+    <div class="form-group"><label class="label">Mod Logs</label><select id="log_mod"><option value="">None</option><% textChannels.forEach(c=>{ %><option value="<%= c.id %>" <%= logs.modlog==c.id?'selected':'' %>>#<%= c.name %></option><% }) %></select></div>
+    <div class="form-group"><label class="label">Command Logs</label><select id="log_cmd"><option value="">None</option><% textChannels.forEach(c=>{ %><option value="<%= c.id %>" <%= logs.cmdlog==c.id?'selected':'' %>>#<%= c.name %></option><% }) %></select></div>
+    <div class="form-group"><label class="label">Appeal Logs</label><select id="log_appeal"><option value="">None</option><% textChannels.forEach(c=>{ %><option value="<%= c.id %>" <%= logs.banappeal==c.id?'selected':'' %>>#<%= c.name %></option><% }) %></select></div>
+    <div class="form-group"><label class="label">Anti-Nuke Logs</label><select id="log_nuke"><option value="">None</option><% textChannels.forEach(c=>{ %><option value="<%= c.id %>" <%= logs.antinuke==c.id?'selected':'' %>>#<%= c.name %></option><% }) %></select></div>
+</div>

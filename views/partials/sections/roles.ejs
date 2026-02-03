@@ -1,0 +1,12 @@
+<div id="roles" class="section">
+    <h2>Permissions</h2>
+    <div class="form-group"><label class="label">Staff Role</label><select id="staff_roles"><option value="">None</option><% guildRoles.forEach(r=>{ %><option value="<%= r.id %>" style="color:<%= r.color %>" <%= settings.staff_roles==r.id?'selected':'' %>>@<%= r.name %></option><% }) %></select></div>
+    <hr style="border:0;border-top:1px solid var(--border);margin:30px 0">
+    <h3>Command Overrides</h3>
+    <div id="perms-list" class="item-list"></div>
+    <div class="add-box"><h3>Add Override</h3><div class="add-row">
+        <div style="flex:1"><label class="label">Command</label><select id="perm_cmd"><% botCommands.forEach(c=>{ %><option value="<%= c %>">/<%= c %></option><% }) %></select></div>
+        <div style="flex:2"><label class="label">Allowed Roles</label><select id="perm_roles" multiple style="height:100px"><% guildRoles.forEach(r=>{ %><option value="<%= r.id %>" style="color:<%= r.color %>"><%= r.name %></option><% }) %></select></div>
+        <button class="btn-add" onclick="addPerm()">Add</button>
+    </div></div>
+</div>

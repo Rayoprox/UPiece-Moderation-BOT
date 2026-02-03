@@ -1,0 +1,39 @@
+<div id="overlay-ticket" class="overlay"><div class="overlay-content">
+    <div class="overlay-header"><h2>Edit Ticket Panel</h2><button class="close-btn" onclick="document.getElementById('overlay-ticket').style.display='none'">✖</button></div>
+    <div class="sub-tabs">
+        <div id="btn-tk_app" class="sub-tab active" onclick="switchSubTab('btn-tk_app')">Appearance</div>
+        <div id="btn-tk_roles" class="sub-tab" onclick="switchSubTab('btn-tk_roles')">Roles</div>
+        <div id="btn-tk_gen" class="sub-tab" onclick="switchSubTab('btn-tk_gen')">General</div>
+    </div>
+    
+    <div id="tk_app" class="sub-section active">
+        <div class="form-group"><label class="label">Panel ID</label><input type="text" id="tk_id"></div>
+        <div class="form-group"><label class="label">Title</label><input type="text" id="tk_title"></div>
+        <div class="form-group"><label class="label">Description</label><textarea id="tk_desc" rows="3"></textarea></div>
+        <div class="add-row">
+            <div><label class="label">Btn Label</label><input type="text" id="tk_btn_lbl"></div>
+            <div><label class="label">Emoji</label><input type="text" id="tk_btn_emoji"></div>
+            <div><label class="label">Style</label><select id="tk_btn_style"><option value="Primary">Blue</option><option value="Secondary">Grey</option><option value="Success">Green</option><option value="Danger">Red</option></select></div>
+        </div>
+        <div class="add-row" style="margin-top:15px">
+            <div><label class="label">Panel Color</label><input type="text" id="tk_col_panel"></div>
+            <div><label class="label">Welcome Color</label><input type="text" id="tk_col_welcome"></div>
+        </div>
+        <div class="form-group" style="margin-top:15px"><label class="label">Welcome Message</label><textarea id="tk_welcome" rows="2"></textarea></div>
+    </div>
+
+    <div id="tk_roles" class="sub-section">
+        <div class="form-group"><label class="label">Support Role</label><select id="tk_role_supp"><option value="">None</option><% guildRoles.forEach(r=>{ %><option value="<%= r.id %>"><%= r.name %></option><% }) %></select></div>
+        <div class="form-group"><label class="label">Blacklist Role</label><select id="tk_role_black"><option value="">None</option><% guildRoles.forEach(r=>{ %><option value="<%= r.id %>"><%= r.name %></option><% }) %></select></div>
+    </div>
+
+    <div id="tk_gen" class="sub-section">
+        <div class="form-group"><label class="label">Ticket Category</label><select id="tk_cat"><% categories.forEach(c=>{ %><option value="<%= c.id %>"><%= c.name %></option><% }) %></select></div>
+        <div class="form-group"><label class="label">Log Channel</label><select id="tk_log"><option value="">None</option><% textChannels.forEach(c=>{ %><option value="<%= c.id %>">#<%= c.name %></option><% }) %></select></div>
+        <div class="form-group"><label class="label">Ticket Limit per User</label><input type="number" id="tk_limit" min="1"></div>
+        <button class="btn-action-lg" style="width:100%;margin-top:20px;justify-content:center" onclick="postTicketPanel()">📨 Post Panel to Channel</button>
+    </div>
+
+    <button class="btn-save" style="width:100%;margin-top:20px" onclick="saveTicket()">Update Panel in List</button>
+    <p class="hint" style="text-align:center; margin-top:10px">Changes are local until you click "Save Changes".</p>
+</div></div>
