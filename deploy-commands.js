@@ -3,7 +3,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 require('dotenv').config();
 
-// Verificación de seguridad
 if (!process.env.DISCORD_TOKEN) {
     console.error("❌ Error: Falta DISCORD_TOKEN en las variables de entorno.");
     process.exit(1);
@@ -69,7 +68,6 @@ const rest = new REST().setToken(process.env.DISCORD_TOKEN);
     } catch (error) {
         console.error("❌ Error deploying commands:", error);
     } finally {
-        // ESTA ES LA CLAVE: Forzamos el cierre del proceso para que no bloquee el deploy
         console.log(' Closing deploy script to release resources.');
         process.exit(0);
     }

@@ -51,7 +51,6 @@ module.exports = {
                 const commandHeader = `> **/${command.data.name}** | **${prefix}${command.data.name}**${argsString}`;
                 const formattedCommand = `${commandHeader}\n> *${command.data.description}*`;
 
-                // Moderation commands per config
                 if (STAFF_COMMANDS.includes(command.data.name)) {
                     commandCategories.moderation.push(formattedCommand);
                 } else if (command.category === 'tickets' || command.data.name === 'ticket') {
@@ -127,15 +126,12 @@ module.exports = {
 
         let msg;
         if (isPrefix) {
-            // Send as DM for prefix commands to keep it private
             try {
                 msg = await interaction.user.send({ embeds: [mainEmbed], components: [row] });
             } catch (e) {
-                // fallback to channel reply if DMs are closed
                 msg = await interaction.reply({ embeds: [mainEmbed], components: [row], fetchReply: true }).catch(() => null);
             }
         } else {
-            // slash commands: handler already deferred with ephemeral when isPublic=false
             if (interaction.deferred || interaction.replied) {
                 await interaction.editReply({ embeds: [mainEmbed], components: [row] });
                 msg = await interaction.fetchReply();

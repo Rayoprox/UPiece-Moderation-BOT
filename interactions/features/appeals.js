@@ -11,7 +11,6 @@ module.exports = async (interaction) => {
     const { customId, client } = interaction;
     const db = client.db;
 
-    // --- INICIO: Botón para abrir formulario ---
     if (customId === 'start_appeal_process') {
         if (!await safeDefer(interaction, false, true)) return;
         
@@ -49,7 +48,6 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // --- MODAL: Mostrar formulario ---
     if (customId.startsWith('appeal:open_form:')) {
         const userId = customId.split(':')[2];
         if (interaction.user.id !== userId) return interaction.reply({ content: `⛔ This form is not for you.`, flags: [MessageFlags.Ephemeral] });
@@ -152,7 +150,6 @@ module.exports = async (interaction) => {
 
         const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setTimestamp();
         
-        // Actualizamos estado en DB también si se usa el botón de Discord
         let dbStatus = 'PENDING';
 
         let dmEmbed;
@@ -203,7 +200,6 @@ module.exports = async (interaction) => {
             dmEmbed = new EmbedBuilder().setColor(0x000000).setTitle(`⛔ Appeal Status Update: BLOCKED`).setAuthor({ name: banGuild.name, iconURL: banGuild.iconURL({ dynamic: true }) }).setDescription(`Your ban appeal for **${banGuild.name}** has been rejected and you have been **blacklisted**.`).setFooter({ text: 'No further communication will be accepted.' }).setTimestamp();
         }
 
-        // Sincronizar estado con la base de datos (por si se usa la web)
         await db.query("UPDATE ban_appeals SET status = $1 WHERE message_id = $2", [dbStatus, interaction.message.id]);
 
         if (dmEmbed) await user.send({ embeds: [dmEmbed] }).catch(() => {});

@@ -1,10 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const { emojis } = require('./config.js');
 
-/**
- * * @param {string} type 
- * @param {string} description 
- */
 const createEmbed = (type, description) => {
     let color, titleEmoji;
     
@@ -32,10 +28,6 @@ const createEmbed = (type, description) => {
         .setDescription(`${titleEmoji} ${description}`);
 };
 
-/**
- * 
- * @param {string} description 
- */
 const createModerationEmbed = (description) => {
     return new EmbedBuilder()
         .setColor(0x2ECC71) 

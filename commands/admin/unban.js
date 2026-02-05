@@ -55,7 +55,6 @@ module.exports = {
         const unbanCaseId = `CASE-${currentTimestamp}`;
         await db.query(`INSERT INTO modlogs (caseid, guildid, action, userid, usertag, moderatorid, moderatortag, reason, timestamp, appealable, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, [unbanCaseId, guildId, 'UNBAN', ban.user.id, ban.user.tag, interaction.user.id, interaction.user.tag, cleanReason, currentTimestamp, 0, 'EXECUTED']);
 
-        // LOG SIMPLE
         const modLogResult = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = $2", [guildId, 'modlog']);
         if (modLogResult.rows[0]?.channel_id) {
             const channel = guild.channels.cache.get(modLogResult.rows[0].channel_id);

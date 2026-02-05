@@ -5,7 +5,6 @@ module.exports = {
     name: Events.GuildMemberUpdate,
     async execute(oldMember, newMember) {
         initializeTimerMap(newMember.client);
-        // cuando se quita un timeout
         if (oldMember.isCommunicationDisabled() && !newMember.isCommunicationDisabled()) {
             
             await new Promise(resolve => setTimeout(resolve, 1500)); // Esperar a que el Audit Log se actualice

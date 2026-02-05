@@ -10,7 +10,6 @@ async function handleCommandSelect(interaction) {
     const allowedRolesResult = await db.query('SELECT role_id FROM command_permissions WHERE command_name = $1', [commandName]);
     const allowedRoles = allowedRolesResult.rows; 
     
-    // Mapeo normal
     let rolesList = allowedRoles.map(r => `<@&${r.role_id}>`).join('\n') || 'None yet.';
 
     const embed = new EmbedBuilder()

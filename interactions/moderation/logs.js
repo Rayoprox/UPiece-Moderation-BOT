@@ -33,7 +33,6 @@ module.exports = async (interaction) => {
         await interaction.editReply({ embeds: [embed], components });
     }
 
-    // Purge 
     if (action === 'purge-prompt') {
             await safeDefer(interaction, false, true);
             const btns = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`modlogs_purge-confirm_${userId}_${logsAuthorId}`).setLabel('DELETE ALL').setStyle(ButtonStyle.Danger), new ButtonBuilder().setCustomId(`modlogs_purge-cancel_${userId}_${logsAuthorId}`).setLabel('Cancel').setStyle(ButtonStyle.Secondary));
@@ -47,7 +46,6 @@ module.exports = async (interaction) => {
     }
     if (action === 'purge-cancel') return interaction.update({ content: `Cancelled.`, components: [] });
     
-    // Eliminar Warn específico
     if (action === 'remove-start') {
         await safeDefer(interaction, false, true);
         const activeWarnings = await db.query("SELECT caseid, reason FROM modlogs WHERE userid = $1 AND guildid = $2 AND action = 'WARN' AND status = 'ACTIVE' ORDER BY timestamp DESC", [userId, guildId]);

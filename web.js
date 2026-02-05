@@ -112,7 +112,6 @@ const protectRoute = async (req, res, next) => {
         const hasBanRole = banPerms.rows.some(row => memberInMain.roles.cache.has(row.role_id));
 
 
-        // Main server access rules
         if (targetGuildId === mgId) {
             if (universalLock) {
                 if (hasSetupRole) return next();
@@ -124,7 +123,6 @@ const protectRoute = async (req, res, next) => {
             }
         }
 
-        // Appeals server access rules
         if (targetGuildId === process.env.DISCORD_APPEAL_GUILD_ID) {
             if (universalLock) {
                 if (hasSetupRole || hasBanRole) return next();
