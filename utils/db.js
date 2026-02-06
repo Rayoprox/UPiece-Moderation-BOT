@@ -159,6 +159,10 @@ const db = {
     
         try { await db.query(`ALTER TABLE guild_settings ADD COLUMN log_channel_id TEXT`, [], true); } catch (e) {} 
 
+        try { await db.query(`ALTER TABLE guild_backups ADD COLUMN antinuke_ignore_supreme BOOLEAN DEFAULT TRUE`, [], true); } catch (e) {}
+        try { await db.query(`ALTER TABLE guild_backups ADD COLUMN antinuke_ignore_verified BOOLEAN DEFAULT TRUE`, [], true); } catch (e) {}
+        try { await db.query(`ALTER TABLE guild_backups ADD COLUMN antinuke_action TEXT DEFAULT 'ban'`, [], true); } catch (e) {}
+
         try { await db.query(`ALTER TABLE log_channels DROP CONSTRAINT log_channels_guildid_key`, [], true); } catch (e) {}
 
         try { await db.query(`ALTER TABLE ticket_panels ADD COLUMN ticket_limit INTEGER DEFAULT 1`, [], true); } catch (e) {}

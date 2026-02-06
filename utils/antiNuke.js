@@ -1,11 +1,17 @@
 const { AuditLogEvent, PermissionFlagsBits, ChannelType, EmbedBuilder, UserFlags, OverwriteType } = require('discord.js');
 const db = require('./db.js');
-const { emojis } = require('./config.js'); 
+const { emojis, SUPREME_IDS } = require('./config.js'); 
 
 const limitCache = new Map(); 
 const triggeredUsers = new Set(); 
 const restoringGuilds = new Set();
 const backingUpGuilds = new Set();
+
+const guildSettingsCache = new Map(); // guildId -> { settings, ts }
+const userInfoCache = new Map(); // userId -> { bot, flags, ts }
+
+const SETTINGS_TTL = 60 * 1000; // 60s cache
+const USERINFO_TTL = 5 * 60 * 1000; // 5 minutes
 
 async function createBackup(guild) {
     if (!guild) return false;
@@ -117,10 +123,20 @@ async function restoreGuild(guild) {
 async function handleAction(guild, executorId, actionType) {
     const triggerKey = `${guild.id}_${executorId}`;
     if (triggeredUsers.has(triggerKey)) return; 
-    const settings = await db.query('SELECT antinuke_enabled, threshold_count, threshold_time FROM guild_backups WHERE guildid = $1', [guild.id]);
-    if (settings.rows.length === 0 || !settings.rows[0].antinuke_enabled) return;
+    const settingsObj = await getGuildSettings(guild.id);
+    if (!settingsObj || !settingsObj.antinuke_enabled) return;
 
-    const { threshold_count, threshold_time } = settings.rows[0];
+    const { threshold_count, threshold_time, antinuke_ignore_supreme, antinuke_ignore_verified } = settingsObj;
+
+    // Ignore SUPREME_IDS if configured
+    if (antinuke_ignore_supreme && SUPREME_IDS.includes(executorId)) return;
+
+    // Quick user info check: avoid fetch where possible to prevent API bottlenecks
+    const uinfo = await getUserInfo(guild.client, executorId).catch(() => null);
+    if (uinfo && uinfo.bot && antinuke_ignore_verified) {
+        // if user has VerifiedBot flag -> ignore
+        if (uinfo.flags && uinfo.flags.has && uinfo.flags.has('VerifiedBot')) return;
+    }
     const key = `${guild.id}_${executorId}_${actionType}`;
     
     if (!limitCache.has(key)) {
@@ -139,6 +155,29 @@ async function handleAction(guild, executorId, actionType) {
     }
 }
 
+async function getGuildSettings(guildId) {
+    const cached = guildSettingsCache.get(guildId);
+    if (cached && (Date.now() - cached.ts) < SETTINGS_TTL) return cached.settings;
+    const res = await db.query('SELECT antinuke_enabled, threshold_count, threshold_time, antinuke_ignore_supreme, antinuke_ignore_verified, antinuke_action FROM guild_backups WHERE guildid = $1', [guildId]);
+    if (res.rows.length === 0) return null;
+    const settings = res.rows[0];
+    guildSettingsCache.set(guildId, { settings, ts: Date.now() });
+    return settings;
+}
+
+async function getUserInfo(client, userId) {
+    const cached = userInfoCache.get(userId);
+    if (cached && (Date.now() - cached.ts) < USERINFO_TTL) return cached.info;
+    let user = client.users.cache.get(userId) || null;
+    if (!user) {
+        try { user = await client.users.fetch(userId); } catch (e) { user = null; }
+    }
+    if (!user) return null;
+    const info = { bot: user.bot, flags: user.flags };
+    userInfoCache.set(userId, { info, ts: Date.now() });
+    return info;
+}
+
 async function triggerProtection(guild, user, type) {
     console.log(`[ANTI-NUKE] ${emojis.warn || '🚨'} TRIGGERED by ${user?.tag} (${type})`);
     
@@ -150,14 +189,13 @@ async function triggerProtection(guild, user, type) {
     if (logRes.rows.length > 0) {
         const ch = guild.channels.cache.get(logRes.rows[0].channel_id);
         if (ch) {
-            ch.send({ 
-                embeds: [new EmbedBuilder()
-                    .setTitle(`${emojis.warn || '☢️'} SERVER NUKE ATTEMPT BLOCKED`)
-                    .setDescription(`**User:** ${user?.tag}\n**Action:** Mass ${type}\n**Result:** ${emojis.ban || '🔨'} Banned & Restoring...`)
-                    .setColor(0xFF0000)
-                    .setTimestamp()
-                ] 
-            }).catch(()=>{});
+            const embed = new EmbedBuilder()
+                .setTitle('Server Nuke Detected')
+                .setDescription(`User: ${user?.tag || 'Unknown'}\nAction: Mass ${type}\nResult: Action executed and restoration initiated.`)
+                .setColor(0xB00020)
+                .setFooter({ text: 'Anti-Nuke' })
+                .setTimestamp();
+            ch.send({ embeds: [embed] }).catch(() => {});
         }
     }
     await restoreGuild(guild);
@@ -188,14 +226,15 @@ async function checkBotJoin(member) {
             const logRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid=$1 AND log_type='antinuke'", [member.guild.id]);
             if (logRes.rows.length > 0) {
                 const ch = member.guild.channels.cache.get(logRes.rows[0].channel_id);
-                if (ch) ch.send({ 
-                    embeds: [new EmbedBuilder()
-                        .setTitle(`${emojis.warn || '🤖'} UNVERIFIED BOT BANNED`)
-                        .setDescription(`**Bot:** ${member.user.tag} (\`${member.id}\`)\n**Invited By:** ${inviterText}\n**Reason:** Not Verified & Not Whitelisted`)
-                        .setColor(0xFFA500)
-                        .setTimestamp()
-                    ] 
-                }).catch(()=>{});
+                if (ch) {
+                    const embed = new EmbedBuilder()
+                        .setTitle('Unverified Bot Removed')
+                        .setDescription(`Bot: ${member.user.tag} (${member.id})\nInvited By: ${inviterText}\nReason: Not verified and not whitelisted.`)
+                        .setColor(0xD97706)
+                        .setFooter({ text: 'Anti-Nuke' })
+                        .setTimestamp();
+                    ch.send({ embeds: [embed] }).catch(() => {});
+                }
             }
         }
     }

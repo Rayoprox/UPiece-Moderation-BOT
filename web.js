@@ -295,7 +295,7 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
         await updateLog('banappeal', log_appeal);
         await updateLog('antinuke', log_nuke);
 
-        await db.query(`INSERT INTO guild_backups (guildid, antinuke_enabled) VALUES ($1, $2) ON CONFLICT (guildid) DO UPDATE SET antinuke_enabled = $2`, [guildId, antinuke_enabled === 'on']);
+        await db.query(`INSERT INTO guild_backups (guildid, antinuke_enabled, threshold_count, threshold_time, antinuke_ignore_supreme, antinuke_ignore_verified, antinuke_action) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (guildid) DO UPDATE SET antinuke_enabled = $2, threshold_count = $3, threshold_time = $4, antinuke_ignore_supreme = $5, antinuke_ignore_verified = $6, antinuke_action = $7`, [guildId, antinuke_enabled === 'on', antinuke_threshold_count || 10, antinuke_threshold_time || 60, antinuke_ignore_supreme === 'on', antinuke_ignore_verified === 'on', antinuke_action || 'ban']);
         
         await db.query("DELETE FROM lockdown_channels WHERE guildid = $1", [guildId]);
         if (lockdown_channels && Array.isArray(lockdown_channels)) {

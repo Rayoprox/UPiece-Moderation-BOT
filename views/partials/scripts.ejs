@@ -305,6 +305,11 @@
             log_appeal: document.getElementById('log_appeal').value,
             log_nuke: document.getElementById('log_nuke').value,
             antinuke_enabled: document.getElementById('antinuke').checked ? 'on':'off',
+            antinuke_threshold_count: parseInt(document.getElementById('antinuke_threshold_count').value) || 10,
+            antinuke_threshold_time: parseInt(document.getElementById('antinuke_threshold_time').value) || 60,
+            antinuke_action: document.getElementById('antinuke_action').value,
+            antinuke_ignore_supreme: document.getElementById('antinuke_ignore_supreme').checked ? 'on':'off',
+            antinuke_ignore_verified: document.getElementById('antinuke_ignore_verified').checked ? 'on':'off',
             lockdown_channels: Array.from(document.getElementById('lockdown_channels').selectedOptions).map(o=>o.value),
             automod_rules: automodRules, command_overrides: commandOverrides,
             custom_commands: finalCC, ticket_panels: ticketPanels
