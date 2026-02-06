@@ -299,7 +299,7 @@
         }));
         const data = {
             prefix: document.getElementById('prefix').value,
-            staff_roles: document.getElementById('staff_roles').value,
+            staff_roles: Array.from(document.getElementById('staff_roles').selectedOptions).map(o=>o.value).filter(v=>v).join(','),
             log_mod: document.getElementById('log_mod').value,
             log_cmd: document.getElementById('log_cmd').value,
             log_appeal: document.getElementById('log_appeal').value,
@@ -462,4 +462,19 @@
     }
 
     window.onload = () => { renderAutomod(); renderPerms(); renderCC(); renderTickets(); updateDurationField(); enhanceAllSelects(); };
+
+    async function resetAllData() {
+        if (!confirm('WARNING: This will delete ALL configuration, logs, rules and appeals for this server. This action cannot be undone. Are you sure?')) return;
+        if (!confirm('Are you absolutely sure? Type OK to confirm.')) return;
+        try {
+            const res = await fetch('/api/reset/<%= guild.id %>', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+            if (res.ok) {
+                showToast('All server data has been reset.', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                const err = await res.json();
+                showToast(err.error || 'Failed to reset data.', 'error');
+            }
+        } catch (e) { showToast('Connection error.', 'error'); }
+    }
 </script>

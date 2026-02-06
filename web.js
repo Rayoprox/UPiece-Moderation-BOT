@@ -218,8 +218,9 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
         const logs = {};
         logsRes.rows.forEach(row => logs[row.log_type] = row.channel_id);
 
-        const backupsRes = await db.query('SELECT antinuke_enabled FROM guild_backups WHERE guildid = $1', [guildId]);
+        const backupsRes = await db.query('SELECT antinuke_enabled, threshold_count, threshold_time, antinuke_ignore_supreme, antinuke_ignore_verified, antinuke_action FROM guild_backups WHERE guildid = $1', [guildId]);
         const antinuke = backupsRes.rows[0]?.antinuke_enabled || false;
+        const antinukeSettings = backupsRes.rows[0] || { threshold_count: 10, threshold_time: 60, antinuke_ignore_supreme: true, antinuke_ignore_verified: true, antinuke_action: 'ban' };
 
         const lockdownRes = await db.query('SELECT channel_id FROM lockdown_channels WHERE guildid = $1', [guildId]);
         const lockdownChannels = lockdownRes.rows.map(r => r.channel_id);
@@ -257,7 +258,7 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
 
         res.render('setup', { 
             bot: botClient.user, user: req.user, guild, 
-            settings, logs, antinuke, lockdownChannels,
+            settings, logs, antinuke, antinukeSettings, lockdownChannels,
             automodRules, commandOverrides,
             customCommands, ticketPanels,
             botCommands, guildRoles, textChannels, categories
@@ -270,7 +271,8 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
     const { 
         prefix, staff_roles, 
         log_mod, log_cmd, log_appeal, log_nuke,
-        antinuke_enabled, lockdown_channels,
+        antinuke_enabled, antinuke_threshold_count, antinuke_threshold_time, antinuke_action, antinuke_ignore_supreme, antinuke_ignore_verified,
+        lockdown_channels,
         automod_rules, command_overrides,
         custom_commands, ticket_panels
     } = req.body;
@@ -482,6 +484,26 @@ app.post('/api/appeals/:action', auth, async (req, res, next) => {
         }
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/reset/:guildId', auth, protectRoute, async (req, res) => {
+    const guildId = req.params.guildId;
+    try {
+        await db.query("DELETE FROM automod_rules WHERE guildid = $1", [guildId]);
+        await db.query("DELETE FROM modlogs WHERE guildid = $1", [guildId]);
+        await db.query("DELETE FROM command_permissions WHERE guildid = $1", [guildId]);
+        await db.query("DELETE FROM log_channels WHERE guildid = $1", [guildId]);
+        await db.query("DELETE FROM guild_settings WHERE guildid = $1", [guildId]);
+        await db.query("DELETE FROM appeal_blacklist WHERE guildid = $1", [guildId]);
+        await db.query("DELETE FROM pending_appeals WHERE guildid = $1", [guildId]);
+        await db.query("DELETE FROM guild_backups WHERE guildid = $1", [guildId]);
+        await db.query("DELETE FROM ticket_panels WHERE guild_id = $1", [guildId]);
+        await db.query("DELETE FROM tickets WHERE guild_id = $1", [guildId]);
+        await db.query("DELETE FROM lockdown_channels WHERE guildid = $1", [guildId]);
+        await db.query("DELETE FROM lockdown_backups WHERE guildid = $1", [guildId]);
+        await db.query("DELETE FROM afk_users WHERE guildid = $1", [guildId]);
+        res.json({ success: true });
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
 });
 
 app.get('/transcript/:id', async (req, res) => {

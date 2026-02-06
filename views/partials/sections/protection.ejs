@@ -2,19 +2,22 @@
     <h2>Protection</h2>
     <div class="form-group"><label class="label">Anti-Nuke</label><label class="switch"><input type="checkbox" id="antinuke" <%= antinuke?'checked':'' %>><span class="slider"></span></label></div>
     <div class="form-row">
-        <div class="form-group"><label class="label">Threshold (actions)</label><input type="number" id="antinuke_threshold_count" value="10" min="1"></div>
-        <div class="form-group"><label class="label">Window (seconds)</label><input type="number" id="antinuke_threshold_time" value="60" min="1"></div>
+        <div class="form-group"><label class="label">Threshold (actions)</label><input type="number" id="antinuke_threshold_count" value="<%= antinukeSettings.threshold_count || 10 %>" min="1"></div>
+        <div class="form-group"><label class="label">Window (seconds)</label><input type="number" id="antinuke_threshold_time" value="<%= antinukeSettings.threshold_time || 60 %>" min="1"></div>
         <div class="form-group"><label class="label">Action</label>
             <select id="antinuke_action">
-                <option value="ban">Ban & Restore</option>
-                <option value="restore">Restore Only</option>
-                <option value="notify">Notify Only</option>
+                <option value="ban" <%= antinukeSettings.antinuke_action==='ban'?'selected':'' %>>Ban & Restore</option>
+                <option value="restore" <%= antinukeSettings.antinuke_action==='restore'?'selected':'' %>>Restore Only</option>
+                <option value="notify" <%= antinukeSettings.antinuke_action==='notify'?'selected':'' %>>Notify Only</option>
             </select>
         </div>
     </div>
     <div class="form-row">
-        <div class="form-group"><label class="label">Ignore SUPREME IDs</label><label class="switch"><input type="checkbox" id="antinuke_ignore_supreme" checked><span class="slider"></span></label></div>
-        <div class="form-group"><label class="label">Ignore Verified Bots</label><label class="switch"><input type="checkbox" id="antinuke_ignore_verified" checked><span class="slider"></span></label></div>
+        <div class="form-group"><label class="label">Ignore SUPREME IDs</label><label class="switch"><input type="checkbox" id="antinuke_ignore_supreme" <%= antinukeSettings.antinuke_ignore_supreme!==false?'checked':'' %>><span class="slider"></span></label></div>
+        <div class="form-group"><label class="label">Ignore Verified Bots</label><label class="switch"><input type="checkbox" id="antinuke_ignore_verified" <%= antinukeSettings.antinuke_ignore_verified!==false?'checked':'' %>><span class="slider"></span></label></div>
     </div>
     <div class="form-group"><label class="label">Lockdown Channels</label><select id="lockdown_channels" multiple style="height:150px"><% textChannels.forEach(c=>{ %><option value="<%= c.id %>" <%= lockdownChannels.includes(c.id)?'selected':'' %>>#<%= c.name %></option><% }) %></select></div>
+    <hr style="border:0;border-top:1px solid var(--border);margin:30px 0">
+    <h3>Danger Zone</h3>
+    <button class="btn-remove" style="padding:10px 20px" onclick="resetAllData()">Reset All Server Data</button>
 </div>
