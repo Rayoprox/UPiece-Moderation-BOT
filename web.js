@@ -304,9 +304,20 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
             return res.status(400).json({ error: 'Antinuke window must be between 10 and 86400 seconds.' });
         }
 
-        // Validate automod rules
+        // Normalize and validate automod rules
+        const normalizeAction = (action) => {
+            const map = { 'timeout': 'MUTE', 'mute': 'MUTE', 'ban': 'BAN', 'kick': 'KICK' };
+            return map[String(action).toLowerCase()] || action;
+        };
+
         if (automod_rules && Array.isArray(automod_rules)) {
             const seenWarnings = new Set();
+
+            // Normalize all actions in place
+            for (const rule of automod_rules) {
+                rule.action = normalizeAction(rule.action);
+            }
+
             for (const rule of automod_rules) {
                 if (rule.warnings < 1 || rule.warnings > 10) {
                     return res.status(400).json({ error: 'Automod warnings must be between 1 and 10.' });
@@ -315,8 +326,10 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
                     return res.status(400).json({ error: 'Duplicate warning counts in automod rules.' });
                 }
                 seenWarnings.add(rule.warnings);
-                if (!['BAN', 'MUTE', 'KICK'].includes(rule.action)) {
-                    return res.status(400).json({ error: 'Invalid automod action.' });
+
+                const allowed = ['BAN', 'MUTE', 'KICK'];
+                if (!allowed.includes(rule.action)) {
+                    return res.status(400).json({ error: `Invalid automod action: '${rule.action}'. Must be one of: BAN, MUTE, KICK` });
                 }
             }
         }

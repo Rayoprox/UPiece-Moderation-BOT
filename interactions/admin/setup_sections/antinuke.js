@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const db = require('../../../utils/db.js');
 const { safeDefer } = require('../../../utils/interactionHelpers.js');
 const guildCache = require('../../../utils/guildCache.js');
@@ -7,30 +7,10 @@ module.exports = async (interaction) => {
     const { customId, guild } = interaction;
     const guildId = guild.id;
 
+    // Redirect to main configuration view directly to avoid an extra summary page
     if (customId === 'setup_antinuke') {
-        if (!await safeDefer(interaction, true)) return;
-        const res = await db.query("SELECT antinuke_enabled, threshold_count, threshold_time, antinuke_ignore_supreme, antinuke_ignore_verified, antinuke_action FROM guild_backups WHERE guildid = $1", [guildId]);
-        const settings = res.rows[0] || { antinuke_enabled: false, threshold_count: 10, threshold_time: 60, antinuke_ignore_supreme: true, antinuke_ignore_verified: true, antinuke_action: 'ban' };
-        const status = settings.antinuke_enabled ? '✅ ENABLED' : '❌ DISABLED';
-
-        const embed = new EmbedBuilder()
-            .setTitle('Anti-Nuke')
-            .addFields(
-                { name: 'Status', value: status, inline: true },
-                { name: 'Threshold', value: `${settings.threshold_count} / ${settings.threshold_time}s`, inline: true },
-                { name: 'Action', value: settings.antinuke_action, inline: true },
-                { name: 'Ignore SUPREME IDs', value: settings.antinuke_ignore_supreme ? 'Yes' : 'No', inline: true },
-                { name: 'Ignore Verified Bots', value: settings.antinuke_ignore_verified ? 'Yes' : 'No', inline: true }
-            )
-            .setColor(settings.antinuke_enabled ? 0x2ECC71 : 0xE74C3C)
-            .setFooter({ text: 'Anti-Nuke' })
-            .setTimestamp();
-        const toggle = new ButtonBuilder().setCustomId('antinuke_toggle').setLabel(settings.antinuke_enabled ? 'Disable' : 'Enable').setStyle(settings.antinuke_enabled ? ButtonStyle.Danger : ButtonStyle.Success);
-        const configure = new ButtonBuilder().setCustomId('antinuke_config').setLabel('Configure').setStyle(ButtonStyle.Primary);
-        const back = new ButtonBuilder().setCustomId('setup_menu_protection').setLabel('Back').setStyle(ButtonStyle.Secondary);
-
-        await interaction.editReply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(toggle, configure, back)] });
-        return;
+        interaction.customId = 'antinuke_config';
+        return module.exports(interaction);
     }
 
     if (customId === 'antinuke_toggle') {
@@ -55,49 +35,150 @@ module.exports = async (interaction) => {
 
         const embed = new EmbedBuilder()
             .setTitle('⚙️ Anti-Nuke Configuration')
-            .setDescription('Customize Anti-Nuke behavior for this server.')
+            .setDescription('Anti-Nuke detects mass administrative actions and helps protect your server. Configure how aggressive the system is, what it should do when triggered, and exceptions.')
             .addFields(
-                { name: 'Enabled', value: settings.antinuke_enabled ? '✅' : '❌', inline: true },
-                { name: 'Threshold', value: `${settings.threshold_count} / ${settings.threshold_time}s`, inline: true },
-                { name: 'Ignore SUPREME IDs', value: settings.antinuke_ignore_supreme ? '✅' : '❌', inline: true },
-                { name: 'Ignore Verified Bots', value: settings.antinuke_ignore_verified ? '✅' : '❌', inline: true },
-                { name: 'Action', value: `${settings.antinuke_action}`, inline: true }
+                { name: 'Status', value: settings.antinuke_enabled ? '✅ ENABLED' : '❌ DISABLED', inline: true },
+                { name: 'Trigger Threshold', value: `> ${settings.threshold_count} actions`, inline: true },
+                { name: 'Window', value: `${settings.threshold_time}s`, inline: true },
+                { name: 'Action', value: `${settings.antinuke_action}`.toUpperCase(), inline: true },
+                { name: 'Ignore SUPREME IDs', value: settings.antinuke_ignore_supreme ? '✅ Yes' : '❌ No', inline: true },
+                { name: 'Ignore Verified Bots', value: settings.antinuke_ignore_verified ? '✅ Yes' : '❌ No', inline: true }
             )
-            .setColor('#F39C12');
+            .setColor(settings.antinuke_enabled ? 0xE67E22 : 0x7F8C8D)
+            .setFooter({ text: 'Tip: Use custom values to fine-tune protection.' });
 
-        const actionLabels = { ban: 'Ban', restore: 'Restore', notify: 'Notify' };
-        const btnSupreme = new ButtonBuilder().setCustomId('antinuke_toggle_supreme').setLabel(settings.antinuke_ignore_supreme ? 'Do Not Ignore SUPREME' : 'Ignore SUPREME').setStyle(ButtonStyle.Secondary);
-        const btnVerified = new ButtonBuilder().setCustomId('antinuke_toggle_verified').setLabel(settings.antinuke_ignore_verified ? 'Do Not Ignore Verified' : 'Ignore Verified').setStyle(ButtonStyle.Secondary);
-        const btnAction = new ButtonBuilder().setCustomId('antinuke_cycle_action').setLabel(`Action: ${actionLabels[settings.antinuke_action] || settings.antinuke_action}`).setStyle(ButtonStyle.Primary);
-        const btnIncT = new ButtonBuilder().setCustomId('antinuke_inc_threshold').setLabel('+ Threshold').setStyle(ButtonStyle.Primary);
-        const btnDecT = new ButtonBuilder().setCustomId('antinuke_dec_threshold').setLabel('- Threshold').setStyle(ButtonStyle.Primary);
-        const btnIncW = new ButtonBuilder().setCustomId('antinuke_inc_window').setLabel('+ Window').setStyle(ButtonStyle.Primary);
-        const btnDecW = new ButtonBuilder().setCustomId('antinuke_dec_window').setLabel('- Window').setStyle(ButtonStyle.Primary);
-        const btnBack = new ButtonBuilder().setCustomId('setup_antinuke').setLabel('Back').setStyle(ButtonStyle.Secondary);
+        // Action select
+        const actionMenu = new StringSelectMenuBuilder()
+            .setCustomId('antinuke_action_select')
+            .setPlaceholder('Select action on trigger')
+            .addOptions([
+                { label: 'Ban & Restore', value: 'ban', description: 'Ban the executor and restore removed members/channels when possible' },
+                { label: 'Restore Only', value: 'restore', description: 'Attempt to restore removed items without banning' },
+                { label: 'Notify Only', value: 'notify', description: 'Only send alerts to staff, no automatic actions' }
+            ]);
 
-        const row1 = new ActionRowBuilder().addComponents(btnSupreme, btnVerified, btnAction);
-        const row2 = new ActionRowBuilder().addComponents(btnIncT, btnDecT, btnIncW, btnDecW, btnBack);
-        await interaction.editReply({ embeds: [embed], components: [row1, row2] });
+        // Threshold select
+        const thresholdMenu = new StringSelectMenuBuilder()
+            .setCustomId('antinuke_threshold_select')
+            .setPlaceholder('Set trigger threshold (actions)')
+            .addOptions([
+                { label: '5 actions', value: 'threshold_5' },
+                { label: '10 actions', value: 'threshold_10' },
+                { label: '20 actions', value: 'threshold_20' },
+                { label: 'Custom…', value: 'threshold_custom', description: 'Enter a custom number' }
+            ]);
+
+        // Window select
+        const windowMenu = new StringSelectMenuBuilder()
+            .setCustomId('antinuke_window_select')
+            .setPlaceholder('Set time window')
+            .addOptions([
+                { label: '30 seconds', value: 'window_30' },
+                { label: '60 seconds', value: 'window_60' },
+                { label: '300 seconds (5m)', value: 'window_300' },
+                { label: 'Custom…', value: 'window_custom', description: 'Enter a custom duration in seconds' }
+            ]);
+
+        const btnToggle = new ButtonBuilder().setCustomId('antinuke_toggle').setLabel(settings.antinuke_enabled ? 'Disable' : 'Enable').setStyle(settings.antinuke_enabled ? ButtonStyle.Danger : ButtonStyle.Success);
+        const btnSupreme = new ButtonBuilder().setCustomId('antinuke_toggle_supreme').setLabel(settings.antinuke_ignore_supreme ? 'Ignoring SUPREME IDs' : 'Do Not Ignore SUPREME').setStyle(ButtonStyle.Secondary);
+        const btnVerified = new ButtonBuilder().setCustomId('antinuke_toggle_verified').setLabel(settings.antinuke_ignore_verified ? 'Ignoring Verified Bots' : 'Do Not Ignore Verified').setStyle(ButtonStyle.Secondary);
+        const btnBack = new ButtonBuilder().setCustomId('setup_menu_protection').setLabel('Back').setStyle(ButtonStyle.Secondary);
+
+        const rowAction = new ActionRowBuilder().addComponents(actionMenu);
+        const rowThreshold = new ActionRowBuilder().addComponents(thresholdMenu);
+        const rowWindow = new ActionRowBuilder().addComponents(windowMenu);
+        const rowFlags = new ActionRowBuilder().addComponents(btnToggle, btnSupreme, btnVerified, btnBack);
+
+        await interaction.editReply({ embeds: [embed], components: [rowAction, rowThreshold, rowWindow, rowFlags] });
         return;
     }
 
-    const configActions = ['antinuke_toggle_supreme', 'antinuke_toggle_verified', 'antinuke_inc_threshold', 'antinuke_dec_threshold', 'antinuke_inc_window', 'antinuke_dec_window', 'antinuke_cycle_action'];
-    if (configActions.includes(customId)) {
-        if (!await safeDefer(interaction, true)) return;
-        const res = await db.query("SELECT antinuke_ignore_supreme, antinuke_ignore_verified, threshold_count, threshold_time, antinuke_action FROM guild_backups WHERE guildid = $1", [guildId]);
-        const settings = res.rows[0] || { antinuke_ignore_supreme: true, antinuke_ignore_verified: true, threshold_count: 10, threshold_time: 60, antinuke_action: 'ban' };
-        if (customId === 'antinuke_toggle_supreme') settings.antinuke_ignore_supreme = !settings.antinuke_ignore_supreme;
-        if (customId === 'antinuke_toggle_verified') settings.antinuke_ignore_verified = !settings.antinuke_ignore_verified;
-        if (customId === 'antinuke_inc_threshold') settings.threshold_count = (settings.threshold_count || 10) + 1;
-        if (customId === 'antinuke_dec_threshold') settings.threshold_count = Math.max(1, (settings.threshold_count || 10) - 1);
-        if (customId === 'antinuke_inc_window') settings.threshold_time = (settings.threshold_time || 60) + 10;
-        if (customId === 'antinuke_dec_window') settings.threshold_time = Math.max(10, (settings.threshold_time || 60) - 10);
-        if (customId === 'antinuke_cycle_action') {
-            const actions = ['ban', 'restore', 'notify'];
-            const idx = actions.indexOf(settings.antinuke_action || 'ban');
-            settings.antinuke_action = actions[(idx + 1) % actions.length];
+    // Handle configuration interactions: selects, modals, and toggles
+    const simpleActions = ['antinuke_toggle_supreme', 'antinuke_toggle_verified', 'antinuke_action_select', 'antinuke_threshold_select', 'antinuke_window_select', 'antinuke_custom_threshold_modal', 'antinuke_custom_window_modal'];
+    if (simpleActions.includes(customId) || customId === 'antinuke_custom_threshold_modal' || customId === 'antinuke_custom_window_modal') {
+        // If the user selected the 'Custom' option from a select, show a modal immediately (no defer before showModal)
+        if (customId === 'antinuke_threshold_select' && interaction.values && interaction.values[0] === 'threshold_custom') {
+            const modal = new ModalBuilder().setCustomId('antinuke_custom_threshold_modal').setTitle('Custom Threshold');
+            modal.addComponents(new ActionRowBuilder().addComponents(
+                new TextInputBuilder().setCustomId('threshold_value').setLabel('Trigger threshold (actions)').setStyle(TextInputStyle.Short).setRequired(true)
+            ));
+            await interaction.showModal(modal);
+            return;
+        }
+        if (customId === 'antinuke_window_select' && interaction.values && interaction.values[0] === 'window_custom') {
+            const modal = new ModalBuilder().setCustomId('antinuke_custom_window_modal').setTitle('Custom Window');
+            modal.addComponents(new ActionRowBuilder().addComponents(
+                new TextInputBuilder().setCustomId('window_value').setLabel('Window in seconds').setStyle(TextInputStyle.Short).setRequired(true)
+            ));
+            await interaction.showModal(modal);
+            return;
         }
 
+        // Validate modal submissions before deferring (modal interactions may fail validation)
+        if (customId === 'antinuke_custom_threshold_modal') {
+            const txt = interaction.fields.getTextInputValue('threshold_value').trim();
+            const num = parseInt(txt, 10);
+            if (isNaN(num) || num < 1 || num > 1000) {
+                return interaction.reply({ content: '❌ Threshold must be a number between 1 and 1000.', ephemeral: true });
+            }
+        }
+
+        if (customId === 'antinuke_custom_window_modal') {
+            const txt = interaction.fields.getTextInputValue('window_value').trim();
+            const num = parseInt(txt, 10);
+            if (isNaN(num) || num < 10 || num > 86400) {
+                return interaction.reply({ content: '❌ Window must be between 10 and 86400 seconds.', ephemeral: true });
+            }
+        }
+
+        if (!await safeDefer(interaction, true)) return;
+
+        // Load current settings
+        const res = await db.query("SELECT antinuke_ignore_supreme, antinuke_ignore_verified, threshold_count, threshold_time, antinuke_action FROM guild_backups WHERE guildid = $1", [guildId]);
+        const settings = res.rows[0] || { antinuke_ignore_supreme: true, antinuke_ignore_verified: true, threshold_count: 10, threshold_time: 60, antinuke_action: 'ban' };
+
+        // Toggle buttons
+        if (customId === 'antinuke_toggle_supreme') settings.antinuke_ignore_supreme = !settings.antinuke_ignore_supreme;
+        if (customId === 'antinuke_toggle_verified') settings.antinuke_ignore_verified = !settings.antinuke_ignore_verified;
+
+        // Action select
+        if (customId === 'antinuke_action_select') {
+            const val = interaction.values && interaction.values[0];
+            if (val) settings.antinuke_action = val;
+        }
+
+        // Threshold select
+        if (customId === 'antinuke_threshold_select') {
+            const val = interaction.values && interaction.values[0];
+            if (val && val.startsWith('threshold_')) {
+                const num = parseInt(val.split('_')[1], 10);
+                if (!isNaN(num)) settings.threshold_count = num;
+            }
+        }
+
+        // Window select
+        if (customId === 'antinuke_window_select') {
+            const val = interaction.values && interaction.values[0];
+            if (val && val.startsWith('window_')) {
+                const num = parseInt(val.split('_')[1], 10);
+                if (!isNaN(num)) settings.threshold_time = num;
+            }
+        }
+
+        // Modal submissions (validation already done above)
+        if (customId === 'antinuke_custom_threshold_modal') {
+            const txt = interaction.fields.getTextInputValue('threshold_value').trim();
+            const num = parseInt(txt, 10);
+            settings.threshold_count = num;
+        }
+
+        if (customId === 'antinuke_custom_window_modal') {
+            const txt = interaction.fields.getTextInputValue('window_value').trim();
+            const num = parseInt(txt, 10);
+            settings.threshold_time = num;
+        }
+
+        // Persist settings
         await db.query(`INSERT INTO guild_backups (guildid, antinuke_ignore_supreme, antinuke_ignore_verified, threshold_count, threshold_time, antinuke_action) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (guildid) DO UPDATE SET antinuke_ignore_supreme = $2, antinuke_ignore_verified = $3, threshold_count = $4, threshold_time = $5, antinuke_action = $6`, [guildId, settings.antinuke_ignore_supreme, settings.antinuke_ignore_verified, settings.threshold_count, settings.threshold_time, settings.antinuke_action]);
         guildCache.flush(guildId);
         interaction.customId = 'antinuke_config';

@@ -60,6 +60,12 @@ module.exports = {
         }
 
        
+        // Allow some select interactions to show modals immediately (they must not be deferred first)
+        const immediateModalSelectors = ['antinuke_threshold_select', 'antinuke_window_select'];
+        if (immediateModalSelectors.includes(customId)) {
+            return await setupAntinuke(interaction);
+        }
+
         if (!interaction.isModalSubmit() && !interaction.replied && !interaction.deferred) {
             const deferred = await safeDefer(interaction, true); 
             if (!deferred) return; 

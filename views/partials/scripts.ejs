@@ -118,27 +118,35 @@
     function updateDurationField() {
         const action = document.getElementById('am_action').value;
         const durationDiv = document.getElementById('div_duration');
-        if(action==='Kick'){ durationDiv.style.display='none'; }
-        else { durationDiv.style.display='block'; }
+        if(action === 'KICK') { durationDiv.style.display = 'none'; }
+        else { durationDiv.style.display = 'block'; }
     }
     function renderAutomod() {
+        function actionLabel(a) { if(a === 'MUTE') return 'Timeout'; if(a === 'KICK') return 'Kick'; if(a === 'BAN') return 'Ban'; return a; }
         document.getElementById('automod-list').innerHTML = automodRules.map((r,i) => `
             <div class="item-row">
                 <div class="item-info">
                     <span style="font-weight:bold;color:#facc15">${r.warnings} Warns</span><span>➔</span>
-                    <span class="tag">${r.action}</span>${r.duration?`<span class="tag">${r.duration}</span>`:''}
+                    <span class="tag">${actionLabel(r.action)}</span>${r.duration?`<span class="tag">${r.duration}</span>`:''}
                 </div>
                 <button class="btn-act btn-del" onclick="automodRules.splice(${i},1);renderAutomod()">🗑️</button>
             </div>`).join('');
     }
+    function normalizeAutomodAction(action) {
+        const map = { 'timeout': 'MUTE', 'mute': 'MUTE', 'ban': 'BAN', 'kick': 'KICK' };
+        const normalized = map[action.toLowerCase()] || action.toUpperCase();
+        if (!['BAN', 'MUTE', 'KICK'].includes(normalized)) return null;
+        return normalized;
+    }
     function addAutomod() {
-        const w = parseInt(document.getElementById('am_warns').value), a = document.getElementById('am_action').value, d = document.getElementById('am_duration').value;
-        if(isNaN(w)||w<1||w>10) return showToast("Warnings must be 1-10", 'error');
-        if(a==='Timeout'&&!d) return showToast("Timeout requires duration", 'error');
-        if(a!=='Kick'&&(!d||d.trim()==='')) return showToast("Duration is required", 'error');
-        if(isNaN(w)||w<1||w>10) return showToast("Warnings must be 1-10", 'error');
-        if(automodRules.find(r=>r.warnings===w)) return showToast("This warning count already exists", 'error');
-        automodRules.push({warnings:w, action:a, duration:d}); automodRules.sort((a,b)=>a.warnings-b.warnings);
+        const w = parseInt(document.getElementById('am_warns').value), rawAction = document.getElementById('am_action').value, d = document.getElementById('am_duration').value;
+        const a = normalizeAutomodAction(rawAction);
+        if(isNaN(w) || w < 1 || w > 10) return showToast("Warnings must be 1-10", 'error');
+        if(!a) return showToast("Invalid action selected", 'error');
+        if(a === 'MUTE' && !d) return showToast("Timeout requires duration", 'error');
+        if(a !== 'KICK' && (!d || d.trim() === '')) return showToast("Duration is required", 'error');
+        if(automodRules.find(r => r.warnings === w)) return showToast("This warning count already exists", 'error');
+        automodRules.push({ warnings: w, action: a, duration: d }); automodRules.sort((a,b)=>a.warnings-b.warnings);
         renderAutomod(); document.getElementById('am_warns').value=''; document.getElementById('am_duration').value='';
     }
 
@@ -348,6 +356,12 @@
             roles: c.roles,
             response: JSON.stringify(c.type === 'embed' ? { embeds: [c.embedData] } : { content: c.content })
         }));
+        const normalizeAutomodRules = (rules) => {
+            return rules.map(r => {
+                const normalized = normalizeAutomodAction(r.action);
+                return { warnings: r.warnings, action: normalized || r.action, duration: r.duration };
+            });
+        };
         const data = {
             prefix: prefix,
             staff_roles: Array.from(document.getElementById('staff_roles').selectedOptions).map(o=>o.value).filter(v=>v).join(','),
@@ -362,7 +376,7 @@
             antinuke_ignore_supreme: document.getElementById('antinuke_ignore_supreme').checked ? 'on':'off',
             antinuke_ignore_verified: document.getElementById('antinuke_ignore_verified').checked ? 'on':'off',
             lockdown_channels: Array.from(document.getElementById('lockdown_channels').selectedOptions).map(o=>o.value),
-            automod_rules: automodRules, command_overrides: commandOverrides,
+            automod_rules: normalizeAutomodRules(automodRules), command_overrides: commandOverrides,
             custom_commands: finalCC, ticket_panels: ticketPanels
         };
         try {
