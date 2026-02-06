@@ -1,0 +1,39 @@
+<div id="antimention" class="section" style="display:none">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem">
+        <h2 style="margin:0; border:none; padding:0">🧷 Anti-Mention Configuration</h2>
+        <button class="btn-back" onclick="showAutomodMain()">⬅️ Back</button>
+    </div>
+    <p class="muted">Protect specific roles from being mentioned. Users trying to mention these roles will have their messages deleted.</p>
+    
+    <div style="margin-top:1.5rem">
+        <h3>Protected Roles</h3>
+        <p class="muted">Select roles that cannot be mentioned</p>
+        <select id="antimention_protected" multiple class="config-select" style="height:120px">
+            <% guildRoles.filter(r => r.name !== '@everyone').forEach(role => { %>
+                <option value="<%= role.id %>" <%= antiMention.protected.includes(role.id) ? 'selected' : '' %>>
+                    <%= role.name %>
+                </option>
+            <% }); %>
+        </select>
+        <div style="margin-top:0.5rem">
+            <span class="muted">Hold Ctrl/Cmd to select multiple roles</span>
+        </div>
+    </div>
+
+    <div style="margin-top:1.5rem">
+        <h3>Bypass Roles</h3>
+        <p class="muted">Roles that can bypass anti-mention protection</p>
+        <select id="antimention_bypass" multiple class="config-select" style="height:120px">
+            <% guildRoles.filter(r => r.name !== '@everyone').forEach(role => { %>
+                <option value="<%= role.id %>" <%= antiMention.bypass.includes(role.id) ? 'selected' : '' %>>
+                    <%= role.name %>
+                </option>
+            <% }); %>
+        </select>
+        <div style="margin-top:0.5rem">
+            <span class="muted">Users with these roles can mention protected roles</span>
+        </div>
+    </div>
+
+    <div class="status-msg" id="antimention-status"></div>
+</div>

@@ -2,6 +2,7 @@ const universalPanel = require('../interactions/admin/universalPanel');
 const setupSystem = require('../interactions/admin/setup');
 const ticketSetup = require('../interactions/tickets/ticketSetup'); 
 const automodSystem = require('../interactions/admin/automod');
+const automodMain = require('../interactions/admin/automod_main');
 const appealSystem = require('../interactions/features/appeals');
 const logSystem = require('../interactions/moderation/logs');
 const customCommands = require('../interactions/admin/setup_sections/custom_commands.js');
@@ -39,7 +40,16 @@ module.exports = async (interaction) => {
             return await universalPanel(interaction);
         }
 
-        if (customId.startsWith('automod_') || customId === 'setup_automod') {
+        if (customId === 'setup_automod') {
+            return await automodMain(interaction);
+        }
+
+        // Route specific automod sub-buttons to the main handler when appropriate
+        if (customId === 'automod_anti_mention' || customId === 'automod_anti_spam' || customId.startsWith('automod_antispam_') || customId === 'automod_antimention_roles' || customId === 'automod_antimention_bypass') {
+            return await automodMain(interaction);
+        }
+
+        if (customId.startsWith('automod_')) {
             return await automodSystem(interaction);
         }
         

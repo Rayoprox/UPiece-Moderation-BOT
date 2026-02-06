@@ -1,4 +1,4 @@
-const { Events, PermissionsBitField } = require('discord.js');
+const { Events, PermissionsBitField, EmbedBuilder } = require('discord.js');
 const db = require('../utils/db.js');
 const { resolveArgument, PrefixInteraction } = require('../utils/prefixShim.js');
 const { error } = require('../utils/embedFactory.js');
@@ -6,6 +6,8 @@ const guildCache = require('../utils/guildCache.js');
 const ms = require('ms'); 
 
 const { validateCommandPermissions, sendCommandLog } = require('../utils/logicHelper.js');
+
+const antiSpamState = new Map();
 
 module.exports = {
     name: Events.MessageCreate,
@@ -33,6 +35,99 @@ module.exports = {
         }
 
         const SERVER_PREFIX = guildData.settings.prefix || '!';
+
+        // Load automod protections for this guild (if any)
+        try {
+            const protRes = await db.query('SELECT * FROM automod_protections WHERE guildid = $1', [guild.id]);
+            const prot = protRes.rows[0];
+            if (prot) {
+                // Anti-Mention
+                const protectedRoles = prot.antimention_roles || [];
+                const bypassRoles = prot.antimention_bypass || [];
+                if (protectedRoles.length > 0 && message.mentions.members.size > 0) {
+                    const mentionedMembers = Array.from(message.mentions.members.values());
+                    const offending = mentionedMembers.find(m => m.roles.cache.hasAny(...protectedRoles));
+                    if (offending) {
+                        const senderHasBypass = member.permissions.has(PermissionsBitField.Flags.Administrator) || member.roles.cache.hasAny(...bypassRoles);
+                        if (!senderHasBypass) {
+                            // Use the role name (do NOT ping the role) and reply to the offending message with a polite embed
+                            const roleId = protectedRoles[0];
+                            const roleName = guild.roles.cache.get(roleId)?.name || 'that role';
+                            const embed = new EmbedBuilder()
+                                .setDescription(`Please do not mention ${roleName}. This server protects that role from direct mentions.`)
+                                .setColor('#f43f5e')
+                                .setFooter({ text: 'Repeated mentions may be moderated.' });
+
+                            // Reply to the message (no role pings). Do not ping roles in allowedMentions.
+                            const sent = await message.reply({ embeds: [embed], allowedMentions: { parse: [], roles: [], repliedUser: false } }).catch(() => null);
+                            if (sent) setTimeout(() => sent.delete().catch(() => {}), 5000);
+                        }
+                    }
+                }
+
+                // Anti-Spam (basic enforcement)
+                if (prot.antispam) {
+                    const antispam = prot.antispam;
+                    const guildState = antiSpamState.get(guild.id) || new Map();
+                    antiSpamState.set(guild.id, guildState);
+
+                    // Messages per second
+                    if (antispam.mps && antispam.mps.threshold > 0) {
+                        const thr = antispam.mps.threshold;
+                        const bypass = (antispam.mps.bypass || []);
+                        const senderBypass = member.permissions.has(PermissionsBitField.Flags.Administrator) || member.roles.cache.hasAny(...bypass);
+                        if (!senderBypass) {
+                            const userState = guildState.get(author.id) || [];
+                            const now = Date.now();
+                            userState.push(now);
+                            // keep only last 1000ms
+                            const window = now - 1000;
+                            const recent = userState.filter(t => t >= window);
+                            guildState.set(author.id, recent);
+                            if (recent.length > thr) {
+                                const embed = new EmbedBuilder().setDescription('Please avoid spamming messages (messages/sec limit exceeded).').setColor('#f59e0b');
+                                const sent = await message.channel.send({ embeds: [embed] }).catch(() => null);
+                                if (sent) setTimeout(() => sent.delete().catch(() => {}), 3000);
+                            }
+                        }
+                    }
+
+                    // Repeated characters
+                    if (antispam.repeated && antispam.repeated.threshold > 0) {
+                        const thr = antispam.repeated.threshold;
+                        const bypass = (antispam.repeated.bypass || []);
+                        const senderBypass = member.permissions.has(PermissionsBitField.Flags.Administrator) || member.roles.cache.hasAny(...bypass);
+                        if (!senderBypass) {
+                            const regex = new RegExp(`(.)\\1{${thr - 1},}`);
+                            if (regex.test(message.content)) {
+                                const embed = new EmbedBuilder().setDescription('Please avoid repeated characters.').setColor('#f59e0b');
+                                const sent = await message.channel.send({ embeds: [embed] }).catch(() => null);
+                                if (sent) setTimeout(() => sent.delete().catch(() => {}), 3000);
+                            }
+                        }
+                    }
+
+                    // Emoji spam (simple count)
+                    if (antispam.emoji && antispam.emoji.threshold > 0) {
+                        const thr = antispam.emoji.threshold;
+                        const bypass = (antispam.emoji.bypass || []);
+                        const senderBypass = member.permissions.has(PermissionsBitField.Flags.Administrator) || member.roles.cache.hasAny(...bypass);
+                        if (!senderBypass) {
+                            const customEmojiMatches = message.content.match(/<a?:\w+:\d+>/g) || [];
+                            const unicodeEmojiMatches = message.content.match(/(\p{Extended_Pictographic})/gu) || [];
+                            const totalEmojis = customEmojiMatches.length + unicodeEmojiMatches.length;
+                            if (totalEmojis > thr) {
+                                const embed = new EmbedBuilder().setDescription('Please avoid emoji spamming.').setColor('#f59e0b');
+                                const sent = await message.channel.send({ embeds: [embed] }).catch(() => null);
+                                if (sent) setTimeout(() => sent.delete().catch(() => {}), 3000);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Automod check error:', e);
+        }
 
         if (!message.content.startsWith(SERVER_PREFIX)) return;
         

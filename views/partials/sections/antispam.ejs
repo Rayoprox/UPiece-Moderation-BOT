@@ -1,0 +1,123 @@
+<div id="antispam" class="section" style="display:none">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem">
+        <h2 style="margin:0; border:none; padding:0">⚡ Anti-Spam Configuration</h2>
+        <button class="btn-back" onclick="showAutomodMain()">⬅️ Back</button>
+    </div>
+    <p class="muted">Configure spam detection thresholds and bypass roles for each type.</p>
+    
+    <!-- Messages Per Second -->
+    <div class="spam-config-block">
+        <h3>📨 Messages Per Second</h3>
+        <p class="muted">Maximum messages a user can send per second</p>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:0.5rem">
+            <div>
+                <label>Threshold</label>
+                <select id="antispam_mps_threshold" class="config-input">
+                    <option value="">Disabled</option>
+                    <option value="3" <%= antiSpam.mps?.threshold === 3 ? 'selected' : '' %>>3 messages/sec</option>
+                    <option value="5" <%= antiSpam.mps?.threshold === 5 ? 'selected' : '' %>>5 messages/sec</option>
+                    <option value="7" <%= antiSpam.mps?.threshold === 7 ? 'selected' : '' %>>7 messages/sec</option>
+                    <option value="10" <%= antiSpam.mps?.threshold === 10 ? 'selected' : '' %>>10 messages/sec</option>
+                    <option value="15" <%= antiSpam.mps?.threshold === 15 ? 'selected' : '' %>>15 messages/sec</option>
+                </select>
+            </div>
+            <div>
+                <label>Bypass Roles</label>
+                <select id="antispam_mps_bypass" multiple class="config-select" style="height:80px">
+                    <% guildRoles.filter(r => r.name !== '@everyone').forEach(role => { %>
+                        <option value="<%= role.id %>" <%= antiSpam.mps?.bypass?.includes(role.id) ? 'selected' : '' %>>
+                            <%= role.name %>
+                        </option>
+                    <% }); %>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Repeated Characters -->
+    <div class="spam-config-block" style="margin-top:1.5rem">
+        <h3>🔁 Repeated Characters</h3>
+        <p class="muted">Maximum consecutive repeated characters allowed</p>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:0.5rem">
+            <div>
+                <label>Threshold</label>
+                <select id="antispam_repeated_threshold" class="config-input">
+                    <option value="">Disabled</option>
+                    <option value="5" <%= antiSpam.repeated?.threshold === 5 ? 'selected' : '' %>>5 characters</option>
+                    <option value="8" <%= antiSpam.repeated?.threshold === 8 ? 'selected' : '' %>>8 characters</option>
+                    <option value="10" <%= antiSpam.repeated?.threshold === 10 ? 'selected' : '' %>>10 characters</option>
+                    <option value="15" <%= antiSpam.repeated?.threshold === 15 ? 'selected' : '' %>>15 characters</option>
+                    <option value="20" <%= antiSpam.repeated?.threshold === 20 ? 'selected' : '' %>>20 characters</option>
+                </select>
+            </div>
+            <div>
+                <label>Bypass Roles</label>
+                <select id="antispam_repeated_bypass" multiple class="config-select" style="height:80px">
+                    <% guildRoles.filter(r => r.name !== '@everyone').forEach(role => { %>
+                        <option value="<%= role.id %>" <%= antiSpam.repeated?.bypass?.includes(role.id) ? 'selected' : '' %>>
+                            <%= role.name %>
+                        </option>
+                    <% }); %>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Emoji Spam -->
+    <div class="spam-config-block" style="margin-top:1.5rem">
+        <h3>😀 Emoji Spam</h3>
+        <p class="muted">Maximum emojis allowed per message</p>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:0.5rem">
+            <div>
+                <label>Threshold</label>
+                <select id="antispam_emoji_threshold" class="config-input">
+                    <option value="">Disabled</option>
+                    <option value="5" <%= antiSpam.emoji?.threshold === 5 ? 'selected' : '' %>>5 emojis</option>
+                    <option value="10" <%= antiSpam.emoji?.threshold === 10 ? 'selected' : '' %>>10 emojis</option>
+                    <option value="15" <%= antiSpam.emoji?.threshold === 15 ? 'selected' : '' %>>15 emojis</option>
+                    <option value="20" <%= antiSpam.emoji?.threshold === 20 ? 'selected' : '' %>>20 emojis</option>
+                    <option value="30" <%= antiSpam.emoji?.threshold === 30 ? 'selected' : '' %>>30 emojis</option>
+                </select>
+            </div>
+            <div>
+                <label>Bypass Roles</label>
+                <select id="antispam_emoji_bypass" multiple class="config-select" style="height:80px">
+                    <% guildRoles.filter(r => r.name !== '@everyone').forEach(role => { %>
+                        <option value="<%= role.id %>" <%= antiSpam.emoji?.bypass?.includes(role.id) ? 'selected' : '' %>>
+                            <%= role.name %>
+                        </option>
+                    <% }); %>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="status-msg" id="antispam-status"></div>
+</div>
+
+<style>
+.spam-config-block {
+    background: rgba(0,0,0,0.1);
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.spam-config-block h3 {
+    margin: 0 0 0.5rem 0;
+}
+
+.config-input, .config-select {
+    width: 100%;
+    padding: 0.5rem;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+    color: white;
+}
+
+.config-input option, .config-select option {
+    background: #2b2d31;
+    color: white;
+}
+</style>

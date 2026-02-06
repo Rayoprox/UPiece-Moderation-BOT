@@ -7,7 +7,7 @@ module.exports = {
             .setDescription('Select a category to configure your server systems.')
             .addFields(
                 { name: '📺 Channels', value: 'Configure logging, welcome, and report channels.', inline: true },
-                { name: '🤖 Automod', value: 'Manage auto-moderation rules.', inline: true },
+                { name: '🤖 Automod', value: 'Open Anti-Mention, Anti-Spam and Auto-Punishment subsystems.', inline: true },
                 { name: '🔐 Permissions', value: 'Manage Staff Roles and Command Overrides.', inline: true },
                 { name: '🛡️ Protection', value: 'Anti-Nuke system and Lockdown configuration.', inline: true },
                 { name: '🎫 Tickets', value: 'Create and manage support ticket panels.', inline: true },

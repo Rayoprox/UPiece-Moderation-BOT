@@ -13,6 +13,7 @@ const setupAntinuke = require('./setup_sections/antinuke.js');
 const setupReset = require('./setup_sections/reset.js');
 const ticketSetup = require('../tickets/ticketSetup.js');
 const setupAutomod = require('./automod.js'); 
+const setupAutomodMain = require('./automod_main.js'); 
 
 module.exports = {
     async execute(interaction) {
@@ -57,6 +58,10 @@ module.exports = {
                 }
                 return;
             }
+            // Route automod modals to automod handler
+            if (customId.startsWith('automod_')) {
+                return await setupAutomod(interaction);
+            }
         }
 
        
@@ -91,7 +96,11 @@ module.exports = {
             return await setupChannels(interaction);
         }
 
-        if (customId.startsWith('setup_automod') || customId.startsWith('automod_')) {
+        if (customId === 'setup_automod') {
+            return await setupAutomodMain(interaction);
+        }
+
+        if (customId.startsWith('setup_autopunishment') || customId.startsWith('automod_') || customId.startsWith('autopunishment_')) {
             return await setupAutomod(interaction);
         }
 

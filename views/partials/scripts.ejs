@@ -121,6 +121,61 @@
         if(action === 'KICK') { durationDiv.style.display = 'none'; }
         else { durationDiv.style.display = 'block'; }
     }
+    
+    // UI navigation between Automod main menu and subsections
+    function showAutomodMain() {
+        // Hide all automod subsections
+        document.getElementById('automod').style.display = 'none';
+        document.getElementById('antimention').style.display = 'none';
+        document.getElementById('antispam').style.display = 'none';
+        
+        // Show automod main menu
+        const automodMain = document.getElementById('automod_main');
+        automodMain.style.display = 'block';
+        automodMain.classList.add('active');
+        
+        // Keep automod button active
+        document.getElementById('btn-automod').classList.add('active');
+    }
+    function openAutopunishmentSection() {
+        // Hide all other automod sections
+        document.getElementById('automod_main').style.display = 'none';
+        document.getElementById('antimention').style.display = 'none';
+        document.getElementById('antispam').style.display = 'none';
+        
+        // Show autopunishment section
+        document.getElementById('automod').style.display = 'block';
+        
+        // Keep automod button active
+        document.getElementById('btn-automod').classList.add('active');
+        
+        renderAutomod(); 
+        updateDurationField();
+    }
+    function openAntiMention() {
+        // Hide all other automod sections
+        document.getElementById('automod_main').style.display = 'none';
+        document.getElementById('automod').style.display = 'none';
+        document.getElementById('antispam').style.display = 'none';
+        
+        // Show anti-mention section
+        document.getElementById('antimention').style.display = 'block';
+        
+        // Keep automod button active
+        document.getElementById('btn-automod').classList.add('active');
+    }
+    function openAntiSpam() {
+        // Hide all other automod sections
+        document.getElementById('automod_main').style.display = 'none';
+        document.getElementById('automod').style.display = 'none';
+        document.getElementById('antimention').style.display = 'none';
+        
+        // Show anti-spam section
+        document.getElementById('antispam').style.display = 'block';
+        
+        // Keep automod button active
+        document.getElementById('btn-automod').classList.add('active');
+    }
     function renderAutomod() {
         function actionLabel(a) { if(a === 'MUTE') return 'Timeout'; if(a === 'KICK') return 'Kick'; if(a === 'BAN') return 'Ban'; return a; }
         document.getElementById('automod-list').innerHTML = automodRules.map((r,i) => `
@@ -333,8 +388,32 @@
         document.getElementById(sectionId).classList.add('active');
     }
     function openTab(name) {
+        // Remove active class from all sections and buttons
         document.querySelectorAll('.section,.tab-btn').forEach(e=>e.classList.remove('active'));
-        document.getElementById(name).classList.add('active'); document.getElementById('btn-'+name).classList.add('active');
+        
+        // Hide all automod subsections when switching tabs
+        const automodSections = ['automod_main', 'antimention', 'antispam', 'automod'];
+        automodSections.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+        
+        // Special handling for automod - show main menu
+        if (name === 'automod') {
+            const automodMain = document.getElementById('automod_main');
+            if (automodMain) {
+                automodMain.style.display = 'block';
+                automodMain.classList.add('active');
+            }
+            document.getElementById('btn-automod').classList.add('active');
+        } else {
+            // Show the selected section normally
+            const targetSection = document.getElementById(name);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+            document.getElementById('btn-'+name).classList.add('active');
+        }
     }
     async function saveConfig() {
         const btn = document.getElementById('saveBtn');
@@ -376,7 +455,24 @@
             antinuke_ignore_supreme: document.getElementById('antinuke_ignore_supreme').checked ? 'on':'off',
             antinuke_ignore_verified: document.getElementById('antinuke_ignore_verified').checked ? 'on':'off',
             lockdown_channels: Array.from(document.getElementById('lockdown_channels').selectedOptions).map(o=>o.value),
-            automod_rules: normalizeAutomodRules(automodRules), command_overrides: commandOverrides,
+            automod_rules: normalizeAutomodRules(automodRules),
+            antimention_protected: Array.from(document.getElementById('antimention_protected').selectedOptions).map(o=>o.value),
+            antimention_bypass: Array.from(document.getElementById('antimention_bypass').selectedOptions).map(o=>o.value),
+            antispam_config: {
+                mps: {
+                    threshold: parseInt(document.getElementById('antispam_mps_threshold').value) || 0,
+                    bypass: Array.from(document.getElementById('antispam_mps_bypass').selectedOptions).map(o=>o.value)
+                },
+                repeated: {
+                    threshold: parseInt(document.getElementById('antispam_repeated_threshold').value) || 0,
+                    bypass: Array.from(document.getElementById('antispam_repeated_bypass').selectedOptions).map(o=>o.value)
+                },
+                emoji: {
+                    threshold: parseInt(document.getElementById('antispam_emoji_threshold').value) || 0,
+                    bypass: Array.from(document.getElementById('antispam_emoji_bypass').selectedOptions).map(o=>o.value)
+                }
+            },
+            command_overrides: commandOverrides,
             custom_commands: finalCC, ticket_panels: ticketPanels
         };
         try {
@@ -526,7 +622,7 @@
         });
     }
 
-    window.onload = () => { renderAutomod(); renderPerms(); renderCC(); renderTickets(); updateDurationField(); enhanceAllSelects(); };
+    window.onload = () => { renderPerms(); renderCC(); renderTickets(); updateDurationField(); enhanceAllSelects(); showAutomodMain(); };
 
     async function resetAllData() {
         if (!confirm('WARNING: This will delete ALL configuration, logs, rules and appeals for this server. This action cannot be undone. Are you sure?')) return;

@@ -236,6 +236,15 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
             duration: r.action_duration
         }));
         
+        // Load Anti-Mention and Anti-Spam configurations
+        const protectionsRes = await db.query('SELECT antimention_roles, antimention_bypass, antispam FROM automod_protections WHERE guildid = $1', [guildId]);
+        const protections = protectionsRes.rows[0] || { antimention_roles: [], antimention_bypass: [], antispam: {} };
+        const antiMention = {
+            protected: protections.antimention_roles || [],
+            bypass: protections.antimention_bypass || []
+        };
+        const antiSpam = protections.antispam || {};
+        
         const cmdPermsRes = await db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guildId]);
         const commandOverrides = {};
         cmdPermsRes.rows.forEach(r => {
@@ -263,7 +272,7 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
         res.render('setup', { 
             bot: botClient.user, user: req.user, guild, 
             settings, logs, antinuke, antinukeSettings, lockdownChannels,
-            automodRules, commandOverrides,
+            automodRules, antiMention, antiSpam, commandOverrides,
             customCommands, ticketPanels,
             botCommands, guildRoles, textChannels, categories
         });
@@ -277,7 +286,7 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
         log_mod, log_cmd, log_appeal, log_nuke,
         antinuke_enabled, antinuke_threshold_count, antinuke_threshold_time, antinuke_action, antinuke_ignore_supreme, antinuke_ignore_verified,
         lockdown_channels,
-        automod_rules, command_overrides,
+        automod_rules, antimention_protected, antimention_bypass, antispam_config, command_overrides,
         custom_commands, ticket_panels
     } = req.body;
 
@@ -445,7 +454,17 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
                     [guildId, idx + 1, rule.warnings, rule.action, rule.duration || null]);
             }
         }
-
+        // Save Anti-Mention and Anti-Spam configurations
+        const antiMentionProtected = Array.isArray(antimention_protected) ? antimention_protected : [];
+        const antiMentionBypass = Array.isArray(antimention_bypass) ? antimention_bypass : [];
+        const antiSpamConfig = typeof antispam_config === 'object' ? antispam_config : {};
+        
+        await db.query(
+            `INSERT INTO automod_protections (guildid, antimention_roles, antimention_bypass, antispam)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (guildid) DO UPDATE SET antimention_roles = $2, antimention_bypass = $3, antispam = $4`,
+            [guildId, antiMentionProtected.length ? antiMentionProtected : null, antiMentionBypass.length ? antiMentionBypass : null, antiSpamConfig]
+        );
         await db.query("DELETE FROM command_permissions WHERE guildid = $1 AND command_name != 'setup'", [guildId]);
         if (command_overrides && Array.isArray(command_overrides)) {
             for (const ov of command_overrides) {
