@@ -53,12 +53,21 @@ module.exports = {
                             // Use the role name (do NOT ping the role) and reply to the offending message with a polite embed
                             // Pick the most significant protected role (highest position) to mention by name
                             // Resolve protected roles which may be stored as IDs or names
+                            // Resolve protected roles (by id or name)
                             const protectedRoleObjs = (protectedRoles || []).map(idOrName => {
                                 let r = guild.roles.cache.get(idOrName);
                                 if (!r) r = guild.roles.cache.find(x => x.name && x.name.toLowerCase() === String(idOrName).toLowerCase());
                                 return r;
                             }).filter(Boolean);
-                            const primaryRole = protectedRoleObjs.sort((a, b) => (b.position || 0) - (a.position || 0))[0];
+
+                            // From the protected roles, choose the most significant role that the OFFENDING USER actually has
+                            const offendingRoleObjs = protectedRoleObjs.filter(r => offending.roles.cache.has(r.id));
+                            let primaryRole = offendingRoleObjs.sort((a, b) => (b.position || 0) - (a.position || 0))[0];
+
+                            // Fallback: if the offending user doesn't have any of the configured protected roles
+                            // fall back to the most significant protected role from config (graceful fallback)
+                            if (!primaryRole) primaryRole = protectedRoleObjs.sort((a, b) => (b.position || 0) - (a.position || 0))[0];
+
                             const roleName = primaryRole ? primaryRole.name : 'that role';
 
                             // Diagnostic logging (only in development) to help track incorrect role resolution
