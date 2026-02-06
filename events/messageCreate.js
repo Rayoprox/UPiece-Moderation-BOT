@@ -51,8 +51,10 @@ module.exports = {
                         const senderHasBypass = member.permissions.has(PermissionsBitField.Flags.Administrator) || member.roles.cache.hasAny(...bypassRoles);
                         if (!senderHasBypass) {
                             // Use the role name (do NOT ping the role) and reply to the offending message with a polite embed
-                            const roleId = protectedRoles[0];
-                            const roleName = guild.roles.cache.get(roleId)?.name || 'that role';
+                            // Pick the most significant protected role (highest position) to mention by name
+                            const protectedRoleObjs = (protectedRoles || []).map(id => guild.roles.cache.get(id)).filter(Boolean);
+                            const primaryRole = protectedRoleObjs.sort((a, b) => (b.position || 0) - (a.position || 0))[0];
+                            const roleName = primaryRole ? primaryRole.name : 'that role';
                             const embed = new EmbedBuilder()
                                 .setDescription(`Please do not mention ${roleName}. This server protects that role from direct mentions.`)
                                 .setColor('#f43f5e')
