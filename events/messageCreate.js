@@ -60,6 +60,18 @@ module.exports = {
                             }).filter(Boolean);
                             const primaryRole = protectedRoleObjs.sort((a, b) => (b.position || 0) - (a.position || 0))[0];
                             const roleName = primaryRole ? primaryRole.name : 'that role';
+
+                            // Diagnostic logging (only in development) to help track incorrect role resolution
+                            if (process.env.NODE_ENV !== 'production') {
+                                try {
+                                    console.log('[AUTOMOD][ANTIMENTION] guild=', guild.id, 'protectedRolesRaw=', protectedRoles);
+                                    console.log('[AUTOMOD][ANTIMENTION] resolvedRoles=', protectedRoleObjs.map(r => ({ id: r.id, name: r.name, position: r.position })));
+                                    console.log('[AUTOMOD][ANTIMENTION] primaryRole=', primaryRole ? { id: primaryRole.id, name: primaryRole.name, position: primaryRole.position } : null);
+                                    console.log('[AUTOMOD][ANTIMENTION] offendingUser=', offending.id, 'messageContent=', message.content);
+                                } catch (err) {
+                                    console.error('[AUTOMOD][ANTIMENTION] diagnostic log error', err);
+                                }
+                            }
                             const embed = new EmbedBuilder()
                                 .setDescription(`Please do not mention ${roleName}. This server protects that role from direct mentions.`)
                                 .setColor('#f43f5e')
