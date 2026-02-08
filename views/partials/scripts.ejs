@@ -335,7 +335,7 @@
         if(!title) return showToast("Panel title required", 'error');
         if(title.length > 100) return showToast("Panel title must be 100 characters or less", 'error');
         
-        if(desc && desc.length > 500) return showToast("Panel description must be 500 characters or less", 'error');
+        if(desc && desc.length > 2000) return showToast("Panel description must be 2000 characters or less", 'error');
         
         if(!btnLabel) return showToast("Button label required", 'error');
         if(btnLabel.length > 80) return showToast("Button label must be 80 characters or less", 'error');

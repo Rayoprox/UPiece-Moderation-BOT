@@ -389,8 +389,8 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
                     return res.status(400).json({ error: `Panel "${tp.id}" title must be 100 characters or less.` });
                 }
                 
-                if (tp.description && tp.description.length > 500) {
-                    return res.status(400).json({ error: `Panel "${tp.id}" description must be 500 characters or less.` });
+                if (tp.description && tp.description.length > 2000) {
+                    return res.status(400).json({ error: `Panel "${tp.id}" description must be 2000 characters or less.` });
                 }
                 
                 if (!tp.btnLabel || tp.btnLabel.trim().length === 0) {
