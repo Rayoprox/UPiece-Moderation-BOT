@@ -38,7 +38,7 @@ module.exports = {
         const styleError = new EmbedBuilder().setColor(COLORS.ERROR).setDescription(`${emojis.error || '❌'} This is an **Error** message.`);
         const styleWarn = new EmbedBuilder().setColor(COLORS.WARN).setDescription(`${emojis.warn || '⚠️'} This is a **Warning** message.`);
         const styleInfo = new EmbedBuilder().setColor(COLORS.INFO).setDescription(`${emojis.info || 'ℹ️'} This is an **Info** message.`);
-        const styleModeration = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**Action Completed**\nThis is the simple **Moderation** embed style used for public confirmations.`).setFooter({ text: 'Made by: ukirama' });
+        const styleModeration = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**Action Completed**\nThis is the simple **Moderation** embed style used for public confirmations.`).setFooter({ text: 'Made by Ukirama' });
 
        
         const logBan = new EmbedBuilder().setColor(COLORS.BAN).setTitle('Ban').addFields({ name: 'User', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true }, { name: 'Staff', value: interaction.user.tag, inline: true }, { name: 'Reason', value: 'Violating Terms of Service', inline: false }, { name: 'Duration', value: 'Permanent', inline: true }).setFooter({ text: `Case ID: CASE-123456789` }).setTimestamp();
@@ -49,14 +49,14 @@ module.exports = {
         const logUnmute = new EmbedBuilder().setColor(COLORS.UNBAN).setTitle('Unmute').addFields({ name: 'User', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true }, { name: 'Staff', value: interaction.user.tag, inline: true }, { name: 'Reason', value: 'Mistake corrected', inline: false }).setFooter({ text: `Case ID: CASE-UNMUTE-123` }).setTimestamp();
         const logSoftban = new EmbedBuilder().setColor(COLORS.SOFTBAN).setTitle('Softban').addFields({ name: 'User', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true }, { name: 'Staff', value: interaction.user.tag, inline: true }, { name: 'Messages Deleted', value: `1 hours`, inline: true }, { name: 'Reason', value: 'Spam cleanup', inline: false }).setFooter({ text: `Case ID: CASE-SB-123` }).setTimestamp();
 
-        const publicBan = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**${interaction.user.tag}** has been banned.\n**Reason:** Violating Terms of Service`).setFooter({ text: 'Made by: ukirama' });
-        const publicKick = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**${interaction.user.tag}** has been kicked.\n**Reason:** Inactive`).setFooter({ text: 'Made by: ukirama' });
-        const publicMute = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**${interaction.user.tag}** has been muted for **1h**.\n**Reason:** Spamming`).setFooter({ text: 'Made by: ukirama' });
-        const publicLock = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**CHANNEL LOCKED**\nThis channel has been placed under lockdown.\n**Reason:** Raid protection`).setFooter({ text: 'Made by: ukirama' });
-        const publicUnlock = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**CHANNEL UNLOCKED**\nLockdown lifted. Members may now send messages.\n**Reason:** Raid over`).setFooter({ text: 'Made by: ukirama' });
-        const publicPurge = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**Message Purge Complete**\nDeleted **50** message(s) in <#${interaction.channel.id}>.`).setFooter({ text: 'Made by: ukirama' });
-        const publicSlowmode = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**Slowmode Enabled**\nSet to **5s** (5 seconds).`).setFooter({ text: 'Made by: ukirama' });
-        const publicBlacklist = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**User Blacklisted**\n**${interaction.user.tag}** has been added to the appeal blacklist.`).setFooter({ text: 'Made by: ukirama' });
+        const publicBan = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**${interaction.user.tag}** has been banned.\n**Reason:** Violating Terms of Service`).setFooter({ text: 'Made by Ukirama' });
+        const publicKick = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**${interaction.user.tag}** has been kicked.\n**Reason:** Inactive`).setFooter({ text: 'Made by Ukirama' });
+        const publicMute = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**${interaction.user.tag}** has been muted for **1h**.\n**Reason:** Spamming`).setFooter({ text: 'Made by Ukirama' });
+        const publicLock = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**CHANNEL LOCKED**\nThis channel has been placed under lockdown.\n**Reason:** Raid protection`).setFooter({ text: 'Made by Ukirama' });
+        const publicUnlock = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**CHANNEL UNLOCKED**\nLockdown lifted. Members may now send messages.\n**Reason:** Raid over`).setFooter({ text: 'Made by Ukirama' });
+        const publicPurge = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**Message Purge Complete**\nDeleted **50** message(s) in <#${interaction.channel.id}>.`).setFooter({ text: 'Made by Ukirama' });
+        const publicSlowmode = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**Slowmode Enabled**\nSet to **5s** (5 seconds).`).setFooter({ text: 'Made by Ukirama' });
+        const publicBlacklist = new EmbedBuilder().setColor(COLORS.SUCCESS).setDescription(`**User Blacklisted**\n**${interaction.user.tag}** has been added to the appeal blacklist.`).setFooter({ text: 'Made by Ukirama' });
 
  
         const dmBan = new EmbedBuilder().setColor(COLORS.BAN).setTitle(`Banned from ${interaction.guild.name}`).setDescription(`You have been banned from **${interaction.guild.name}**.`).addFields({ name: 'Reason', value: 'Violating Terms of Service', inline: false }, { name: 'Duration', value: 'Permanent', inline: true }, { name: 'Appeal', value: '[Click here to appeal](https://discord.gg/example)', inline: true }).setFooter({ text: `Case ID: CASE-123` }).setTimestamp();

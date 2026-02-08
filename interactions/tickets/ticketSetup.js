@@ -23,7 +23,7 @@ async function showPanelDashboard(interaction, db, guildId, panelId) {
             { name: '⚙️ General', value: `> **Category:** ${p.ticket_category_id ? `<#${p.ticket_category_id}>` : '`Not Set`'}\n> **Logs:** ${p.log_channel_id ? `<#${p.log_channel_id}>` : '`Not Set`'}\n> **Limit:** \`${p.ticket_limit || 1} per user\``, inline: false }
         )
         .setColor(p.panel_color || '#5865F2')
-        .setFooter({ text: 'Made by: ukirama' });
+        .setFooter({ text: 'Made by Ukirama' });
 
     const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`tkt_appearance_menu_${panelId}`).setLabel('Appearance').setStyle(ButtonStyle.Primary).setEmoji('🎨'),
@@ -132,7 +132,7 @@ module.exports = async (interaction) => {
         if (!await safeDefer(interaction, true)) return;
         const panels = await db.query('SELECT panel_id, title FROM ticket_panels WHERE guild_id = $1 ORDER BY id ASC', [guildId]);
         const panelList = panels.rows.length > 0 ? panels.rows.map(p => `• **${p.title}** (ID: \`${p.panel_id}\`)`).join('\n') : '_No panels created yet._';
-        const embed = new EmbedBuilder().setTitle('🎫 Ticket System').setDescription(`Manage your panels.\n\n**Current Panels:**\n${panelList}`).setColor('#5865F2').setFooter({ text: 'Made by: ukirama' });
+        const embed = new EmbedBuilder().setTitle('🎫 Ticket System').setDescription(`Manage your panels.\n\n**Current Panels:**\n${panelList}`).setColor('#5865F2').setFooter({ text: 'Made by Ukirama' });
         
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('ticket_panel_create').setLabel('Create Panel').setStyle(ButtonStyle.Success).setEmoji('➕'),
@@ -211,7 +211,7 @@ module.exports = async (interaction) => {
                 .setDescription(p.description)
                 .setColor(p.panel_color || '#5865F2')
         );
-        embedsArray[embedsArray.length - 1].setFooter({ text: 'Made by: ukirama' });
+        embedsArray[embedsArray.length - 1].setFooter({ text: 'Made by Ukirama' });
 
         const buttonsArray = orderedPanels.map(p => 
             new ButtonBuilder()
@@ -374,7 +374,7 @@ module.exports = async (interaction) => {
         const pId = customId.replace('tkt_roles_menu_', '');
         const res = await db.query('SELECT support_role_id, blacklist_role_id FROM ticket_panels WHERE guild_id = $1 AND panel_id = $2', [guildId, pId]);
         const p = res.rows[0];
-        const embed = new EmbedBuilder().setTitle('👥 Roles').setDescription(`Config for **${pId}**\n\n> **Support:** ${p.support_role_id ? `<@&${p.support_role_id}>` : '`Not Set`'}\n> **Blacklist:** ${p.blacklist_role_id ? `<@&${p.blacklist_role_id}>` : '`Not Set`'}`).setColor('#F1C40F').setFooter({ text: 'Made by: ukirama' });
+        const embed = new EmbedBuilder().setTitle('👥 Roles').setDescription(`Config for **${pId}**\n\n> **Support:** ${p.support_role_id ? `<@&${p.support_role_id}>` : '`Not Set`'}\n> **Blacklist:** ${p.blacklist_role_id ? `<@&${p.blacklist_role_id}>` : '`Not Set`'}`).setColor('#F1C40F').setFooter({ text: 'Made by Ukirama' });
         const r1 = new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId(`tkt_save_role_support_${pId}`).setPlaceholder('Select Support Role'));
         const r2 = new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId(`tkt_save_role_blacklist_${pId}`).setPlaceholder('Select Blacklist Role'));
         const r3 = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`tkt_back_${pId}`).setLabel('Back').setStyle(ButtonStyle.Secondary));
@@ -389,7 +389,7 @@ module.exports = async (interaction) => {
         await db.query(`UPDATE ticket_panels SET ${col} = $1 WHERE guild_id = $2 AND panel_id = $3`, [values[0], guildId, pId]);
         const res = await db.query('SELECT support_role_id, blacklist_role_id FROM ticket_panels WHERE guild_id = $1 AND panel_id = $2', [guildId, pId]);
         const p = res.rows[0];
-        const embed = new EmbedBuilder().setTitle('👥 Roles').setDescription(`Config for **${pId}**\n\n> **Support:** ${p.support_role_id ? `<@&${p.support_role_id}>` : '`Not Set`'}\n> **Blacklist:** ${p.blacklist_role_id ? `<@&${p.blacklist_role_id}>` : '`Not Set`'}`).setColor('#F1C40F').setFooter({ text: 'Made by: ukirama' });
+        const embed = new EmbedBuilder().setTitle('👥 Roles').setDescription(`Config for **${pId}**\n\n> **Support:** ${p.support_role_id ? `<@&${p.support_role_id}>` : '`Not Set`'}\n> **Blacklist:** ${p.blacklist_role_id ? `<@&${p.blacklist_role_id}>` : '`Not Set`'}`).setColor('#F1C40F').setFooter({ text: 'Made by Ukirama' });
         const r1 = new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId(`tkt_save_role_support_${pId}`).setPlaceholder('Select Support Role'));
         const r2 = new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId(`tkt_save_role_blacklist_${pId}`).setPlaceholder('Select Blacklist Role'));
         const r3 = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`tkt_back_${pId}`).setLabel('Back').setStyle(ButtonStyle.Secondary));
@@ -406,7 +406,7 @@ module.exports = async (interaction) => {
             .setTitle('⚙️ General')
             .setDescription(`Config for **${pId}**\n\n> **Category:** ${p.ticket_category_id ? `<#${p.ticket_category_id}>` : '`Not Set`'}\n> **Logs:** ${p.log_channel_id ? `<#${p.log_channel_id}>` : '`Not Set`'}\n> **Limit:** \`${p.ticket_limit || 1}\` tickets per user`)
             .setColor('#95A5A6')
-            .setFooter({ text: 'Made by: ukirama' });
+            .setFooter({ text: 'Made by Ukirama' });
 
         const c1 = new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId(`tkt_save_cat_${pId}`).setPlaceholder('Select Category').addChannelTypes(ChannelType.GuildCategory));
         const c2 = new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId(`tkt_save_log_${pId}`).setPlaceholder('Select Log Channel').addChannelTypes(ChannelType.GuildText));
@@ -428,7 +428,7 @@ module.exports = async (interaction) => {
         
         const res = await db.query('SELECT ticket_category_id, log_channel_id, ticket_limit FROM ticket_panels WHERE guild_id = $1 AND panel_id = $2', [guildId, pId]);
         const p = res.rows[0];
-        const embed = new EmbedBuilder().setTitle('⚙️ General').setDescription(`Config for **${pId}**\n\n> **Category:** ${p.ticket_category_id ? `<#${p.ticket_category_id}>` : '`Not Set`'}\n> **Logs:** ${p.log_channel_id ? `<#${p.log_channel_id}>` : '`Not Set`'}\n> **Limit:** \`${p.ticket_limit || 1}\` tickets per user`).setColor('#95A5A6').setFooter({ text: 'Made by: ukirama' });
+        const embed = new EmbedBuilder().setTitle('⚙️ General').setDescription(`Config for **${pId}**\n\n> **Category:** ${p.ticket_category_id ? `<#${p.ticket_category_id}>` : '`Not Set`'}\n> **Logs:** ${p.log_channel_id ? `<#${p.log_channel_id}>` : '`Not Set`'}\n> **Limit:** \`${p.ticket_limit || 1}\` tickets per user`).setColor('#95A5A6').setFooter({ text: 'Made by Ukirama' });
         const c1 = new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId(`tkt_save_cat_${pId}`).setPlaceholder('Select Category').addChannelTypes(ChannelType.GuildCategory));
         const c2 = new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId(`tkt_save_log_${pId}`).setPlaceholder('Select Log Channel').addChannelTypes(ChannelType.GuildText));
         const c3 = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`tkt_edit_limit_${pId}`).setLabel('Set Limit').setStyle(ButtonStyle.Primary).setEmoji('🔢'), new ButtonBuilder().setCustomId(`tkt_back_${pId}`).setLabel('Back').setStyle(ButtonStyle.Secondary));
@@ -494,7 +494,7 @@ module.exports = async (interaction) => {
         const p = res.rows[0]; 
         const target = guild.channels.cache.get(values[0]); 
         const openBtn = new ButtonBuilder().setCustomId(`ticket_open_${pId}`).setLabel(p.button_label).setStyle(ButtonStyle[p.button_style] || ButtonStyle.Primary).setEmoji(p.button_emoji); 
-        await target.send({ embeds: [new EmbedBuilder().setTitle(p.title).setDescription(p.description).setColor(p.panel_color || '#5865F2').setFooter({ text: 'Made by: ukirama' })], components: [new ActionRowBuilder().addComponents(openBtn)] }); 
+        await target.send({ embeds: [new EmbedBuilder().setTitle(p.title).setDescription(p.description).setColor(p.panel_color || '#5865F2').setFooter({ text: 'Made by Ukirama' })], components: [new ActionRowBuilder().addComponents(openBtn)] }); 
         return await smartReply(interaction, { content: null, embeds: [success(`Panel posted in <#${values[0]}>`)] }); 
     }
 };

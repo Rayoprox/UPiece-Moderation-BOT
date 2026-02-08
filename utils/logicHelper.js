@@ -32,6 +32,7 @@ async function validateCommandPermissions(client, guild, member, user, commandNa
     
     if (!guildData) {
         const mainGuildId = process.env.DISCORD_GUILD_ID;
+        const mainGuildName = client.guilds.cache.get(mainGuildId)?.name || guild?.name || 'this server';
         const [settingsRes, permsRes] = await Promise.all([
             db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [mainGuildId]),
             db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [mainGuildId])
@@ -71,7 +72,7 @@ async function validateCommandPermissions(client, guild, member, user, commandNa
 
     if (!allowed) {
         const msg = universalLock && member.permissions.has(PermissionsBitField.Flags.Administrator)
-            ? "**Universal Lockdown Active.**\nAdmin permissions are temporarily suspended. Contact the Server Management."
+            ? `**${mainGuildName} Lockdown Active.**\nAdmin permissions are temporarily suspended. Contact the Server Management.`
             : "You do not have permission to use this command.";
         return { valid: false, reason: msg };
     }

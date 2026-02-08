@@ -103,10 +103,11 @@ const protectRoute = async (req, res, next) => {
         const universalLock = !!settingsRes.rows[0]?.universal_lock;
 
         const mainGuild = botClient.guilds.cache.get(mgId);
-        if (!mainGuild) return res.status(404).send('Main Server not accessible.');
+        if (!mainGuild) return res.status(404).send('Server not accessible.');
+        const mainGuildName = mainGuild.name;
 
         const memberInMain = await mainGuild.members.fetch(userId).catch(() => null);
-        if (!memberInMain) return res.render('error', { message: '⛔ <b>Access Denied</b><br>You must be a member of the <b>Main Server</b>.' });
+        if (!memberInMain) return res.render('error', { message: `⛔ <b>Access Denied</b><br>You must be a member of <b>${mainGuildName}</b>.` });
 
         const isAdmin = memberInMain.permissions.has(PermissionsBitField.Flags.Administrator);
         const setupPerms = await db.query("SELECT role_id FROM command_permissions WHERE guildid = $1 AND command_name = 'setup'", [mgId]);
@@ -119,7 +120,7 @@ const protectRoute = async (req, res, next) => {
         if (targetGuildId === mgId) {
             if (universalLock) {
                 if (hasSetupRole) return next();
-                if (req.xhr || req.headers.accept.indexOf('json') > -1) return res.status(403).json({ error: '⛔ Universal Lockdown Active.' });
+                if (req.xhr || req.headers.accept.indexOf('json') > -1) return res.status(403).json({ error: `⛔ ${mainGuildName} Lockdown Active.` });
                 return res.render('error', { message: '⛔ <b>Lockdown Active</b><br>Access restricted by Administration.' });
             } else {
                 if (isAdmin || hasSetupRole) return next();
@@ -513,7 +514,7 @@ app.post('/api/tickets/post-panel', auth, protectRoute, async (req, res) => {
             .setTitle(p.title)
             .setDescription(p.description)
             .setColor(p.panel_color || '#5865F2')
-            .setFooter({ text: 'Made by: ukirama' });
+            .setFooter({ text: 'Made by Ukirama' });
 
         const btn = new ButtonBuilder()
             .setCustomId(`ticket_open_${p.panel_id}`)
@@ -547,7 +548,7 @@ app.post('/api/tickets/post-multipanel', auth, protectRoute, async (req, res) =>
             .setDescription(p.description)
             .setColor(p.panel_color || '#5865F2')
         );
-        embeds[embeds.length - 1].setFooter({ text: 'Made by: ukirama' });
+        embeds[embeds.length - 1].setFooter({ text: 'Made by Ukirama' });
 
         const buttons = [];
         for (const p of orderedPanels) {
@@ -589,7 +590,7 @@ app.post('/api/appeals/:action', auth, async (req, res, next) => {
         const targetUser = await botClient.users.fetch(appeal.user_id).catch(() => null);
         const moderator = req.user;
 
-        if (!mainGuild) return res.status(500).json({ error: 'Main guild unavailable' });
+        if (!mainGuild) return res.status(500).json({ error: 'Server unavailable' });
 
         let dbStatus = 'PENDING', embedColor = 0xF1C40F, embedTitle = 'Updated', embedDesc = '';
 

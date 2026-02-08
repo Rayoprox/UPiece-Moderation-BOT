@@ -56,7 +56,7 @@ async function handleTicketOpen(interaction, client) {
             .setTitle(panel.title)
             .setDescription(panel.welcome_message.replace('{user}', `<@${user.id}>`))
             .setColor(0x5865F2)
-            .setFooter({ text: 'Made by: ukirama' });
+            .setFooter({ text: 'Made by Ukirama' });
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('ticket_action_close').setLabel('Close').setStyle(ButtonStyle.Danger).setEmoji('🔒'),

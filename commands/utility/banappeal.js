@@ -15,12 +15,14 @@ module.exports = {
 
     async execute(interaction) {
         const channel = interaction.options.getChannel('channel');
+        const mainGuildName = interaction.client.guilds.cache.get(process.env.DISCORD_GUILD_ID)?.name;
+        const serverName = mainGuildName || interaction.guild?.name || 'this server';
 
         const appealEmbed = new EmbedBuilder()
             .setColor(0x5865F2)
-            .setTitle(`${emojis.ban} ${interaction.guild.name} Ban Appeal System`)
+            .setTitle(`${emojis.ban} ${serverName} Ban Appeal System`)
             .setDescription(
-                `Welcome to the official appeal process. If you have received a **permanent ban** from our main server, this is your opportunity to request a review from our moderation team.\n\nPlease read all sections below very carefully before proceeding.`
+                `Welcome to the official appeal process. If you have received a **permanent ban** from **${serverName}**, this is your opportunity to request a review from our moderation team.\n\nPlease read all sections below very carefully before proceeding.`
             )
             .addFields(
                 { 

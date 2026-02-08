@@ -43,10 +43,12 @@ module.exports = {
         const minutes = Math.floor(client.uptime / 60000) % 60;
         const uptimeStr = `${days}d ${hours}h ${minutes}m`;
 
+        const mainGuildName = interaction.client.guilds.cache.get(process.env.DISCORD_GUILD_ID)?.name;
+        const serverName = mainGuildName || interaction.guild?.name || 'this server';
         const embed = new EmbedBuilder()
             .setColor(statusColor)
             .setTitle(`${statusEmoji} System Status: ${statusText}`)
-            .setDescription(`**Universal Piece** is currently operational. v1`)
+            .setDescription(`**${serverName}** is currently operational. v1`)
             .addFields(
                 { 
                     name: '📡 API Latency', 

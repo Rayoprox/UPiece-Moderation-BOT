@@ -26,7 +26,7 @@ const createEmbed = (type, description) => {
         .setColor(color)
         .setTitle(title)
         .setDescription(description)
-        .setFooter({ text: 'Universal Moderation' })
+        .setFooter({ text: 'Made by Ukirama' })
         .setTimestamp();
 };
 
@@ -35,7 +35,7 @@ const createModerationEmbed = (description) => {
         .setColor(0x2ECC71)
         .setTitle('Moderation')
         .setDescription(description)
-        .setFooter({ text: 'Universal Moderation' })
+        .setFooter({ text: 'Made by Ukirama' })
         .setTimestamp();
 };
 

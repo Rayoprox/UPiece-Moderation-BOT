@@ -22,7 +22,7 @@ module.exports = {
             .setTitle('Management Control Panel')
             .setDescription(`Absolute control for Instance Owners in **${interaction.guild.name}**.`)
             .addFields(
-                { name: `${isLocked ? '🔒' : '🔓'} Universal Lock`, value: isLocked ? 'Admins are **RESTRICTED**. Permissions are role-based only.' : 'Admins have **FULL ACCESS** (Standard).' },
+                { name: `${isLocked ? '🔒' : '🔓'} ${interaction.guild.name} Lock`, value: isLocked ? 'Admins are **RESTRICTED**. Permissions are role-based only.' : 'Admins have **FULL ACCESS** (Standard).' },
                 { name: '⚙️ /setup Access', value: 'Configure which roles can access the setup system.' }
             )
             .setColor(isLocked ? 0xFF0000 : 0x00FF00);

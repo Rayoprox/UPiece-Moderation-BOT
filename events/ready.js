@@ -38,7 +38,7 @@ module.exports = {
             if (guild) {
                 client.user.setPresence({
                     activities: [{ 
-                        name: `Moderating ${guild.name} | Made by: ukirama`, 
+                        name: `Moderating ${guild.name} | Made by Ukirama`, 
                         type: ActivityType.Watching 
                     }],
                     status: 'online',
@@ -46,7 +46,7 @@ module.exports = {
             } else {
                 client.user.setPresence({
                     activities: [{ 
-                        name: `Made by: @ukirama`, 
+                        name: `Made by Ukirama`, 
                         type: ActivityType.Watching 
                     }],
                     status: 'online',

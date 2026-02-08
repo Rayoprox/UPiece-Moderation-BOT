@@ -10,6 +10,7 @@ const DISCORD_MAIN_INVITE = process.env.DISCORD_MAIN_INVITE;
 module.exports = async (interaction) => {
     const { customId, client } = interaction;
     const db = client.db;
+    const mainGuildName = client.guilds.cache.get(MAIN_GUILD_ID)?.name || 'this server';
 
     if (customId === 'start_appeal_process') {
         if (!await safeDefer(interaction, false, true)) return;
@@ -25,7 +26,7 @@ module.exports = async (interaction) => {
             if (interaction.guild.id !== APPEAL_GUILD_ID) return interaction.editReply({ embeds: [error('Wrong server.')], components: [] });
             
             const mainGuild = await client.guilds.fetch(MAIN_GUILD_ID).catch(() => null);
-            if (!mainGuild) return interaction.editReply({ embeds: [error('Main Guild unavailable.')], components: [] });
+            if (!mainGuild) return interaction.editReply({ embeds: [error(`${mainGuildName} unavailable.`)], components: [] });
            
             const status = await verifyAppealEligibility(interaction.user.id, mainGuild, db);
             if (!status.valid) return interaction.editReply({ embeds: [error(status.message)], components: [] });
