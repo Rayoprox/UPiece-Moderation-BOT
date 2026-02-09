@@ -19,6 +19,7 @@ module.exports = {
         const settingsRes = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guildId]);
         const prefix = settingsRes.rows[0]?.prefix || '!';
 
+        const SITE_URL = (process.env.CALLBACK_URL || '').replace(/\/auth\/discord\/callback$/, '') || 'Not configured';
         const book = emojis?.book || '📖';
         const commandCategories = { moderation: [], administrator: [], utility: [], appeal: [], tickets: [] };
         
@@ -30,7 +31,7 @@ module.exports = {
         }, {});
     
         for (const command of commands.values()) {
-            if (command.category === 'developer') continue; // hide developer commands
+            if (command.category === 'developer') continue;
             let hasPermission = member.permissions.has(PermissionsBitField.Flags.Administrator);
             
             if (!hasPermission) {
@@ -74,6 +75,8 @@ module.exports = {
             .setThumbnail(client.user.displayAvatarURL({ dynamic: true, size: 256 }))
             .setFooter({ text: `Prefix: ${prefix} • Requested by ${user.username}`, iconURL: user.displayAvatarURL({ dynamic: true }) })
             .setTimestamp();
+
+        if (SITE_URL) mainEmbed.addFields({ name: 'System Webpage Link:', value: SITE_URL });
 
         const sections = [
             { label: 'Moderation', value: 'moderation', description: 'Kick, Ban, Mute and more' },
