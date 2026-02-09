@@ -36,12 +36,10 @@ module.exports = {
 
         const SERVER_PREFIX = guildData.settings.prefix || '!';
 
-        // Load automod protections for this guild (if any)
         try {
             const protRes = await db.query('SELECT * FROM automod_protections WHERE guildid = $1', [guild.id]);
             const prot = protRes.rows[0];
             if (prot) {
-                // Anti-Mention
                 const protectedRoles = prot.antimention_roles || [];
                 const bypassRoles = prot.antimention_bypass || [];
                 if (protectedRoles.length > 0 && message.mentions.members.size > 0) {
@@ -50,27 +48,19 @@ module.exports = {
                     if (offending) {
                         const senderHasBypass = member.permissions.has(PermissionsBitField.Flags.Administrator) || member.roles.cache.hasAny(...bypassRoles);
                         if (!senderHasBypass) {
-                            // Use the role name (do NOT ping the role) and reply to the offending message with a polite embed
-                            // Pick the most significant protected role (highest position) to mention by name
-                            // Resolve protected roles which may be stored as IDs or names
-                            // Resolve protected roles (by id or name)
                             const protectedRoleObjs = (protectedRoles || []).map(idOrName => {
                                 let r = guild.roles.cache.get(idOrName);
                                 if (!r) r = guild.roles.cache.find(x => x.name && x.name.toLowerCase() === String(idOrName).toLowerCase());
                                 return r;
                             }).filter(Boolean);
 
-                            // From the protected roles, choose the most significant role that the OFFENDING USER actually has
                             const offendingRoleObjs = protectedRoleObjs.filter(r => offending.roles.cache.has(r.id));
                             let primaryRole = offendingRoleObjs.sort((a, b) => (b.position || 0) - (a.position || 0))[0];
 
-                            // Fallback: if the offending user doesn't have any of the configured protected roles
-                            // fall back to the most significant protected role from config (graceful fallback)
                             if (!primaryRole) primaryRole = protectedRoleObjs.sort((a, b) => (b.position || 0) - (a.position || 0))[0];
 
                             const roleName = primaryRole ? primaryRole.name : 'that role';
 
-                            // Diagnostic logging (only in development) to help track incorrect role resolution
                             if (process.env.NODE_ENV !== 'production') {
                                 try {
                                     console.log('[AUTOMOD][ANTIMENTION] guild=', guild.id, 'protectedRolesRaw=', protectedRoles);
@@ -86,20 +76,17 @@ module.exports = {
                                 .setColor('#f43f5e')
                                 .setFooter({ text: 'Repeated mentions may be moderated.' });
 
-                            // Reply to the message (no role pings). Do not ping roles in allowedMentions.
                             const sent = await message.reply({ embeds: [embed], allowedMentions: { parse: [], roles: [], repliedUser: false } }).catch(() => null);
                             if (sent) setTimeout(() => sent.delete().catch(() => {}), 5000);
                         }
                     }
                 }
 
-                // Anti-Spam (basic enforcement)
                 if (prot.antispam) {
                     const antispam = prot.antispam;
                     const guildState = antiSpamState.get(guild.id) || new Map();
                     antiSpamState.set(guild.id, guildState);
 
-                    // Messages per second
                     if (antispam.mps && antispam.mps.threshold > 0) {
                         const thr = antispam.mps.threshold;
                         const bypass = (antispam.mps.bypass || []);
@@ -108,7 +95,6 @@ module.exports = {
                             const userState = guildState.get(author.id) || [];
                             const now = Date.now();
                             userState.push(now);
-                            // keep only last 1000ms
                             const window = now - 1000;
                             const recent = userState.filter(t => t >= window);
                             guildState.set(author.id, recent);
@@ -120,7 +106,6 @@ module.exports = {
                         }
                     }
 
-                    // Repeated characters
                     if (antispam.repeated && antispam.repeated.threshold > 0) {
                         const thr = antispam.repeated.threshold;
                         const bypass = (antispam.repeated.bypass || []);
@@ -135,7 +120,6 @@ module.exports = {
                         }
                     }
 
-                    // Emoji spam (simple count)
                     if (antispam.emoji && antispam.emoji.threshold > 0) {
                         const thr = antispam.emoji.threshold;
                         const bypass = (antispam.emoji.bypass || []);

@@ -6,6 +6,8 @@ const { success, error } = require('../../utils/embedFactory.js');
 const MAIN_GUILD_ID = process.env.DISCORD_GUILD_ID;
 const APPEAL_GUILD_ID = process.env.DISCORD_APPEAL_GUILD_ID;
 const DISCORD_MAIN_INVITE = process.env.DISCORD_MAIN_INVITE;
+const CALLBACK_URL = process.env.CALLBACK_URL || '';
+const WEB_STATUS_URL = CALLBACK_URL ? CALLBACK_URL.replace(/\/auth\/discord\/callback$/, '/appeal/status') : '';
 
 module.exports = async (interaction) => {
     const { customId, client } = interaction;
@@ -95,6 +97,7 @@ module.exports = async (interaction) => {
                 .addFields(
                     { name: '👤 User', value: `<@${interaction.user.id}> (\`${interaction.user.id}\`)`, inline: true },
                     { name: '📅 Submitted', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
+                    { name: '🌐 Source', value: '`Discord`', inline: true },
                     { name: '❓ 1. Why were you banned?', value: `>>> ${q1}` },
                     { name: '⚖️ 2. Why should we unban you?', value: `>>> ${q2}` },
                     { name: 'ℹ️ 3. Anything else?', value: `>>> ${q3}` }
@@ -111,8 +114,8 @@ module.exports = async (interaction) => {
             const msg = await channel.send({ embeds: [staffEmbed], components: [rows] });
             
             await db.query(
-                `INSERT INTO ban_appeals (user_id, username, guild_id, reason, status, message_id, timestamp)
-                 VALUES ($1, $2, $3, $4, 'PENDING', $5, $6)`,
+                `INSERT INTO ban_appeals (user_id, username, guild_id, reason, status, message_id, timestamp, source)
+                 VALUES ($1, $2, $3, $4, 'PENDING', $5, $6, 'DISCORD')`,
                 [
                     interaction.user.id,
                     interaction.user.tag,
@@ -131,7 +134,10 @@ module.exports = async (interaction) => {
                 }
             } catch(e) {}
 
-            return interaction.editReply({ embeds: [success('**Appeal Sent!** Our staff team will review your request shortly. You will receive a DM with the result.')] });
+            const statusMsg = WEB_STATUS_URL 
+                ? `**Appeal Sent!** Our staff team will review your request shortly.\n\n🌐 [**Check your appeal status on our website**](${WEB_STATUS_URL})`
+                : '**Appeal Sent!** Our staff team will review your request shortly. You will receive a DM with the result.';
+            return interaction.editReply({ embeds: [success(statusMsg)] });
 
         } catch (err) {
             console.error('[APPEAL-SUBMIT-ERROR]', err);
@@ -162,6 +168,7 @@ module.exports = async (interaction) => {
             
             dmEmbed = new EmbedBuilder().setColor(0x2ECC71).setTitle(`${emojis.success || '✅'} Appeal Status Update: APPROVED`).setAuthor({ name: banGuild.name, iconURL: banGuild.iconURL({ dynamic: true }) }).setDescription(`Great news! Your ban appeal for **${banGuild.name}** has been reviewed and **accepted**.`).setFooter({ text: 'You are welcome to rejoin the server.' }).setTimestamp();
             if (DISCORD_MAIN_INVITE) dmEmbed.addFields({ name: '🔗 Rejoin Server', value: `[**Click here**](${DISCORD_MAIN_INVITE})` });
+            if (WEB_STATUS_URL) dmEmbed.addFields({ name: '🌐 View on Website', value: `[**Check Appeal Status**](${WEB_STATUS_URL})` });
 
             const unbanCaseId = caseId; 
             await db.query(`UPDATE modlogs SET status = 'EXPIRED', endsat = NULL WHERE guildid = $1 AND userid = $2 AND status = 'ACTIVE' AND action = 'BAN'`, [banGuildId, userId]);
@@ -193,15 +200,23 @@ module.exports = async (interaction) => {
             dbStatus = 'REJECTED';
             newEmbed.setColor(0xE74C3C).setTitle(`${emojis.error || '❌'} Appeal Rejected`).setDescription(`This appeal has been **REJECTED** by <@${interaction.user.id}>.`).setFooter({ text: `Rejected by ${interaction.user.tag}` });
             dmEmbed = new EmbedBuilder().setColor(0xE74C3C).setTitle(`${emojis.error || '❌'} Appeal Status Update: REJECTED`).setAuthor({ name: banGuild.name, iconURL: banGuild.iconURL({ dynamic: true }) }).setDescription(`We regret to inform you that your ban appeal for **${banGuild.name}** has been **rejected**.`).setFooter({ text: 'This decision is final.' }).setTimestamp();
+            if (WEB_STATUS_URL) dmEmbed.addFields({ name: '🌐 View on Website', value: `[**Check Appeal Status**](${WEB_STATUS_URL})` });
 
         } else if (decision === 'blacklist') {
             dbStatus = 'BLACKLISTED';
             newEmbed.setColor(0x000000).setTitle(`⛔ Appeal Blacklisted`).setDescription(`User has been **BLOCKED** from appealing by <@${interaction.user.id}>.`).setFooter({ text: `Blocked by ${interaction.user.tag}` });
             await db.query("INSERT INTO appeal_blacklist (userid, guildid) VALUES ($1, $2) ON CONFLICT DO NOTHING", [userId, banGuildId]);
             dmEmbed = new EmbedBuilder().setColor(0x000000).setTitle(`⛔ Appeal Status Update: BLOCKED`).setAuthor({ name: banGuild.name, iconURL: banGuild.iconURL({ dynamic: true }) }).setDescription(`Your ban appeal for **${banGuild.name}** has been rejected and you have been **blacklisted**.`).setFooter({ text: 'No further communication will be accepted.' }).setTimestamp();
+            if (WEB_STATUS_URL) dmEmbed.addFields({ name: '🌐 View on Website', value: `[**Check Appeal Status**](${WEB_STATUS_URL})` });
         }
 
-        await db.query("UPDATE ban_appeals SET status = $1 WHERE message_id = $2", [dbStatus, interaction.message.id]);
+        const updateResult = await db.query("UPDATE ban_appeals SET status = $1 WHERE message_id = $2 RETURNING id", [dbStatus, interaction.message.id]);
+        
+        if (dbStatus === 'BLACKLISTED') {
+            await db.query("DELETE FROM ban_appeals WHERE user_id = $1 AND guild_id = $2 AND status = 'PENDING' AND message_id != $3", [userId, banGuildId, interaction.message.id]);
+        } else if (dbStatus === 'APPROVED' || dbStatus === 'REJECTED') {
+            await db.query("DELETE FROM ban_appeals WHERE user_id = $1 AND guild_id = $2 AND status = 'PENDING' AND message_id != $3", [userId, banGuildId, interaction.message.id]);
+        }
 
         if (dmEmbed) await user.send({ embeds: [dmEmbed] }).catch(() => {});
         await interaction.editReply({ embeds: [newEmbed], components: [] });

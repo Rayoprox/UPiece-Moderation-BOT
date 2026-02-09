@@ -6,6 +6,8 @@ const { resumePunishmentsOnStart } = require('../../utils/temporary_punishment_h
 const { success, error, moderation } = require('../../utils/embedFactory.js');
 
 const APPEAL_SERVER_INVITE = process.env.DISCORD_APPEAL_INVITE_LINK;
+const CALLBACK_URL = process.env.CALLBACK_URL || '';
+const WEB_APPEAL_URL = CALLBACK_URL ? CALLBACK_URL.replace(/\/auth\/discord\/callback$/, '/appeal') : '';
 const BAN_COLOR = 0xAA0000; 
 
 module.exports = {
@@ -92,12 +94,19 @@ module.exports = {
         
         if (isAppealable && appealSystemActive) {
             dmEmbed.setFooter({ text: `Case ID: ${caseId}` });
-            if (APPEAL_SERVER_INVITE) {
-              
-                dmEmbed.addFields({ name: 'Appeal', value: `[Click here to appeal](${APPEAL_SERVER_INVITE})`, inline: true });
-            } else {
-                 dmEmbed.addFields({ name: 'Appeal', value: `Contact staff to appeal (Case ID required)`, inline: true });
+
+            let appealValue = '';
+            if (WEB_APPEAL_URL) {
+                appealValue += `🌐 [**Appeal on our Website**](${WEB_APPEAL_URL})`;
             }
+            if (APPEAL_SERVER_INVITE) {
+                if (appealValue) appealValue += '\n';
+                appealValue += `💬 [**Appeal in our Support Server**](${APPEAL_SERVER_INVITE})`;
+            }
+            if (!appealValue) {
+                appealValue = 'Contact staff to appeal (Case ID required)';
+            }
+            dmEmbed.addFields({ name: '📝 Appeal Your Ban', value: appealValue, inline: false });
         } else {
             dmEmbed.setFooter({ text: `Case ID: ${caseId} | Not Appealable` });
         }

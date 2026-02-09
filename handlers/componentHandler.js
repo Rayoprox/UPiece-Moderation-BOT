@@ -44,7 +44,6 @@ module.exports = async (interaction) => {
             return await automodMain(interaction);
         }
 
-        // Route specific automod sub-buttons to the main handler when appropriate
         if (customId === 'automod_anti_mention' || customId === 'automod_anti_spam' || customId.startsWith('automod_antispam_') || customId === 'automod_antimention_roles' || customId === 'automod_antimention_bypass') {
             return await automodMain(interaction);
         }

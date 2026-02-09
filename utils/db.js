@@ -141,7 +141,8 @@ const db = {
                 reason TEXT,
                 status TEXT DEFAULT 'PENDING',
                 message_id TEXT,
-                timestamp BIGINT
+                timestamp BIGINT,
+                source TEXT DEFAULT 'DISCORD'
             );`);
 
       
@@ -174,6 +175,7 @@ const db = {
         try { await db.query(`ALTER TABLE ticket_panels ADD COLUMN button_label TEXT DEFAULT 'Open Ticket'`, [], true); } catch (e) {}
         
         try { await db.query(`ALTER TABLE custom_commands ADD COLUMN allowed_roles TEXT`, [], true); } catch (e) {}
+        try { await db.query(`ALTER TABLE ban_appeals ADD COLUMN source TEXT DEFAULT 'DISCORD'`, [], true); } catch (e) {}
 
         console.log('✅ PostgreSQL Database Integrity Check Completed.');
     }

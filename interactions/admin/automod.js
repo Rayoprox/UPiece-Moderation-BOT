@@ -99,7 +99,6 @@ module.exports = async (interaction) => {
             return;
         }
 
-        // Use a select menu for duration instead of a modal
         const durationOptions = actionType === 'BAN'
             ? [
                 { label: 'Permanent', value: `PERM:${warnCountStr}:${actionType}` },
@@ -141,7 +140,6 @@ module.exports = async (interaction) => {
     }
 
     if (customId === 'automod_remove_rule') {
-        // Use deferUpdate so we update the existing message instead of creating an ephemeral reply
         if (!await safeDefer(interaction, true)) return;
         const rulesResult = await db.query('SELECT rule_order, warnings_count, action_type, action_duration FROM automod_rules WHERE guildid = $1 ORDER BY warnings_count ASC', [guildId]);
         
@@ -218,7 +216,6 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // Handle custom duration modal
     if (interaction.isModalSubmit && customId.startsWith('automod_duration_custom_modal:')) {
         if (!await safeDefer(interaction, true)) return;
         const [, warnCountStr, actionType] = customId.split(':');

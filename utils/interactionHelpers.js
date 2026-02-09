@@ -44,24 +44,28 @@ async function verifyAppealEligibility(userId, mainGuild, db) {
     const banEntry = await mainGuild.bans.fetch({ user: userId, force: true }).catch(() => null);
     
     if (!banEntry) {
-        await db.query("DELETE FROM pending_appeals WHERE userid = $1 AND guildid = $2", [userId, mainGuild.id]);
         return { valid: false, message: "You are not currently banned from this server." };
     }
 
     const blacklistResult = await db.query("SELECT * FROM appeal_blacklist WHERE userid = $1 AND guildid = $2", [userId, mainGuild.id]);
     if (blacklistResult.rows.length > 0) return { valid: false, message: "You are **blacklisted** from the appeal system." };
 
-    const pendingResult = await db.query("SELECT appeal_messageid FROM pending_appeals WHERE userid = $1 AND guildid = $2", [userId, mainGuild.id]);
+    const pendingResult = await db.query("SELECT message_id, id FROM ban_appeals WHERE user_id = $1 AND guild_id = $2 AND status = 'PENDING'", [userId, mainGuild.id]);
+    
     if (pendingResult.rows.length > 0) {
+        const appeal = pendingResult.rows[0];
         const chRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'banappeal'", [mainGuild.id]);
+        
         if (chRes.rows.length > 0) {
             const channel = mainGuild.channels.cache.get(chRes.rows[0].channel_id);
-            if (channel) {
+            if (channel && appeal.message_id) {
                 try {
-                    await channel.messages.fetch(pendingResult.rows[0].appeal_messageid);
-                    return { valid: false, message: "You already have an active appeal pending review." };
+                    const msg = await channel.messages.fetch(appeal.message_id);
+                    if (msg) {
+                        return { valid: false, message: "You already have an active appeal pending review." };
+                    }
                 } catch (e) {
-                    await db.query("DELETE FROM pending_appeals WHERE userid = $1 AND guildid = $2", [userId, mainGuild.id]);
+                    await db.query("DELETE FROM ban_appeals WHERE id = $1", [appeal.id]);
                 }
             }
         }

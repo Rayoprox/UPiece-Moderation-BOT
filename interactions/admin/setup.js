@@ -58,14 +58,12 @@ module.exports = {
                 }
                 return;
             }
-            // Route automod modals to automod handler
             if (customId.startsWith('automod_')) {
                 return await setupAutomod(interaction);
             }
         }
 
        
-        // Allow some select interactions to show modals immediately (they must not be deferred first)
         const immediateModalSelectors = ['antinuke_threshold_select', 'antinuke_window_select'];
         if (immediateModalSelectors.includes(customId)) {
             return await setupAntinuke(interaction);

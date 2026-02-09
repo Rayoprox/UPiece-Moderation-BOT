@@ -162,8 +162,11 @@
                         <h3><%= app.username %></h3>
                         <span>ID: <%= app.user_id %></span>
                     </div>
-                    <div class="time-badge">
-                        <%= new Date(parseInt(app.timestamp)).toLocaleDateString() %>
+                    <div class="time-badge" style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+                        <span><%= new Date(parseInt(app.timestamp)).toLocaleDateString() %></span>
+                        <span style="font-size:0.75rem; background:<%= (app.source || 'DISCORD') === 'WEB' ? 'rgba(88,101,242,0.2)' : 'rgba(87,242,135,0.2)' %>; padding:2px 8px; border-radius:4px; color:<%= (app.source || 'DISCORD') === 'WEB' ? '#5865F2' : '#57F287' %>; font-weight:700; letter-spacing:0.5px;">
+                            <%= (app.source || 'DISCORD') === 'WEB' ? '🌐 Web' : '💬 Discord' %>
+                        </span>
                     </div>
                 </div>
 

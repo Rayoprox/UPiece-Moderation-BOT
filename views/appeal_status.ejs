@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= serverName %> — Appeal Status</title>
+    <style>
+        :root{--bg:#050505;--card:#101012;--text:#ffffff;--sub:#a1a1aa;--acc:#5865F2;--acc-glow:rgba(88,101,242,0.5);--border:#27272a;--green:#00ff9d;--red:#ff0055;--yellow:#f59e0b}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center}
+        
+        header{
+            width:100%;padding:40px 20px;text-align:center;
+            background:linear-gradient(180deg, rgba(88,101,242,0.12) 0%, transparent 100%);
+            border-bottom:1px solid var(--border);position:relative;
+        }
+        
+        .back-btn{
+            position:absolute;top:20px;left:20px;color:var(--text);text-decoration:none;
+            font-weight:600;background:rgba(255,255,255,0.05);border:1px solid var(--border);
+            padding:8px 20px;border-radius:30px;font-size:0.85rem;transition:0.3s;
+        }
+        .back-btn:hover{background:var(--acc);color:#fff;border-color:var(--acc);box-shadow:0 0 15px var(--acc-glow)}
+        
+        h1{font-size:2rem;font-weight:800;margin-bottom:5px}
+        .subtitle{color:var(--sub);font-size:0.95rem}
+        
+        .container{
+            width:90%;max-width:700px;margin:40px auto;padding-bottom:50px;
+            animation:fadeUp 0.6s ease-out;
+        }
+        @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        
+        .status-card{
+            background:var(--card);border:1px solid var(--border);border-radius:16px;
+            padding:30px;margin-bottom:20px;position:relative;overflow:hidden;
+            transition:all 0.3s ease;
+        }
+        .status-card:hover{border-color:rgba(255,255,255,0.1)}
+        
+        .status-card::before{
+            content:'';position:absolute;left:0;top:0;height:100%;width:4px;
+            border-radius:4px 0 0 4px;
+        }
+        .status-card.PENDING::before{background:var(--yellow);box-shadow:0 0 10px var(--yellow)}
+        .status-card.APPROVED::before{background:var(--green);box-shadow:0 0 10px var(--green)}
+        .status-card.REJECTED::before{background:var(--red);box-shadow:0 0 10px var(--red)}
+        .status-card.BLACKLISTED::before{background:#000;box-shadow:0 0 10px rgba(0,0,0,0.5)}
+        
+        .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px}
+        
+        .appeal-id{
+            font-size:0.8rem;color:var(--sub);font-family:monospace;
+            background:#18181b;padding:4px 10px;border-radius:6px;
+        }
+        
+        .status-badge{
+            padding:6px 16px;border-radius:20px;font-size:0.75rem;
+            font-weight:800;text-transform:uppercase;letter-spacing:1px;
+        }
+        .status-badge.PENDING{background:rgba(245,158,11,0.15);color:var(--yellow);border:1px solid rgba(245,158,11,0.3)}
+        .status-badge.APPROVED{background:rgba(0,255,157,0.1);color:var(--green);border:1px solid rgba(0,255,157,0.3)}
+        .status-badge.REJECTED{background:rgba(255,0,85,0.1);color:var(--red);border:1px solid rgba(255,0,85,0.3)}
+        .status-badge.BLACKLISTED{background:rgba(255,255,255,0.05);color:#888;border:1px solid rgba(255,255,255,0.1)}
+        
+        .card-body{display:flex;flex-direction:column;gap:12px}
+        
+        .info-row{display:flex;align-items:center;gap:10px}
+        .info-label{font-size:0.78rem;color:var(--sub);text-transform:uppercase;letter-spacing:0.5px;font-weight:700;min-width:80px}
+        .info-value{font-size:0.9rem;color:var(--text)}
+        
+        .reason-box{
+            background:#18181b;border:1px solid var(--border);border-radius:10px;
+            padding:15px;margin-top:5px;
+        }
+        .reason-box .label{font-size:0.75rem;color:var(--acc);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+        .reason-box .text{font-size:0.88rem;color:#d4d4d8;line-height:1.6;white-space:pre-wrap}
+        
+        .status-explanation{
+            margin-top:10px;padding:12px 16px;border-radius:10px;
+            font-size:0.85rem;line-height:1.5;
+        }
+        .status-explanation.PENDING{background:rgba(245,158,11,0.05);border:1px solid rgba(245,158,11,0.15);color:var(--yellow)}
+        .status-explanation.APPROVED{background:rgba(0,255,157,0.05);border:1px solid rgba(0,255,157,0.15);color:var(--green)}
+        .status-explanation.REJECTED{background:rgba(255,0,85,0.05);border:1px solid rgba(255,0,85,0.15);color:var(--red)}
+        .status-explanation.BLACKLISTED{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);color:#888}
+        
+        .empty-state{
+            text-align:center;padding:80px 20px;background:var(--card);
+            border-radius:20px;border:1px solid var(--border);
+        }
+        .empty-state .icon{font-size:3rem;margin-bottom:15px;opacity:0.6}
+        .empty-state h2{font-size:1.3rem;margin-bottom:8px}
+        .empty-state p{color:var(--sub);font-size:0.9rem}
+        .empty-state a{
+            display:inline-block;margin-top:20px;color:var(--acc);
+            text-decoration:none;font-weight:700;padding:10px 25px;
+            border:1px solid var(--acc);border-radius:30px;transition:0.3s;
+        }
+        .empty-state a:hover{background:var(--acc);color:#fff;box-shadow:0 0 15px var(--acc-glow)}
+        
+        .loading{text-align:center;padding:60px;color:var(--sub)}
+        .loading .spinner{
+            width:40px;height:40px;border:3px solid var(--border);
+            border-top-color:var(--acc);border-radius:50%;
+            animation:spin 0.8s linear infinite;margin:0 auto 15px;
+        }
+        @keyframes spin{to{transform:rotate(360deg)}}
+    </style>
+</head>
+<body>
+    <header>
+        <a href="/appeal" class="back-btn">← Appeal System</a>
+        <h1>Appeal Status</h1>
+        <p class="subtitle"><%= serverName %></p>
+    </header>
+    
+    <div class="container" id="content">
+        <div class="loading" id="loader">
+            <div class="spinner"></div>
+            <p>Loading your appeals...</p>
+        </div>
+    </div>
+    
+    <script>
+        const statusMessages = {
+            'PENDING': '⏳ Your appeal is waiting to be reviewed by the moderation team. Please be patient — this can take several days.',
+            'APPROVED': '✅ Your appeal has been approved! You have been unbanned and can rejoin the server.',
+            'REJECTED': '❌ Your appeal has been denied by the moderation team. This decision is final.',
+            'BLACKLISTED': '⛔ Your appeal has been rejected and you have been blacklisted from the appeal system. No further appeals will be accepted.'
+        };
+        
+        function formatDate(ts) {
+            const d = new Date(parseInt(ts));
+            return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+        
+        function parseReason(reason) {
+            if (!reason) return null;
+            const match = reason.match(/\*\*Why banned:\*\* ([\s\S]*?)\n\*\*Why unban:\*\* ([\s\S]*?)\n\*\*Extra:\*\* ([\s\S]*)/);
+            if (match) return { q1: match[1].trim(), q2: match[2].trim(), q3: match[3].trim() };
+            return null;
+        }
+        
+        async function loadStatus() {
+            const container = document.getElementById('content');
+            try {
+                const res = await fetch('/api/appeal/status');
+                if (res.status === 401) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">🔒</div>
+                            <h2>Login Required</h2>
+                            <p>You must be logged in with Discord to view your appeal status.</p>
+                            <a href="/auth/discord/appeal-status">Login with Discord</a>
+                        </div>`;
+                    return;
+                }
+                
+                const data = await res.json();
+                
+                if (!data.appeals || data.appeals.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">📭</div>
+                            <h2>No Appeals Found</h2>
+                            <p>You haven't submitted any ban appeals yet.</p>
+                            <a href="/appeal/submit">Submit an Appeal</a>
+                        </div>`;
+                    return;
+                }
+                
+                let html = '';
+                data.appeals.forEach((appeal, i) => {
+                    const parsed = parseReason(appeal.reason);
+                    html += `
+                    <div class="status-card ${appeal.status}" style="animation-delay:${i * 0.1}s">
+                        <div class="card-header">
+                            <span class="appeal-id">Appeal #${appeal.id}</span>
+                            <span class="status-badge ${appeal.status}">${appeal.status}</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="info-row">
+                                <span class="info-label">Submitted</span>
+                                <span class="info-value">${formatDate(appeal.timestamp)}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Source</span>
+                                <span class="info-value">${(appeal.source || 'DISCORD') === 'WEB' ? '🌐 Website' : '💬 Discord'}</span>
+                            </div>`;
+                    
+                    if (parsed) {
+                        html += `
+                            <div class="reason-box">
+                                <div class="label">1. Why were you banned?</div>
+                                <div class="text">${escapeHtml(parsed.q1)}</div>
+                            </div>
+                            <div class="reason-box">
+                                <div class="label">2. Why should we unban you?</div>
+                                <div class="text">${escapeHtml(parsed.q2)}</div>
+                            </div>
+                            <div class="reason-box">
+                                <div class="label">3. Additional Comments</div>
+                                <div class="text">${escapeHtml(parsed.q3)}</div>
+                            </div>`;
+                    }
+                    
+                    html += `
+                            <div class="status-explanation ${appeal.status}">
+                                ${statusMessages[appeal.status] || 'Status unknown.'}
+                            </div>
+                        </div>
+                    </div>`;
+                });
+                
+                container.innerHTML = html;
+            } catch (err) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">⚠️</div>
+                        <h2>Error</h2>
+                        <p>Failed to load appeal status. Please try again later.</p>
+                    </div>`;
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        loadStatus();
+    </script>
+</body>
+</html>

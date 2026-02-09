@@ -122,58 +122,45 @@
         else { durationDiv.style.display = 'block'; }
     }
     
-    // UI navigation between Automod main menu and subsections
     function showAutomodMain() {
-        // Hide all automod subsections
         document.getElementById('automod').style.display = 'none';
         document.getElementById('antimention').style.display = 'none';
         document.getElementById('antispam').style.display = 'none';
         
-        // Show automod main menu
         const automodMain = document.getElementById('automod_main');
         automodMain.style.display = 'block';
         automodMain.classList.add('active');
         
-        // Keep automod button active
         document.getElementById('btn-automod').classList.add('active');
     }
     function openAutopunishmentSection() {
-        // Hide all other automod sections
         document.getElementById('automod_main').style.display = 'none';
         document.getElementById('antimention').style.display = 'none';
         document.getElementById('antispam').style.display = 'none';
         
-        // Show autopunishment section
         document.getElementById('automod').style.display = 'block';
         
-        // Keep automod button active
         document.getElementById('btn-automod').classList.add('active');
         
         renderAutomod(); 
         updateDurationField();
     }
     function openAntiMention() {
-        // Hide all other automod sections
         document.getElementById('automod_main').style.display = 'none';
         document.getElementById('automod').style.display = 'none';
         document.getElementById('antispam').style.display = 'none';
         
-        // Show anti-mention section
         document.getElementById('antimention').style.display = 'block';
         
-        // Keep automod button active
         document.getElementById('btn-automod').classList.add('active');
     }
     function openAntiSpam() {
-        // Hide all other automod sections
         document.getElementById('automod_main').style.display = 'none';
         document.getElementById('automod').style.display = 'none';
         document.getElementById('antimention').style.display = 'none';
         
-        // Show anti-spam section
         document.getElementById('antispam').style.display = 'block';
         
-        // Keep automod button active
         document.getElementById('btn-automod').classList.add('active');
     }
     function renderAutomod() {
@@ -388,17 +375,14 @@
         document.getElementById(sectionId).classList.add('active');
     }
     function openTab(name) {
-        // Remove active class from all sections and buttons
         document.querySelectorAll('.section,.tab-btn').forEach(e=>e.classList.remove('active'));
         
-        // Hide all automod subsections when switching tabs
         const automodSections = ['automod_main', 'antimention', 'antispam', 'automod'];
         automodSections.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.style.display = 'none';
         });
         
-        // Special handling for automod - show main menu
         if (name === 'automod') {
             const automodMain = document.getElementById('automod_main');
             if (automodMain) {
@@ -407,7 +391,6 @@
             }
             document.getElementById('btn-automod').classList.add('active');
         } else {
-            // Show the selected section normally
             const targetSection = document.getElementById(name);
             if (targetSection) {
                 targetSection.classList.add('active');

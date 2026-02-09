@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= serverName %> — Submit Appeal</title>
+    <style>
+        :root{--bg:#050505;--card:#101012;--text:#ffffff;--sub:#a1a1aa;--acc:#ff0055;--acc-glow:rgba(255,0,85,0.5);--border:#27272a;--green:#00ff9d;--blue:#5865F2}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center}
+        
+        header{
+            width:100%;padding:40px 20px;text-align:center;
+            background:linear-gradient(180deg, rgba(255,0,85,0.12) 0%, transparent 100%);
+            border-bottom:1px solid var(--border);position:relative;
+        }
+        .back-btn{
+            position:absolute;top:20px;left:20px;color:var(--text);text-decoration:none;
+            font-weight:600;background:rgba(255,255,255,0.05);border:1px solid var(--border);
+            padding:8px 20px;border-radius:30px;font-size:0.85rem;transition:0.3s;
+        }
+        .back-btn:hover{background:var(--acc);color:#fff;border-color:var(--acc);box-shadow:0 0 15px var(--acc-glow)}
+        
+        h1{font-size:2rem;font-weight:800;margin-bottom:5px;text-shadow:0 0 15px var(--acc-glow)}
+        .subtitle{color:var(--sub);font-size:0.95rem}
+        
+        .container{width:90%;max-width:750px;margin:30px auto;padding-bottom:50px;animation:fadeUp 0.6s ease-out}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        
+        .login-prompt{
+            text-align:center;padding:60px 20px;background:var(--card);
+            border-radius:20px;border:1px solid var(--border);margin-top:30px;
+        }
+        .login-prompt .icon{font-size:3rem;margin-bottom:15px;opacity:0.6}
+        .login-prompt h2{margin-bottom:8px}
+        .login-prompt p{color:var(--sub);margin-bottom:20px}
+        .login-prompt a{
+            display:inline-flex;align-items:center;gap:10px;
+            background:var(--blue);color:#fff;text-decoration:none;
+            padding:14px 30px;border-radius:30px;font-weight:700;transition:0.3s;
+        }
+        .login-prompt a:hover{filter:brightness(1.1);transform:translateY(-2px);box-shadow:0 5px 20px rgba(88,101,242,0.4)}
+        
+        .rules-section{
+            background:var(--card);border:1px solid var(--border);border-radius:16px;
+            padding:30px;margin-bottom:25px;
+        }
+        .rules-section h2{font-size:1.1rem;color:var(--acc);margin-bottom:15px;text-transform:uppercase;letter-spacing:1px}
+        .rule-item{
+            display:flex;gap:12px;padding:10px 0;
+            border-bottom:1px solid rgba(255,255,255,0.03);
+            font-size:0.9rem;color:var(--sub);line-height:1.5;
+        }
+        .rule-item:last-child{border-bottom:none}
+        .rule-item .emoji{font-size:1.1rem;flex-shrink:0;margin-top:1px}
+        .rule-item strong{color:var(--text)}
+        
+        .eligibility-box{
+            background:var(--card);border:1px solid var(--border);border-radius:16px;
+            padding:30px;text-align:center;margin-bottom:25px;
+        }
+        .eligibility-box .spinner{
+            width:35px;height:35px;border:3px solid var(--border);
+            border-top-color:var(--acc);border-radius:50%;
+            animation:spin 0.8s linear infinite;margin:0 auto 15px;
+        }
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .eligibility-box.success{border-color:rgba(0,255,157,0.3)}
+        .eligibility-box.error{border-color:rgba(255,0,85,0.3)}
+        .elig-msg{font-size:0.95rem;line-height:1.5}
+        .elig-msg.ok{color:var(--green)}
+        .elig-msg.fail{color:var(--acc)}
+        
+        .appeal-form{
+            background:var(--card);border:1px solid var(--border);border-radius:16px;
+            padding:30px;display:none;
+        }
+        .appeal-form h2{font-size:1.1rem;color:var(--text);margin-bottom:20px}
+        .form-group{margin-bottom:20px}
+        .form-group label{
+            display:block;font-size:0.8rem;color:var(--acc);
+            text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px;
+        }
+        .form-group label .char-count{float:right;color:var(--sub);font-size:0.75rem;text-transform:none;letter-spacing:0}
+        .form-group textarea{
+            width:100%;padding:15px;border:1px solid var(--border);border-radius:10px;
+            background:#000;color:var(--text);font-family:inherit;font-size:0.9rem;
+            resize:vertical;min-height:100px;transition:0.3s;box-sizing:border-box;
+        }
+        .form-group textarea:focus{outline:none;border-color:var(--acc);box-shadow:0 0 10px var(--acc-glow)}
+        .form-group textarea::placeholder{color:#555}
+        .form-group .hint{font-size:0.75rem;color:var(--sub);margin-top:5px}
+        
+        .submit-btn{
+            width:100%;padding:16px;border:none;border-radius:10px;
+            background:var(--acc);color:#fff;font-size:1rem;font-weight:800;
+            cursor:pointer;transition:0.3s;text-transform:uppercase;letter-spacing:1px;
+        }
+        .submit-btn:hover{filter:brightness(1.1);box-shadow:0 5px 25px var(--acc-glow)}
+        .submit-btn:disabled{opacity:0.4;cursor:not-allowed;filter:none;box-shadow:none}
+        
+        .result-box{
+            margin-top:20px;padding:20px;border-radius:10px;text-align:center;
+            font-weight:600;display:none;
+        }
+        .result-box.success{background:rgba(0,255,157,0.08);border:1px solid rgba(0,255,157,0.3);color:var(--green)}
+        .result-box.error{background:rgba(255,0,85,0.08);border:1px solid rgba(255,0,85,0.3);color:var(--acc)}
+    </style>
+</head>
+<body>
+    <header>
+        <a href="/appeal" class="back-btn">← Appeal System</a>
+        <h1>Submit a Ban Appeal</h1>
+        <p class="subtitle"><%= serverName %></p>
+    </header>
+    
+    <div class="container">
+        <% if (!user) { %>
+            <div class="login-prompt">
+                <div class="icon">🔒</div>
+                <h2>Login Required</h2>
+                <p>You must log in with your Discord account to submit a ban appeal.</p>
+                <a href="/auth/discord/appeal-submit">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189z"/></svg>
+                    Login with Discord
+                </a>
+            </div>
+        <% } else { %>
+            <div class="rules-section">
+                <h2>📋 Before You Submit</h2>
+                <div class="rule-item"><span class="emoji">⚖️</span><span><strong>Only permanent bans</strong> are appealable. Temporary bans expire automatically.</span></div>
+                <div class="rule-item"><span class="emoji">✍️</span><span><strong>Be honest and detailed.</strong> Acknowledge the rule(s) you broke and take responsibility.</span></div>
+                <div class="rule-item"><span class="emoji">🧠</span><span><strong>Show understanding.</strong> Explain why your actions were wrong and how you'll improve.</span></div>
+                <div class="rule-item"><span class="emoji">⏳</span><span><strong>Be patient.</strong> The review process can take several days. Do not contact staff about it.</span></div>
+                <div class="rule-item"><span class="emoji">🚫</span><span><strong>No alt accounts.</strong> Using alternate accounts to evade bans will result in permanent blacklisting.</span></div>
+                <div class="rule-item"><span class="emoji">⚠️</span><span><strong>All decisions are final.</strong> Our moderation team's decisions cannot be contested.</span></div>
+            </div>
+            
+            <div class="eligibility-box" id="eligBox">
+                <div class="spinner" id="eligSpinner"></div>
+                <p class="elig-msg" id="eligMsg">Verifying your eligibility...</p>
+            </div>
+            
+            <div class="appeal-form" id="appealForm">
+                <h2>📝 Appeal Application</h2>
+                <div class="form-group">
+                    <label>1. Why were you banned? <span class="char-count" id="count1">0/1000</span></label>
+                    <textarea id="q1" maxlength="1000" placeholder="Explain what happened and what rule(s) you broke..." oninput="updateCount('q1','count1')"></textarea>
+                    <div class="hint">Minimum 20 characters</div>
+                </div>
+                <div class="form-group">
+                    <label>2. Why should we unban you? <span class="char-count" id="count2">0/1000</span></label>
+                    <textarea id="q2" maxlength="1000" placeholder="Tell us why you deserve a second chance..." oninput="updateCount('q2','count2')"></textarea>
+                    <div class="hint">Minimum 20 characters</div>
+                </div>
+                <div class="form-group">
+                    <label>3. Anything else to add? <span class="char-count" id="count3">0/1000</span></label>
+                    <textarea id="q3" maxlength="1000" placeholder="Optional: any additional context or comments..." oninput="updateCount('q3','count3')"></textarea>
+                    <div class="hint">Optional</div>
+                </div>
+                <button class="submit-btn" id="submitBtn" onclick="submitAppeal()">Submit Appeal</button>
+                <div class="result-box" id="resultBox"></div>
+            </div>
+        <% } %>
+    </div>
+    
+    <% if (user) { %>
+    <script>
+        function updateCount(textareaId, countId) {
+            const len = document.getElementById(textareaId).value.length;
+            document.getElementById(countId).textContent = len + '/1000';
+        }
+        
+        async function checkEligibility() {
+            const box = document.getElementById('eligBox');
+            const msg = document.getElementById('eligMsg');
+            const spinner = document.getElementById('eligSpinner');
+            
+            try {
+                const res = await fetch('/api/appeal/check', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                const data = await res.json();
+                
+                spinner.style.display = 'none';
+                
+                if (data.eligible) {
+                    box.classList.add('success');
+                    msg.className = 'elig-msg ok';
+                    msg.textContent = '✅ You are eligible to submit a ban appeal. Fill out the form below.';
+                    document.getElementById('appealForm').style.display = 'block';
+                } else {
+                    box.classList.add('error');
+                    msg.className = 'elig-msg fail';
+                    msg.textContent = '✖️ ' + (data.message || 'You are not eligible to appeal.');
+                }
+            } catch (err) {
+                spinner.style.display = 'none';
+                box.classList.add('error');
+                msg.className = 'elig-msg fail';
+                msg.textContent = '⚠️ Error checking eligibility. Please try again later.';
+            }
+        }
+        
+        async function submitAppeal() {
+            const q1 = document.getElementById('q1').value.trim();
+            const q2 = document.getElementById('q2').value.trim();
+            const q3 = document.getElementById('q3').value.trim();
+            const btn = document.getElementById('submitBtn');
+            const result = document.getElementById('resultBox');
+            
+            if (q1.length < 20) { alert('Answer 1 must be at least 20 characters.'); return; }
+            if (q2.length < 20) { alert('Answer 2 must be at least 20 characters.'); return; }
+            
+            btn.disabled = true;
+            btn.textContent = 'Submitting...';
+            
+            try {
+                const res = await fetch('/api/appeal/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ q1, q2, q3 })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    result.className = 'result-box success';
+                    result.textContent = '✅ Appeal submitted successfully! Our staff will review it shortly. You can check your status in the Appeal Status page.';
+                    result.style.display = 'block';
+                    btn.textContent = 'Submitted';
+                    document.getElementById('q1').disabled = true;
+                    document.getElementById('q2').disabled = true;
+                    document.getElementById('q3').disabled = true;
+                } else {
+                    result.className = 'result-box error';
+                    result.textContent = '✖️ ' + (data.error || 'Failed to submit appeal.');
+                    result.style.display = 'block';
+                    btn.disabled = false;
+                    btn.textContent = 'Submit Appeal';
+                }
+            } catch (err) {
+                result.className = 'result-box error';
+                result.textContent = '⚠️ Connection error. Please try again.';
+                result.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Submit Appeal';
+            }
+        }
+        
+        checkEligibility();
+    </script>
+    <% } %>
+</body>
+</html>

@@ -128,13 +128,10 @@ async function handleAction(guild, executorId, actionType) {
 
     const { threshold_count, threshold_time, antinuke_ignore_supreme, antinuke_ignore_verified } = settingsObj;
 
-    // Ignore SUPREME_IDS if configured
     if (antinuke_ignore_supreme && SUPREME_IDS.includes(executorId)) return;
 
-    // Quick user info check: avoid fetch where possible to prevent API bottlenecks
     const uinfo = await getUserInfo(guild.client, executorId).catch(() => null);
     if (uinfo && uinfo.bot && antinuke_ignore_verified) {
-        // if user has VerifiedBot flag -> ignore
         if (uinfo.flags && uinfo.flags.has && uinfo.flags.has('VerifiedBot')) return;
     }
     const key = `${guild.id}_${executorId}_${actionType}`;

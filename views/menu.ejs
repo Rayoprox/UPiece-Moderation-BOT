@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= serverName %> — Menu</title>
+    <style>
+        :root{--bg:#050505;--card:#101012;--text:#ffffff;--sub:#a1a1aa;--acc:#5865F2;--acc-glow:rgba(88,101,242,0.5);--border:#27272a;--red:#ff0055;--red-glow:rgba(255,0,85,0.5)}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center}
+        
+        header{
+            width:100%;padding:40px 20px;text-align:center;
+            background:linear-gradient(180deg, rgba(88,101,242,0.12) 0%, transparent 100%);
+            border-bottom:1px solid var(--border);position:relative;
+        }
+        
+        .user-info{display:flex;align-items:center;justify-content:center;gap:15px;margin-bottom:15px}
+        .user-avatar{width:50px;height:50px;border-radius:50%;border:2px solid var(--border);transition:0.3s}
+        .user-avatar:hover{border-color:var(--acc);box-shadow:0 0 15px var(--acc-glow)}
+        .user-name{font-size:1rem;color:var(--sub);font-weight:600}
+        
+        h1{font-size:2.2rem;font-weight:800;margin-bottom:8px}
+        .subtitle{color:var(--sub);font-size:1rem}
+        
+        .logout-btn{
+            position:absolute;top:20px;right:20px;
+            text-decoration:none;color:var(--text);
+            background:rgba(255,255,255,0.05);border:1px solid var(--border);
+            padding:8px 20px;border-radius:30px;font-weight:600;font-size:0.85rem;
+            transition:0.3s;
+        }
+        .logout-btn:hover{background:var(--red);color:#fff;box-shadow:0 0 15px var(--red-glow);border-color:var(--red)}
+        
+        .menu-grid{
+            display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+            gap:30px;max-width:800px;width:90%;margin:60px auto;
+            animation:fadeUp 0.6s ease-out;
+        }
+        @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        
+        .menu-card{
+            background:var(--card);border:1px solid var(--border);border-radius:20px;
+            padding:50px 35px;text-align:center;text-decoration:none;color:inherit;
+            transition:all 0.3s ease;position:relative;overflow:hidden;display:block;
+        }
+        .menu-card::before{
+            content:'';position:absolute;top:0;left:0;width:100%;height:4px;
+            transition:all 0.3s ease;
+        }
+        .menu-card:hover{transform:translateY(-6px);box-shadow:0 15px 50px -15px rgba(0,0,0,0.5)}
+        
+        .menu-card.dashboard::before{background:var(--acc);box-shadow:0 0 15px var(--acc-glow)}
+        .menu-card.dashboard:hover{border-color:var(--acc)}
+        
+        .menu-card.appeals::before{background:var(--red);box-shadow:0 0 15px var(--red-glow)}
+        .menu-card.appeals:hover{border-color:var(--red)}
+        
+        .card-icon{font-size:3.5rem;margin-bottom:20px;display:block}
+        .card-title{font-size:1.4rem;font-weight:800;margin-bottom:10px}
+        .card-desc{color:var(--sub);font-size:0.9rem;line-height:1.5;margin-bottom:25px}
+        
+        .card-btn{
+            display:inline-block;padding:12px 30px;border-radius:30px;
+            font-weight:700;font-size:0.85rem;text-transform:uppercase;letter-spacing:1px;
+            transition:all 0.3s ease;border:1px solid var(--border);
+            color:var(--text);
+        }
+        .menu-card.dashboard:hover .card-btn{background:var(--acc);border-color:var(--acc);color:#fff;box-shadow:0 0 20px var(--acc-glow)}
+        .menu-card.appeals:hover .card-btn{background:var(--red);border-color:var(--red);color:#fff;box-shadow:0 0 20px var(--red-glow)}
+        
+        .no-access{
+            opacity:0.4;pointer-events:none;cursor:not-allowed;
+        }
+        .no-access-badge{
+            position:absolute;top:15px;right:15px;
+            background:rgba(255,255,255,0.05);border:1px solid var(--border);
+            padding:4px 12px;border-radius:20px;font-size:0.7rem;
+            color:var(--sub);text-transform:uppercase;letter-spacing:1px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="/logout" class="logout-btn">Logout</a>
+        <div class="user-info">
+            <img src="https://cdn.discordapp.com/avatars/<%= user.id %>/<%= user.avatar %>.png?size=64" class="user-avatar" alt="Avatar">
+            <span class="user-name"><%= user.username %></span>
+        </div>
+        <h1><%= serverName %></h1>
+        <p class="subtitle">Select where you want to go</p>
+    </header>
+    
+    <div class="menu-grid">
+        <a href="/guilds" class="menu-card dashboard <%= hasStaffAccess ? '' : 'no-access' %>">
+            <% if (!hasStaffAccess) { %><span class="no-access-badge">Staff Only</span><% } %>
+            <span class="card-icon">🖥️</span>
+            <div class="card-title">Dashboard</div>
+            <p class="card-desc">Access the server management panel, audit logs, configuration, and moderation tools.</p>
+            <span class="card-btn">Open Dashboard</span>
+        </a>
+        
+        <a href="/appeal" class="menu-card appeals">
+            <span class="card-icon">📝</span>
+            <div class="card-title">Appeal System</div>
+            <p class="card-desc">Submit a ban appeal or check the status of an existing appeal you've submitted.</p>
+            <span class="card-btn">Open Appeals</span>
+        </a>
+    </div>
+</body>
+</html>

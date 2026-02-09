@@ -4,7 +4,6 @@ const { safeDefer } = require('../../utils/interactionHelpers.js');
 module.exports = async (interaction) => {
     const { customId, guild, client, values } = interaction;
 
-    // When user opens the Automod main menu
     if (customId === 'setup_automod') {
         if (!await safeDefer(interaction, true)) return;
         const embed = new EmbedBuilder()
@@ -32,7 +31,6 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // Anti-Mention configuration (role select menus)
     if (customId === 'automod_anti_mention') {
         if (!await safeDefer(interaction, true)) return;
         const { embed, components } = await buildAntiMentionView(client.db, guild.id);
@@ -60,7 +58,6 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // Anti-Spam submenu
     if (customId === 'automod_anti_spam') {
         if (!await safeDefer(interaction, true)) return;
         const { embed, components } = await buildAntiSpamView(client.db, guild.id);
@@ -68,7 +65,6 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // Anti-Spam type selection
     if (customId === 'automod_antispam_type_select') {
         if (!await safeDefer(interaction, true)) return;
         const type = values[0];
@@ -77,7 +73,6 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // Anti-Spam threshold selection
     if (customId === 'automod_antispam_threshold_select') {
         if (!await safeDefer(interaction, true)) return;
         const [threshold, type] = values[0].split(':');
@@ -99,7 +94,6 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // Anti-Spam bypass roles selection
     if (customId === 'automod_antispam_bypass_select') {
         if (!await safeDefer(interaction, true)) return;
         const type = interaction.message.embeds[0]?.footer?.text?.match(/Type: (\w+)/)?.[1];
@@ -123,7 +117,6 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // Anti-Spam delete configuration
     if (customId.startsWith('automod_antispam_delete:')) {
         if (!await safeDefer(interaction, true)) return;
         const type = customId.split(':')[1];
@@ -145,7 +138,6 @@ module.exports = async (interaction) => {
         return;
     }
 
-    // Anti-Spam delete configuration
     if (customId.startsWith('automod_antispam_delete:')) {
         if (!await safeDefer(interaction, true)) return;
         const type = customId.split(':')[1];

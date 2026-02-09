@@ -89,7 +89,6 @@ module.exports = {
         
 
       
-        // Additional deep checks
         console.log(`\n[5/9] ENVIRONMENT`);
         const requiredEnvs = ['DISCORD_TOKEN', 'DISCORD_GUILD_ID', 'DISCORD_APPEAL_GUILD_ID'];
         requiredEnvs.forEach(k => {
@@ -156,7 +155,6 @@ module.exports = {
             }
         });
 
-        // Bot stats
         try {
             console.log(`\n[BOT] Client stats`);
             console.log(`  Guilds (cached): ${interaction.client.guilds.cache.size}`);

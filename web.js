@@ -68,6 +68,27 @@ app.use((req, res, next) => {
 
 app.get('/auth/discord', passport.authenticate('discord', { scope: SCOPES }));
 
+app.get('/auth/discord/appeal', (req, res, next) => {
+    req.session.returnTo = '/appeal';
+    req.session.save(() => {
+        passport.authenticate('discord', { scope: SCOPES })(req, res, next);
+    });
+});
+
+app.get('/auth/discord/appeal-submit', (req, res, next) => {
+    req.session.returnTo = '/appeal/submit';
+    req.session.save(() => {
+        passport.authenticate('discord', { scope: SCOPES })(req, res, next);
+    });
+});
+
+app.get('/auth/discord/appeal-status', (req, res, next) => {
+    req.session.returnTo = '/appeal/status';
+    req.session.save(() => {
+        passport.authenticate('discord', { scope: SCOPES })(req, res, next);
+    });
+});
+
 app.get('/auth/discord/callback', (req, res, next) => {
     passport.authenticate('discord', (err, user, info) => {
         if (err) return res.status(500).send(`Error de Autenticación: ${err.message}`);
@@ -75,7 +96,9 @@ app.get('/auth/discord/callback', (req, res, next) => {
 
         req.logIn(user, (loginErr) => {
             if (loginErr) return next(loginErr);
-            return res.redirect('/guilds');
+            const returnTo = req.session.returnTo;
+            delete req.session.returnTo;
+            return res.redirect(returnTo || '/menu');
         });
     })(req, res, next);
 });
@@ -146,7 +169,239 @@ const protectRoute = async (req, res, next) => {
     }
 };
 
-app.get('/', auth, (req, res) => res.redirect('/guilds'));
+
+app.get('/', (req, res) => {
+    if (req.isAuthenticated()) return res.redirect('/menu');
+    const { botClient } = req.app.locals;
+    const mainGuild = botClient?.guilds.cache.get(process.env.DISCORD_GUILD_ID);
+    const serverName = mainGuild?.name || 'this server';
+    const serverIcon = mainGuild?.iconURL({ extension: 'png', size: 256 }) || null;
+    res.render('welcome', { serverName, serverIcon });
+});
+
+
+app.get('/menu', auth, async (req, res) => {
+    const { botClient } = req.app.locals;
+    const mainGuild = botClient?.guilds.cache.get(process.env.DISCORD_GUILD_ID);
+    const serverName = mainGuild?.name || 'this server';
+    const userId = req.user.id;
+
+    let hasStaffAccess = false;
+    try {
+        if (SUPREME_IDS.includes(userId)) {
+            hasStaffAccess = true;
+        } else if (mainGuild) {
+            const member = await mainGuild.members.fetch(userId).catch(() => null);
+            if (member) {
+                const isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
+                const setupPerms = await db.query("SELECT role_id FROM command_permissions WHERE guildid = $1 AND command_name = 'setup'", [mainGuild.id]);
+                const hasSetupRole = setupPerms.rows.some(row => member.roles.cache.has(row.role_id));
+                const banPerms = await db.query("SELECT role_id FROM command_permissions WHERE guildid = $1 AND command_name = 'ban'", [mainGuild.id]);
+                const hasBanRole = banPerms.rows.some(row => member.roles.cache.has(row.role_id));
+                hasStaffAccess = isAdmin || hasSetupRole || hasBanRole;
+            }
+        }
+    } catch(e) { console.error('[MENU-ACCESS-CHECK]', e); }
+
+    res.render('menu', { user: req.user, serverName, hasStaffAccess });
+});
+
+
+app.get('/appeal', (req, res) => {
+    if (!req.isAuthenticated()) {
+        req.session.returnTo = '/appeal';
+        return req.session.save(() => res.redirect('/'));
+    }
+    const { botClient } = req.app.locals;
+    const mainGuild = botClient?.guilds.cache.get(process.env.DISCORD_GUILD_ID);
+    const serverName = mainGuild?.name || 'this server';
+    res.render('appeal_system', { user: req.user, serverName });
+});
+
+app.get('/appeal/submit', (req, res) => {
+    const { botClient } = req.app.locals;
+    const mainGuild = botClient?.guilds.cache.get(process.env.DISCORD_GUILD_ID);
+    const serverName = mainGuild?.name || 'this server';
+    res.render('appeal_form', { user: req.user || null, serverName });
+});
+
+app.get('/appeal/status', (req, res) => {
+    if (!req.isAuthenticated()) {
+        req.session.returnTo = '/appeal/status';
+        return req.session.save(() => res.redirect('/'));
+    }
+    const { botClient } = req.app.locals;
+    const mainGuild = botClient?.guilds.cache.get(process.env.DISCORD_GUILD_ID);
+    const serverName = mainGuild?.name || 'this server';
+    res.render('appeal_status', { user: req.user, serverName });
+});
+
+app.get('/api/appeal/status', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
+
+    const userId = req.user.id;
+    const guildId = process.env.DISCORD_GUILD_ID;
+
+    try {
+        const result = await db.query(
+            "SELECT id, status, reason, timestamp, source FROM ban_appeals WHERE user_id = $1 AND guild_id = $2 ORDER BY timestamp DESC LIMIT 5",
+            [userId, guildId]
+        );
+        return res.json({ appeals: result.rows });
+    } catch (err) {
+        console.error('[WEB-APPEAL-STATUS]', err);
+        return res.status(500).json({ error: 'Failed to fetch status.' });
+    }
+});
+
+app.post('/api/appeal/check', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ eligible: false, message: 'You must log in with Discord first.' });
+
+    const { botClient } = req.app.locals;
+    const userId = req.user.id;
+
+    try {
+        const mainGuild = await botClient.guilds.fetch(process.env.DISCORD_GUILD_ID).catch(() => null);
+        if (!mainGuild) return res.json({ eligible: false, message: 'Server is currently unavailable. Try again later.' });
+
+        const banEntry = await mainGuild.bans.fetch({ user: userId, force: true }).catch(() => null);
+        if (!banEntry) return res.json({ eligible: false, message: 'You are not currently banned from this server.' });
+
+        const blResult = await db.query("SELECT * FROM appeal_blacklist WHERE userid = $1 AND guildid = $2", [userId, mainGuild.id]);
+        if (blResult.rows.length > 0) return res.json({ eligible: false, message: 'You are blacklisted from the appeal system. No further appeals will be accepted.' });
+
+        const pendingResult = await db.query("SELECT message_id, id FROM ban_appeals WHERE user_id = $1 AND guild_id = $2 AND status = 'PENDING'", [userId, mainGuild.id]);
+        if (pendingResult.rows.length > 0) {
+            const appeal = pendingResult.rows[0];
+            if (appeal.message_id) {
+                const chRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'banappeal'", [mainGuild.id]);
+                if (chRes.rows[0]?.channel_id) {
+                    const channel = mainGuild.channels.cache.get(chRes.rows[0].channel_id);
+                    if (channel) {
+                        try {
+                            const msg = await channel.messages.fetch(appeal.message_id);
+                            if (msg) return res.json({ eligible: false, message: 'You already have an active appeal pending review. Please wait for staff to respond.' });
+                        } catch (e) {
+                            await db.query("DELETE FROM ban_appeals WHERE id = $1", [appeal.id]);
+                        }
+                    }
+                }
+            } else {
+                return res.json({ eligible: false, message: 'You already have an active appeal pending review.' });
+            }
+        }
+
+        const banLog = await db.query("SELECT endsat FROM modlogs WHERE userid = $1 AND guildid = $2 AND action = 'BAN' AND (status = 'ACTIVE' OR status = 'PERMANENT') ORDER BY timestamp DESC LIMIT 1", [userId, mainGuild.id]);
+        if (banLog.rows[0]?.endsat) {
+            const endsAt = new Date(Number(banLog.rows[0].endsat));
+            return res.json({ eligible: false, message: `Your ban is temporary and not appealable. It expires on ${endsAt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}.` });
+        }
+
+        const chRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'banappeal'", [mainGuild.id]);
+        if (!chRes.rows[0]?.channel_id) return res.json({ eligible: false, message: 'The appeal system is currently offline. Please try again later.' });
+
+        return res.json({ eligible: true });
+    } catch (err) {
+        console.error('[WEB-APPEAL-CHECK]', err);
+        return res.status(500).json({ eligible: false, message: 'An error occurred while checking eligibility.' });
+    }
+});
+
+app.post('/api/appeal/submit', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ error: 'You must log in with Discord first.' });
+
+    const { botClient } = req.app.locals;
+    const userId = req.user.id;
+    const { q1, q2, q3 } = req.body;
+
+    if (!q1 || q1.trim().length < 20) return res.status(400).json({ error: 'Answer 1 must be at least 20 characters.' });
+    if (!q2 || q2.trim().length < 20) return res.status(400).json({ error: 'Answer 2 must be at least 20 characters.' });
+    if (q1.length > 1000 || q2.length > 1000 || (q3 && q3.length > 1000)) return res.status(400).json({ error: 'Answers must be 1000 characters or less.' });
+
+    try {
+        const mainGuild = await botClient.guilds.fetch(process.env.DISCORD_GUILD_ID).catch(() => null);
+        if (!mainGuild) return res.status(500).json({ error: 'Server unavailable.' });
+
+        const banEntry = await mainGuild.bans.fetch({ user: userId, force: true }).catch(() => null);
+        if (!banEntry) return res.status(400).json({ error: 'You are not currently banned.' });
+
+        const blResult = await db.query("SELECT * FROM appeal_blacklist WHERE userid = $1 AND guildid = $2", [userId, mainGuild.id]);
+        if (blResult.rows.length > 0) return res.status(403).json({ error: 'You are blacklisted from the appeal system.' });
+
+        const pendingResult = await db.query("SELECT message_id, id FROM ban_appeals WHERE user_id = $1 AND guild_id = $2 AND status = 'PENDING'", [userId, mainGuild.id]);
+        if (pendingResult.rows.length > 0) {
+            const appeal = pendingResult.rows[0];
+            if (appeal.message_id) {
+                const chRes2 = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'banappeal'", [mainGuild.id]);
+                if (chRes2.rows[0]?.channel_id) {
+                    const ch2 = mainGuild.channels.cache.get(chRes2.rows[0].channel_id);
+                    if (ch2) {
+                        try {
+                            const msg = await ch2.messages.fetch(appeal.message_id);
+                            if (msg) return res.status(400).json({ error: 'You already have an active appeal pending review.' });
+                        } catch (e) {
+                            await db.query("DELETE FROM ban_appeals WHERE id = $1", [appeal.id]);
+                        }
+                    }
+                }
+            } else {
+                return res.status(400).json({ error: 'You already have an active appeal pending review.' });
+            }
+        }
+
+        const banLog = await db.query("SELECT endsat FROM modlogs WHERE userid = $1 AND guildid = $2 AND action = 'BAN' AND (status = 'ACTIVE' OR status = 'PERMANENT') ORDER BY timestamp DESC LIMIT 1", [userId, mainGuild.id]);
+        if (banLog.rows[0]?.endsat) return res.status(400).json({ error: 'Temporary bans are not appealable.' });
+
+        const chRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'banappeal'", [mainGuild.id]);
+        if (!chRes.rows[0]?.channel_id) return res.status(500).json({ error: 'Appeal system is currently offline.' });
+
+        const channel = mainGuild.channels.cache.get(chRes.rows[0].channel_id);
+        if (!channel) return res.status(500).json({ error: 'Appeal channel not found.' });
+
+        const caseId = `APPEAL-${Date.now()}`;
+        const safeQ3 = (q3 && q3.trim()) || 'N/A';
+        const combinedReason = `**Why banned:** ${q1.trim()}\n**Why unban:** ${q2.trim()}\n**Extra:** ${safeQ3}`;
+
+        const discordUser = await botClient.users.fetch(userId).catch(() => null);
+        const username = discordUser?.tag || req.user.username || 'Unknown';
+        const avatarURL = discordUser?.displayAvatarURL({ dynamic: true, size: 256 }) || `https://cdn.discordapp.com/avatars/${userId}/${req.user.avatar}.png`;
+
+        const staffEmbed = new EmbedBuilder()
+            .setColor(0xF1C40F)
+            .setTitle('📝 New Ban Appeal Received')
+            .setDescription('A new ban appeal has been submitted and is **pending review**.')
+            .setThumbnail(avatarURL)
+            .addFields(
+                { name: '👤 User', value: `<@${userId}> (\`${userId}\`)`, inline: true },
+                { name: '📅 Submitted', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
+                { name: '🌐 Source', value: '`Website`', inline: true },
+                { name: '❓ 1. Why were you banned?', value: `>>> ${q1.trim()}` },
+                { name: '⚖️ 2. Why should we unban you?', value: `>>> ${q2.trim()}` },
+                { name: 'ℹ️ 3. Anything else?', value: `>>> ${safeQ3}` }
+            )
+            .setFooter({ text: `Appeal Case ID: ${caseId} • Submitted via Web` })
+            .setTimestamp();
+
+        const rows = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`appeal:accept:${caseId}:${userId}:${mainGuild.id}`).setLabel('Accept Appeal').setStyle(ButtonStyle.Success).setEmoji('✅'),
+            new ButtonBuilder().setCustomId(`appeal:reject:${caseId}:${userId}:${mainGuild.id}`).setLabel('Reject').setStyle(ButtonStyle.Danger).setEmoji('✖️'),
+            new ButtonBuilder().setCustomId(`appeal:blacklist:${caseId}:${userId}:${mainGuild.id}`).setLabel('Block & Reject').setStyle(ButtonStyle.Secondary).setEmoji('⛔')
+        );
+
+        const msg = await channel.send({ embeds: [staffEmbed], components: [rows] });
+
+        await db.query(
+            `INSERT INTO ban_appeals (user_id, username, guild_id, reason, status, message_id, timestamp, source)
+             VALUES ($1, $2, $3, $4, 'PENDING', $5, $6, 'WEB')`,
+            [userId, username, mainGuild.id, combinedReason, msg.id, Date.now()]
+        );
+
+        return res.json({ success: true });
+    } catch (err) {
+        console.error('[WEB-APPEAL-SUBMIT]', err);
+        return res.status(500).json({ error: 'An error occurred while submitting your appeal.' });
+    }
+});
 
 app.get('/guilds', auth, async (req, res) => {
     try {
@@ -237,7 +492,6 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
             duration: r.action_duration
         }));
         
-        // Load Anti-Mention and Anti-Spam configurations
         const protectionsRes = await db.query('SELECT antimention_roles, antimention_bypass, antispam FROM automod_protections WHERE guildid = $1', [guildId]);
         const protections = protectionsRes.rows[0] || { antimention_roles: [], antimention_bypass: [], antispam: {} };
         const antiMention = {
@@ -292,7 +546,6 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
     } = req.body;
 
     try {
-        // Validate prefix
         if (!prefix || prefix.trim().length === 0) {
             return res.status(400).json({ error: 'Prefix cannot be empty.' });
         }
@@ -303,7 +556,6 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
             return res.status(400).json({ error: 'Prefix contains invalid characters. Use letters, numbers, or: !@#$%^&*-_+=.?~`' });
         }
 
-        // Validate antinuke thresholds
         const threshCount = parseInt(antinuke_threshold_count);
         if (isNaN(threshCount) || threshCount < 1 || threshCount > 1000) {
             return res.status(400).json({ error: 'Antinuke threshold must be between 1 and 1000.' });
@@ -314,7 +566,6 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
             return res.status(400).json({ error: 'Antinuke window must be between 10 and 86400 seconds.' });
         }
 
-        // Normalize and validate automod rules
         const normalizeAction = (action) => {
             const map = { 'timeout': 'MUTE', 'mute': 'MUTE', 'ban': 'BAN', 'kick': 'KICK' };
             return map[String(action).toLowerCase()] || action;
@@ -323,7 +574,6 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
         if (automod_rules && Array.isArray(automod_rules)) {
             const seenWarnings = new Set();
 
-            // Normalize all actions in place
             for (const rule of automod_rules) {
                 rule.action = normalizeAction(rule.action);
             }
@@ -344,7 +594,6 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
             }
         }
 
-        // Validate custom commands
         if (custom_commands && Array.isArray(custom_commands)) {
             const seenNames = new Set();
             for (const cc of custom_commands) {
@@ -364,7 +613,6 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
             }
         }
 
-        // Validate ticket panels
         if (ticket_panels && Array.isArray(ticket_panels)) {
             const seenIds = new Set();
             for (const tp of ticket_panels) {
@@ -455,7 +703,6 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
                     [guildId, idx + 1, rule.warnings, rule.action, rule.duration || null]);
             }
         }
-        // Save Anti-Mention and Anti-Spam configurations
         const antiMentionProtected = Array.isArray(antimention_protected) ? antimention_protected : [];
         const antiMentionBypass = Array.isArray(antimention_bypass) ? antimention_bypass : [];
         const antiSpamConfig = typeof antispam_config === 'object' ? antispam_config : {};
@@ -585,6 +832,10 @@ app.post('/api/appeals/:action', auth, async (req, res, next) => {
         const appealRes = await db.query('SELECT * FROM ban_appeals WHERE id = $1', [appealId]);
         if (!appealRes.rows[0]) return res.status(404).json({ error: 'Appeal not found' });
         const appeal = appealRes.rows[0];
+        
+        if (appeal.status !== 'PENDING') {
+            return res.status(400).json({ error: `Appeal is already ${appeal.status}. Cannot process.` });
+        }
 
         const mainGuild = await botClient.guilds.fetch(process.env.DISCORD_GUILD_ID).catch(() => null);
         const targetUser = await botClient.users.fetch(appeal.user_id).catch(() => null);
@@ -594,12 +845,15 @@ app.post('/api/appeals/:action', auth, async (req, res, next) => {
 
         let dbStatus = 'PENDING', embedColor = 0xF1C40F, embedTitle = 'Updated', embedDesc = '';
 
+        const WEB_STATUS_URL = (process.env.CALLBACK_URL || '').replace(/\/auth\/discord\/callback$/, '/appeal/status');
+
         if (action === 'approve') {
             dbStatus = 'APPROVED'; embedColor = 0x2ECC71; embedTitle = '✅ Appeal Accepted'; embedDesc = `Approved by <@${moderator.id}>`;
             await mainGuild.members.unban(appeal.user_id, `Web Unban by ${moderator.username}`).catch(() => {});
             if (targetUser) {
                 const dm = new EmbedBuilder().setColor(0x2ECC71).setTitle('✅ Appeal Approved').setDescription(`Your appeal for **${mainGuild.name}** was accepted.`).addFields({ name: 'Message', value: reason || 'Welcome back!' });
-                if (process.env.DISCORD_MAIN_INVITE) dm.addFields({ name: 'Link', value: process.env.DISCORD_MAIN_INVITE });
+                if (process.env.DISCORD_MAIN_INVITE) dm.addFields({ name: '🔗 Rejoin Server', value: `[**Click here**](${process.env.DISCORD_MAIN_INVITE})` });
+                if (WEB_STATUS_URL) dm.addFields({ name: '🌐 View on Website', value: `[**Check Appeal Status**](${WEB_STATUS_URL})` });
                 await targetUser.send({ embeds: [dm] }).catch(() => {});
             }
             await db.query(`UPDATE modlogs SET status = 'EXPIRED', endsat = NULL WHERE guildid = $1 AND userid = $2 AND action = 'BAN'`, [mainGuild.id, appeal.user_id]);
@@ -609,6 +863,7 @@ app.post('/api/appeals/:action', auth, async (req, res, next) => {
             dbStatus = 'REJECTED'; embedColor = 0xE74C3C; embedTitle = '❌ Appeal Rejected'; embedDesc = `Rejected by <@${moderator.id}>`;
             if (targetUser) {
                 const dm = new EmbedBuilder().setColor(0xE74C3C).setTitle('❌ Appeal Rejected').setDescription(`Your appeal for **${mainGuild.name}** was rejected.`).addFields({ name: 'Reason', value: reason || 'No details provided.' });
+                if (WEB_STATUS_URL) dm.addFields({ name: '🌐 View on Website', value: `[**Check Appeal Status**](${WEB_STATUS_URL})` });
                 await targetUser.send({ embeds: [dm] }).catch(() => {});
             }
 
@@ -617,11 +872,18 @@ app.post('/api/appeals/:action', auth, async (req, res, next) => {
             await db.query("INSERT INTO appeal_blacklist (userid, guildid) VALUES ($1, $2) ON CONFLICT DO NOTHING", [appeal.user_id, mainGuild.id]);
             if (targetUser) {
                 const dm = new EmbedBuilder().setColor(0x000000).setTitle('⛔ Appeal Blocked').setDescription(`Your appeal was rejected and you are blocked from future appeals.`);
+                if (WEB_STATUS_URL) dm.addFields({ name: '🌐 View on Website', value: `[**Check Appeal Status**](${WEB_STATUS_URL})` });
                 await targetUser.send({ embeds: [dm] }).catch(() => {});
             }
         }
 
         await db.query("UPDATE ban_appeals SET status = $1 WHERE id = $2", [dbStatus, appealId]);
+        
+        if (dbStatus === 'BLACKLISTED') {
+            await db.query("DELETE FROM ban_appeals WHERE user_id = $1 AND guild_id = $2 AND status = 'PENDING' AND id != $3", [appeal.user_id, mainGuild.id, appealId]);
+        } else if (dbStatus === 'APPROVED' || dbStatus === 'REJECTED') {
+            await db.query("DELETE FROM ban_appeals WHERE user_id = $1 AND guild_id = $2 AND status = 'PENDING' AND id != $3", [appeal.user_id, mainGuild.id, appealId]);
+        }
 
         if (appeal.message_id) {
             const chRes = await db.query("SELECT channel_id FROM log_channels WHERE guildid = $1 AND log_type = 'banappeal'", [process.env.DISCORD_GUILD_ID]);
