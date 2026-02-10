@@ -471,7 +471,17 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
 
         if (!guild) return res.redirect('/guilds');
 
-        const settingsRes = await db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, log_channel_id FROM guild_settings WHERE guildid = $1', [guildId]);
+        let settingsRes;
+        try {
+            settingsRes = await db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, log_channel_id, delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guildId]);
+        } catch (e) {
+            // Si delete_prefix_cmd_message no existe, intenta sin ella
+            if (e.message.includes('delete_prefix_cmd_message')) {
+                settingsRes = await db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, log_channel_id FROM guild_settings WHERE guildid = $1', [guildId]);
+            } else {
+                throw e;
+            }
+        }
         const settings = {
             delete_prefix_cmd_message: false,
             ...(settingsRes.rows[0] || {})

@@ -29,10 +29,23 @@ module.exports = {
         let guildData = guildCache.get(guild.id);
       
         if (!guildData || !guildData.settings) {
-            const [settingsRes, permsRes] = await Promise.all([
-                db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, log_channel_id FROM guild_settings WHERE guildid = $1', [guild.id]),
-                db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guild.id])
-            ]);
+            let settingsRes, permsRes;
+            try {
+                [settingsRes, permsRes] = await Promise.all([
+                    db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, log_channel_id, delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guild.id]),
+                    db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guild.id])
+                ]);
+            } catch (e) {
+                // Si delete_prefix_cmd_message no existe, intenta sin ella
+                if (e.message.includes('delete_prefix_cmd_message')) {
+                    [settingsRes, permsRes] = await Promise.all([
+                        db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, log_channel_id FROM guild_settings WHERE guildid = $1', [guild.id]),
+                        db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guild.id])
+                    ]);
+                } else {
+                    throw e;
+                }
+            }
 
             guildData = { 
                 settings: {
