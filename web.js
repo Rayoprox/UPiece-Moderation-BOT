@@ -537,7 +537,7 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
 app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
     const guildId = req.params.guildId;
     const { 
-        prefix, staff_roles, 
+        prefix, delete_prefix_cmd_message, staff_roles, 
         log_mod, log_cmd, log_appeal, log_nuke,
         antinuke_enabled, antinuke_threshold_count, antinuke_threshold_time, antinuke_action, antinuke_ignore_supreme, antinuke_ignore_verified,
         lockdown_channels,
@@ -678,7 +678,7 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
             }
         }
 
-        await db.query(`INSERT INTO guild_settings (guildid, prefix, staff_roles) VALUES ($1, $2, $3) ON CONFLICT (guildid) DO UPDATE SET prefix = $2, staff_roles = $3`, [guildId, prefix || '!', staff_roles || null]);
+        await db.query(`INSERT INTO guild_settings (guildid, prefix, delete_prefix_cmd_message, staff_roles) VALUES ($1, $2, $3, $4) ON CONFLICT (guildid) DO UPDATE SET prefix = $2, delete_prefix_cmd_message = $3, staff_roles = $4`, [guildId, prefix || '!', delete_prefix_cmd_message === 'on', staff_roles || null]);
 
         const updateLog = async (type, chId) => {
             if (chId) await db.query(`INSERT INTO log_channels (guildid, log_type, channel_id) VALUES ($1, $2, $3) ON CONFLICT (guildid, log_type) DO UPDATE SET channel_id = $3`, [guildId, type, chId]);

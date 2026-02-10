@@ -9,6 +9,14 @@ const { validateCommandPermissions, sendCommandLog } = require('../utils/logicHe
 
 const antiSpamState = new Map();
 
+function scheduleCommandMessageDeletion(message, guildData) {
+    if (guildData.settings?.delete_prefix_cmd_message) {
+        setTimeout(() => {
+            message.delete().catch(() => {});
+        }, 500);
+    }
+}
+
 module.exports = {
     name: Events.MessageCreate,
     async execute(message) {
@@ -27,7 +35,11 @@ module.exports = {
             ]);
 
             guildData = { 
-                settings: settingsRes.rows[0] || { prefix: '!' }, 
+                settings: {
+                    prefix: '!',
+                    delete_prefix_cmd_message: false,
+                    ...settingsRes.rows[0]
+                },
                 permissions: permsRes.rows || [] 
             };
             
@@ -61,16 +73,7 @@ module.exports = {
 
                             const roleName = primaryRole ? primaryRole.name : 'that role';
 
-                            if (process.env.NODE_ENV !== 'production') {
-                                try {
-                                    console.log('[AUTOMOD][ANTIMENTION] guild=', guild.id, 'protectedRolesRaw=', protectedRoles);
-                                    console.log('[AUTOMOD][ANTIMENTION] resolvedRoles=', protectedRoleObjs.map(r => ({ id: r.id, name: r.name, position: r.position })));
-                                    console.log('[AUTOMOD][ANTIMENTION] primaryRole=', primaryRole ? { id: primaryRole.id, name: primaryRole.name, position: primaryRole.position } : null);
-                                    console.log('[AUTOMOD][ANTIMENTION] offendingUser=', offending.id, 'messageContent=', message.content);
-                                } catch (err) {
-                                    console.error('[AUTOMOD][ANTIMENTION] diagnostic log error', err);
-                                }
-                            }
+
                             const embed = new EmbedBuilder()
                                 .setDescription(`Please do not mention ${roleName}. This server protects that role from direct mentions.`)
                                 .setColor('#f43f5e')
@@ -185,7 +188,9 @@ module.exports = {
         );
 
         if (!result.valid) {
-            return message.reply({ embeds: [error(result.reason)] });
+            message.channel.send({ embeds: [error(result.reason)] });
+            scheduleCommandMessageDeletion(message, guildData);
+            return;
         }
 
         const resolvedOptions = {};
@@ -205,7 +210,9 @@ module.exports = {
                 definedOptions = subOption.options || []; 
             } else {
                 if (args.length > 0) {
-                     return message.reply({ embeds: [error(`Invalid subcommand. Available: ${definedOptions.map(o => o.name).join(', ')}`)] });
+                     message.channel.send({ embeds: [error(`Invalid subcommand. Available: ${definedOptions.map(o => o.name).join(', ')}`)] });
+                     scheduleCommandMessageDeletion(message, guildData);
+                     return;
                 }
             }
         }
@@ -215,7 +222,9 @@ module.exports = {
         for (const optionDef of definedOptions) {
             if (argIndex >= args.length) {
                 if (optionDef.required) {
-                    return message.reply({ embeds: [error(`Missing required argument: **${optionDef.name}**`)] });
+                    message.channel.send({ embeds: [error(`Missing required argument: **${optionDef.name}**`)] });
+                    scheduleCommandMessageDeletion(message, guildData);
+                    return;
                 }
                 break; 
             }
@@ -233,7 +242,9 @@ module.exports = {
                     if (!optionDef.required) {
                         continue; 
                     } else {
-                         return message.reply({ embeds: [error(`Invalid duration format for **${optionDef.name}**. Expected format like 10m, 1h or 'off'.`)] });
+                         message.channel.send({ embeds: [error(`Invalid duration format for **${optionDef.name}**. Expected format like 10m, 1h or 'off'.`)] });
+                         scheduleCommandMessageDeletion(message, guildData);
+                         return;
                     }
                 }
             } 
@@ -245,7 +256,9 @@ module.exports = {
                 const resolvedValue = await resolveArgument(message.guild, optionDef.type, rawArg);
                 
                 if (resolvedValue === null && optionDef.required) {
-                     return message.reply({ embeds: [error(`Invalid argument for **${optionDef.name}**. Expected: ${optionDef.description}`)] });
+                     message.channel.send({ embeds: [error(`Invalid argument for **${optionDef.name}**. Expected: ${optionDef.description}`)] });
+                     scheduleCommandMessageDeletion(message, guildData);
+                     return;
                 }
                 
                 if (resolvedValue !== null) {
@@ -266,7 +279,9 @@ module.exports = {
             await sendCommandLog(interactionShim, db, result.isAdmin).catch(() => {});
         } catch (err) {
             console.error(`Error processing prefix command ${commandName}:`, err);
-            message.reply({ embeds: [error("An error occurred while executing this command.")] }).catch(()=>{});
+            message.channel.send({ embeds: [error("An error occurred while executing this command.")] }).catch(()=>{});
         }
+        
+        scheduleCommandMessageDeletion(message, guildData);
     },
 };

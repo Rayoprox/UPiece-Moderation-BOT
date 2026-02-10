@@ -158,6 +158,7 @@ const db = {
         
         try { await db.query(`ALTER TABLE guild_settings ADD COLUMN universal_lock BOOLEAN DEFAULT FALSE`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE guild_settings ADD COLUMN prefix TEXT DEFAULT '!'`, [], true); } catch (e) {}
+        try { await db.query(`ALTER TABLE guild_settings ADD COLUMN delete_prefix_cmd_message BOOLEAN DEFAULT FALSE`, [], true); } catch (e) {}
     
         try { await db.query(`ALTER TABLE guild_settings ADD COLUMN log_channel_id TEXT`, [], true); } catch (e) {} 
 

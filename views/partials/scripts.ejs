@@ -426,6 +426,7 @@
         };
         const data = {
             prefix: prefix,
+            delete_prefix_cmd_message: document.getElementById('delete_prefix_cmd_message').checked ? 'on':'off',
             staff_roles: Array.from(document.getElementById('staff_roles').selectedOptions).map(o=>o.value).filter(v=>v).join(','),
             log_mod: document.getElementById('log_mod').value,
             log_cmd: document.getElementById('log_cmd').value,

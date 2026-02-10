@@ -4,7 +4,7 @@ async function resolveArgument(guild, type, content) {
     if (!content) return null;
 
     switch (type) {
-        case 6: 
+        case 6:
             const userMatch = content.match(/^<@!?(\d+)>$/) || content.match(/^(\d{17,19})$/);
             if (userMatch) {
                 try {
@@ -13,25 +13,21 @@ async function resolveArgument(guild, type, content) {
             }
             return null;
 
-        case 7: 
+        case 7:
             const channelMatch = content.match(/^<#(\d+)>$/) || content.match(/^(\d{17,19})$/);
             if (channelMatch) return guild.channels.cache.get(channelMatch[1]) || null;
             return null;
         
-        case 8: 
-          
+        case 8:
             const roleMatch = content.match(/^<@&(\d+)>$/) || content.match(/^(\d{17,19})$/);
             if (roleMatch) return guild.roles.cache.get(roleMatch[1]) || null;
 
-           
             const search = content.toLowerCase();
             const rolesCache = guild.roles.cache;
 
-           
             const exactMatch = rolesCache.find(r => r.name.toLowerCase() === search);
             if (exactMatch) return exactMatch;
 
-            
             if (search.length < 2) return null; 
 
             
@@ -41,18 +37,14 @@ async function resolveArgument(guild, type, content) {
 
             if (!matches.size) return null;
 
-           
             const sortedMatches = matches.sort((roleA, roleB) => {
                 const nameA = roleA.name.toLowerCase();
                 const nameB = roleB.name.toLowerCase();
                 const startsA = nameA.startsWith(search);
                 const startsB = nameB.startsWith(search);
 
-                
                 if (startsA && !startsB) return -1;
                 if (!startsA && startsB) return 1;
-
-                
                 return nameA.length - nameB.length;
             });
 
@@ -62,16 +54,16 @@ async function resolveArgument(guild, type, content) {
             const intVal = parseInt(content);
             return isNaN(intVal) ? null : intVal;
 
-        case 10: 
+        case 10:
             const numVal = parseFloat(content);
             return isNaN(numVal) ? null : numVal;
             
-        case 5: 
+        case 5:
             const lower = content.toLowerCase();
             return (lower === 'true' || lower === 'yes' || lower === 'si' || lower === 'on' || lower === '1') ? true : 
                    (lower === 'false' || lower === 'no' || lower === 'off' || lower === '0') ? false : null;
 
-        case 3: 
+        case 3:
         default:
             return content;
     }
@@ -93,8 +85,7 @@ class PrefixInteraction {
         this.deferred = false;
         this.replyMessage = null;
 
-    
-        this.type = 2; 
+        this.type = 2;
         this.commandType = 1;
 
         this.options = {
@@ -115,8 +106,7 @@ class PrefixInteraction {
 
     async deferReply({ ephemeral } = {}) {
         this.deferred = true;
-    
-        return this.message; 
+        return this.message;
     }
     
     async deferUpdate() { return this.deferReply(); }
@@ -134,22 +124,17 @@ class PrefixInteraction {
         this.replied = true;
         
         try {
-      
-            this.replyMessage = await this.message.reply(content);
+            this.replyMessage = await this.channel.send(content).catch(e => {
+                console.error("[PREFIX] Send failed:", e);
+                return null;
+            });
         } catch (err) {
-            
-            if (err.code === 10008 || err.code === 50035) {
-      
-                this.replyMessage = await this.channel.send(content).catch(e => console.error("[PREFIX] Send failed:", e));
-            } else {
-                console.error("[PREFIX] Reply failed:", err);
-            }
+            console.error("[PREFIX] Reply failed:", err);
         }
         return this.replyMessage;
     }
 
-    async followUp(content) { 
-
+    async followUp(content) {
         return this.channel.send(content).catch(console.error);
     }
     
@@ -157,7 +142,7 @@ class PrefixInteraction {
     async fetchReply() { return this.replyMessage || this.message; }
 
     isRepliable() { return true; }
-    isChatInputCommand() { return true; } 
+    isChatInputCommand() { return true; }
     
     toString() { return this.message.content; }
 }

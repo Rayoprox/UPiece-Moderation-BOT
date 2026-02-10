@@ -13,18 +13,18 @@ module.exports = {
         .setDescription('Bans a member and immediately unbans them to clear their recent messages.')
         .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages) 
         .addUserOption(option => option.setName('user').setDescription('The user to softban (mention or ID).').setRequired(true))
-        .addStringOption(option => option.setName('reason').setDescription('The reason for the softban and message deletion.').setRequired(true))
+        .addStringOption(option => option.setName('reason').setDescription('The reason for the softban and message deletion.').setRequired(false))
         .addStringOption(option => option.setName('delete_messages').setDescription('Select timeframe of messages to delete.')
             .addChoices(
                 { name: 'Last hour', value: '3600' }, 
                 { name: 'Last 24 hours', value: '86400' }, 
                 { name: 'Last 7 days', value: '604800' }
-            ).setRequired(true)),
+            ).setRequired(false)),
 
     async execute(interaction) {
         const targetUser = interaction.options.getUser('user');
-        const reason = interaction.options.getString('reason');
-        const deleteMessageSeconds = parseInt(interaction.options.getString('delete_messages'), 10);
+        const reason = interaction.options.getString('reason') || 'No reason provided';
+        const deleteMessageSeconds = parseInt(interaction.options.getString('delete_messages') || '86400', 10);
         const moderatorMember = interaction.member;
         const guildId = interaction.guild.id;
         const moderatorTag = interaction.user.tag;

@@ -11,6 +11,7 @@ const setupRoles = require('./setup_sections/roles.js');
 const setupPermissions = require('./setup_sections/permissions.js');
 const setupAntinuke = require('./setup_sections/antinuke.js');
 const setupReset = require('./setup_sections/reset.js');
+const setupPrefix = require('./setup_sections/prefix.js');
 const ticketSetup = require('../tickets/ticketSetup.js');
 const setupAutomod = require('./automod.js'); 
 const setupAutomodMain = require('./automod_main.js'); 
@@ -19,48 +20,8 @@ module.exports = {
     async execute(interaction) {
         const { customId, guild } = interaction;
 
-        if (customId === 'setup_prefix') {
-            const modal = new ModalBuilder().setCustomId('modal_setup_prefix').setTitle('Change Server Prefix');
-            const prefixInput = new TextInputBuilder().setCustomId('prefix_input').setLabel("New Prefix (Max 3 chars)").setStyle(TextInputStyle.Short).setPlaceholder('!, ., ?, kb!, etc.').setMaxLength(3).setRequired(true);
-            const row = new ActionRowBuilder().addComponents(prefixInput);
-            modal.addComponents(row);
-            await interaction.showModal(modal);
-            return;
-        }
-
-        if (interaction.isModalSubmit && interaction.isModalSubmit()) {
-            if (customId === 'modal_setup_prefix') {
-                if (!await safeDefer(interaction, false, true)) return;
-                
-                const newPrefix = interaction.fields.getTextInputValue('prefix_input').trim();
-                
-                if (!newPrefix) return smartReply(interaction, { embeds: [error("Prefix cannot be empty.")] });
-                if (newPrefix.length > 3) return smartReply(interaction, { embeds: [error("Prefix must be 3 characters or less.")] });
-                if (!/^[a-zA-Z0-9!@#$%^&*\-_+=.?~`]+$/.test(newPrefix)) return smartReply(interaction, { embeds: [error("Prefix contains invalid characters. Use letters, numbers, or: !@#$%^&*-_+=.?~`")] });
-
-                try {
-                    await db.query(`INSERT INTO guild_settings (guildid, prefix) VALUES ($1, $2) ON CONFLICT (guildid) DO UPDATE SET prefix = $2`, [guild.id, newPrefix]);
-                    
-                    let cached = guildCache.get(guild.id);
-                    if (!cached) cached = { settings: {}, permissions: [] };
-                    cached.settings.prefix = newPrefix;
-                    guildCache.set(guild.id, cached);
-
-                    if (interaction.message) {
-                        const { embed, components } = await setupHome.generateSetupContent(interaction, guild.id);
-                        await interaction.message.edit({ embeds: [embed], components }).catch(() => {});
-                    }
-                    
-                    await smartReply(interaction, { embeds: [success(`Prefix successfully changed to: \`${newPrefix}\``)] });
-                } catch (err) {
-                    console.error(err);
-                    await smartReply(interaction, { embeds: [error("Database error.")] });
-                }
-                return;
-            }
-            if (customId.startsWith('automod_')) {
-                return await setupAutomod(interaction);
-            }
+        if (customId === 'setup_prefix' || customId === 'prefix_change' || customId === 'prefix_toggle_delete' || customId === 'modal_prefix_change') {
+            return await setupPrefix(interaction);
         }
 
        

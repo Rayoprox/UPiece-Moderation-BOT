@@ -163,7 +163,7 @@ async function claimTicket(interaction, client, db) {
             });
             return newRow;
         });
-        if (interaction.isButton() && !interaction.deferred && !interaction.replied) await interaction.update({ components: rows });
+        if (interaction.isButton?.() && !interaction.deferred && !interaction.replied) await interaction.update({ components: rows });
         else await targetMsg.edit({ components: rows });
     }
 
@@ -201,7 +201,7 @@ async function unclaimTicket(interaction, client, db) {
             });
             return newRow;
         });
-        if (interaction.isButton() && !interaction.deferred && !interaction.replied) await interaction.update({ components: rows });
+        if (interaction.isButton?.() && !interaction.deferred && !interaction.replied) await interaction.update({ components: rows });
         else await targetMsg.edit({ components: rows });
     }
 
