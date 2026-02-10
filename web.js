@@ -471,7 +471,7 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
 
         if (!guild) return res.redirect('/guilds');
 
-        const settingsRes = await db.query('SELECT * FROM guild_settings WHERE guildid = $1', [guildId]);
+        const settingsRes = await db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, delete_prefix_cmd_message, log_channel_id FROM guild_settings WHERE guildid = $1', [guildId], true);
         const settings = settingsRes.rows[0] || {};
 
         const logsRes = await db.query('SELECT log_type, channel_id FROM log_channels WHERE guildid = $1', [guildId]);
