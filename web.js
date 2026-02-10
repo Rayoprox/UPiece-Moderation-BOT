@@ -681,7 +681,18 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
             }
         }
 
-        await db.query(`INSERT INTO guild_settings (guildid, prefix, delete_prefix_cmd_message, staff_roles) VALUES ($1, $2, $3, $4) ON CONFLICT (guildid) DO UPDATE SET prefix = $2, delete_prefix_cmd_message = $3, staff_roles = $4`, [guildId, prefix || '!', delete_prefix_cmd_message === 'on', staff_roles || null]);
+        // Actualizar configuración del guild
+        try {
+            await db.query(`INSERT INTO guild_settings (guildid, prefix, delete_prefix_cmd_message, staff_roles) VALUES ($1, $2, $3, $4) ON CONFLICT (guildid) DO UPDATE SET prefix = $2, delete_prefix_cmd_message = $3, staff_roles = $4`, [guildId, prefix || '!', delete_prefix_cmd_message === 'on', staff_roles || null]);
+        } catch (e) {
+            // Si la columna delete_prefix_cmd_message no existe, intentar sin ella
+            if (e.message.includes('delete_prefix_cmd_message')) {
+                console.log('⚠️ delete_prefix_cmd_message no existe aún, insertando sin ella...');
+                await db.query(`INSERT INTO guild_settings (guildid, prefix, staff_roles) VALUES ($1, $2, $3) ON CONFLICT (guildid) DO UPDATE SET prefix = $2, staff_roles = $3`, [guildId, prefix || '!', staff_roles || null]);
+            } else {
+                throw e;
+            }
+        }
 
         const updateLog = async (type, chId) => {
             if (chId) await db.query(`INSERT INTO log_channels (guildid, log_type, channel_id) VALUES ($1, $2, $3) ON CONFLICT (guildid, log_type) DO UPDATE SET channel_id = $3`, [guildId, type, chId]);

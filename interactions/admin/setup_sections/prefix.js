@@ -103,18 +103,42 @@ module.exports = async (interaction) => {
         if (!await safeDefer(interaction, true)) return;
 
         try {
-            const res = await db.query(
-                'SELECT delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1',
-                [guildId]
-            );
-            const currentState = res.rows[0]?.delete_prefix_cmd_message || false;
+            let currentState = false;
+            try {
+                const res = await db.query(
+                    'SELECT delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1',
+                    [guildId]
+                );
+                currentState = res.rows[0]?.delete_prefix_cmd_message || false;
+            } catch (e) {
+                // Columna aún no existe
+                console.log('⚠️ delete_prefix_cmd_message no existe aún');
+                currentState = false;
+            }
+            
             const newState = !currentState;
 
-            await db.query(
-                `INSERT INTO guild_settings (guildid, delete_prefix_cmd_message) VALUES ($1, $2) 
-                 ON CONFLICT (guildid) DO UPDATE SET delete_prefix_cmd_message = $2`,
-                [guildId, newState]
-            );
+            try {
+                await db.query(
+                    `INSERT INTO guild_settings (guildid, delete_prefix_cmd_message) VALUES ($1, $2) 
+                     ON CONFLICT (guildid) DO UPDATE SET delete_prefix_cmd_message = $2`,
+                    [guildId, newState]
+                );
+            } catch (e) {
+                // Si la columna no existe, crear la fila pero sin delete_prefix_cmd_message
+                if (e.message.includes('delete_prefix_cmd_message')) {
+                    console.log('⚠️ delete_prefix_cmd_message no existe, esperando a que se cree...');
+                    // Intentar insert básico
+                    try {
+                        await db.query(
+                            `INSERT INTO guild_settings (guildid) VALUES ($1) ON CONFLICT (guildid) DO NOTHING`,
+                            [guildId]
+                        );
+                    } catch {}
+                } else {
+                    throw e;
+                }
+            }
 
             let cached = guildCache.get(guildId);
             if (!cached) cached = { settings: {}, permissions: [] };

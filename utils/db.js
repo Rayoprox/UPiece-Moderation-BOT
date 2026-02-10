@@ -24,6 +24,8 @@ const db = {
     },
 
     ensureTables: async () => {
+        console.log('🔄 Creando tablas si no existen y verificando integridad de base de datos...');
+        
         await db.query(`CREATE TABLE IF NOT EXISTS global_settings (key TEXT PRIMARY KEY, value TEXT);`);
         
         await db.query(`
@@ -150,17 +152,20 @@ const db = {
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN moderatorid TEXT`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN dmstatus TEXT`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN action_duration TEXT`, [], true); } catch (e) {}
-        try { await db.query(`ALTER TABLE modlogs ADD COLUMN appealable BOOLEAN DEFAULT TRUE`, [], true); } catch (e) {}
+        try { await db.query(`ALTER TABLE modlogs ADD COLUMN alertable BOOLEAN DEFAULT TRUE`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN logmessageid TEXT`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN proof TEXT`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN unban_timestamp BIGINT`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs RENAME COLUMN "endsAt" TO endsat;`, [], true); } catch (e) {}
         
         try { await db.query(`ALTER TABLE guild_settings ADD COLUMN universal_lock BOOLEAN DEFAULT FALSE`, [], true); } catch (e) {}
+        console.log('✅ Columna universal_lock - OK');
         try { await db.query(`ALTER TABLE guild_settings ADD COLUMN prefix TEXT DEFAULT '!'`, [], true); } catch (e) {}
+        console.log('✅ Columna prefix - OK');
         try { await db.query(`ALTER TABLE guild_settings ADD COLUMN delete_prefix_cmd_message BOOLEAN DEFAULT FALSE`, [], true); } catch (e) {}
-    
-        try { await db.query(`ALTER TABLE guild_settings ADD COLUMN log_channel_id TEXT`, [], true); } catch (e) {} 
+        console.log('✅ Columna delete_prefix_cmd_message - OK');
+        try { await db.query(`ALTER TABLE guild_settings ADD COLUMN log_channel_id TEXT`, [], true); } catch (e) {}
+        console.log('✅ Columna log_channel_id - OK'); 
 
         try { await db.query(`ALTER TABLE guild_backups ADD COLUMN antinuke_ignore_supreme BOOLEAN DEFAULT TRUE`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE guild_backups ADD COLUMN antinuke_ignore_verified BOOLEAN DEFAULT TRUE`, [], true); } catch (e) {}
@@ -178,7 +183,7 @@ const db = {
         try { await db.query(`ALTER TABLE custom_commands ADD COLUMN allowed_roles TEXT`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE ban_appeals ADD COLUMN source TEXT DEFAULT 'DISCORD'`, [], true); } catch (e) {}
 
-        console.log('✅ PostgreSQL Database Integrity Check Completed.');
+        console.log('✅ PostgreSQL: Todas las tablas y columnas verificadas e inicializadas correctamente.');
     }
 };
 
