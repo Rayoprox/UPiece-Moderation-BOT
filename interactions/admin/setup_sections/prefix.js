@@ -5,14 +5,28 @@ const { success, error } = require('../../../utils/embedFactory.js');
 const { safeDefer, smartReply } = require('../../../utils/interactionHelpers.js');
 
 async function showPrefixMenu(interaction, guildId) {
-    const res = await db.query('SELECT prefix, delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guildId]);
-    const settings = res.rows[0] || { prefix: '!', delete_prefix_cmd_message: false };
+    let settings = { prefix: '!', delete_prefix_cmd_message: false };
+    
+    try {
+        const res = await db.query('SELECT prefix, delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guildId]);
+        if (res.rows[0]) settings = res.rows[0];
+    } catch (e) {
+        // Columna delete_prefix_cmd_message no existe, intentar sin ella
+        try {
+            const res = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guildId]);
+            if (res.rows[0]) {
+                settings = { prefix: res.rows[0].prefix, delete_prefix_cmd_message: false };
+            }
+        } catch (e2) {
+            console.log('⚠️ No se pudo obtener configuración del prefix');
+        }
+    }
 
     const embed = new EmbedBuilder()
         .setTitle('⌨️ Prefix Configuration')
         .setDescription('Manage your server prefix and command message behavior.')
         .addFields(
-            { name: 'Current Prefix', value: `\`${settings.prefix}\``, inline: true },
+            { name: 'Current Prefix', value: `\`${settings.prefix || '!'}\``, inline: true },
             { name: 'Delete Command Messages', value: settings.delete_prefix_cmd_message ? '✅ ENABLED' : '❌ DISABLED', inline: true }
         )
         .setColor('#5865F2')
