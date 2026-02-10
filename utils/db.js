@@ -37,7 +37,7 @@ const db = {
         `);
 
         await db.query(`CREATE TABLE IF NOT EXISTS log_channels (id SERIAL PRIMARY KEY, guildid TEXT NOT NULL, log_type TEXT NOT NULL, channel_id TEXT, UNIQUE (guildid, log_type));`);
-        await db.query(`CREATE TABLE IF NOT EXISTS guild_settings (id SERIAL PRIMARY KEY, guildid TEXT UNIQUE NOT NULL, staff_roles TEXT, mod_immunity BOOLEAN DEFAULT TRUE, universal_lock BOOLEAN DEFAULT FALSE, prefix TEXT DEFAULT '!');`);
+        await db.query(`CREATE TABLE IF NOT EXISTS guild_settings (id SERIAL PRIMARY KEY, guildid TEXT UNIQUE NOT NULL, staff_roles TEXT, mod_immunity BOOLEAN DEFAULT TRUE, universal_lock BOOLEAN DEFAULT FALSE, prefix TEXT DEFAULT '!', delete_prefix_cmd_message BOOLEAN DEFAULT FALSE, log_channel_id TEXT);`);
         await db.query(`CREATE TABLE IF NOT EXISTS command_permissions (id SERIAL PRIMARY KEY, guildid TEXT NOT NULL, command_name TEXT NOT NULL, role_id TEXT NOT NULL, UNIQUE (guildid, command_name, role_id));`);
         await db.query(`CREATE TABLE IF NOT EXISTS automod_rules (id SERIAL PRIMARY KEY, guildid TEXT NOT NULL, rule_order INTEGER NOT NULL, warnings_count INTEGER NOT NULL, action_type TEXT NOT NULL, action_duration TEXT, UNIQUE (guildid, warnings_count));`);
         await db.query(`CREATE TABLE IF NOT EXISTS automod_protections (guildid TEXT PRIMARY KEY, antimention_roles TEXT[], antimention_bypass TEXT[], antispam JSONB);`);
