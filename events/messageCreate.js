@@ -30,7 +30,7 @@ module.exports = {
       
         if (!guildData || !guildData.settings) {
             const [settingsRes, permsRes] = await Promise.all([
-                db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, delete_prefix_cmd_message, log_channel_id FROM guild_settings WHERE guildid = $1', [guild.id], true),
+                db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, log_channel_id FROM guild_settings WHERE guildid = $1', [guild.id]),
                 db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guild.id])
             ]);
 
