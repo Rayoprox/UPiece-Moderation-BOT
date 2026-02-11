@@ -8,10 +8,11 @@ async function showPrefixMenu(interaction, guildId) {
     let settings = { prefix: '!', delete_prefix_cmd_message: false };
     
     try {
+        // Intenta con columna delete_prefix_cmd_message
         const res = await db.query('SELECT prefix, delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guildId]);
         if (res.rows[0]) settings = res.rows[0];
     } catch (e) {
-        // Columna delete_prefix_cmd_message no existe, intentar sin ella
+        // Si no existe, intenta sin ella
         try {
             const res = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guildId]);
             if (res.rows[0]) {
