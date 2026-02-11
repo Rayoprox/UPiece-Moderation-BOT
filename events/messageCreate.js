@@ -49,6 +49,16 @@ module.exports = {
                 permissions: permsRes.rows || [] 
             };
             
+            // Intenta obtener delete_prefix_cmd_message si existe (silent mode)
+            try {
+                const delRes = await db.query('SELECT delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guild.id], true);
+                if (delRes.rows?.[0]?.delete_prefix_cmd_message !== undefined) {
+                    guildData.settings.delete_prefix_cmd_message = delRes.rows[0].delete_prefix_cmd_message;
+                }
+            } catch (e) {
+                // Column doesn't exist, use default
+            }
+            
             guildCache.set(guild.id, guildData);
         }
 

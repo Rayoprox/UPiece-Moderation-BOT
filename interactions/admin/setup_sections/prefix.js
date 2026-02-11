@@ -7,20 +7,24 @@ const { safeDefer, smartReply } = require('../../../utils/interactionHelpers.js'
 async function showPrefixMenu(interaction, guildId) {
     let settings = { prefix: '!', delete_prefix_cmd_message: false };
     
+    // Intenta obtener ambas columnas (silent si no existen)
     try {
-        // Intenta con columna delete_prefix_cmd_message
-        const res = await db.query('SELECT prefix, delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guildId]);
-        if (res.rows[0]) settings = res.rows[0];
-    } catch (e) {
-        // Si no existe, intenta sin ella
-        try {
-            const res = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guildId]);
-            if (res.rows[0]) {
-                settings = { prefix: res.rows[0].prefix, delete_prefix_cmd_message: false };
-            }
-        } catch (e2) {
-            console.log('⚠️ No se pudo obtener configuración del prefix');
+        const res = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guildId]);
+        if (res.rows[0]) {
+            settings.prefix = res.rows[0].prefix;
         }
+    } catch (e) {
+        console.log('⚠️ Error obteniendo prefix');
+    }
+
+    // Intenta obtener delete_prefix_cmd_message si existe
+    try {
+        const res = await db.query('SELECT delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guildId], true);
+        if (res.rows?.[0]?.delete_prefix_cmd_message !== undefined) {
+            settings.delete_prefix_cmd_message = res.rows[0].delete_prefix_cmd_message;
+        }
+    } catch (e) {
+        // Columna no existe, usa valor por defecto
     }
 
     const embed = new EmbedBuilder()
@@ -118,53 +122,27 @@ module.exports = async (interaction) => {
         if (!await safeDefer(interaction, true)) return;
 
         try {
-            let currentState = false;
-            try {
-                const res = await db.query(
-                    'SELECT delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1',
-                    [guildId]
-                );
-                currentState = res.rows[0]?.delete_prefix_cmd_message || false;
-            } catch (e) {
-                // Columna aún no existe
-                console.log('⚠️ delete_prefix_cmd_message no existe aún');
-                currentState = false;
-            }
-            
-            const newState = !currentState;
-
-            try {
-                await db.query(
-                    `INSERT INTO guild_settings (guildid, delete_prefix_cmd_message) VALUES ($1, $2) 
-                     ON CONFLICT (guildid) DO UPDATE SET delete_prefix_cmd_message = $2`,
-                    [guildId, newState]
-                );
-            } catch (e) {
-                // Si la columna no existe, crear la fila pero sin delete_prefix_cmd_message
-                if (e.message.includes('delete_prefix_cmd_message')) {
-                    console.log('⚠️ delete_prefix_cmd_message no existe, esperando a que se cree...');
-                    // Intentar insert básico
-                    try {
-                        await db.query(
-                            `INSERT INTO guild_settings (guildid) VALUES ($1) ON CONFLICT (guildid) DO NOTHING`,
-                            [guildId]
-                        );
-                    } catch {}
-                } else {
-                    throw e;
-                }
-            }
+            // Intenta actualizar la columna, pero si no existe, ignora el error
+            await db.query(
+                `INSERT INTO guild_settings (guildid, delete_prefix_cmd_message) VALUES ($1, TRUE) 
+                 ON CONFLICT (guildid) DO UPDATE SET delete_prefix_cmd_message = NOT EXCLUDED.delete_prefix_cmd_message`,
+                [guildId],
+                true  // silent mode - ignore error if column doesn't exist
+            ).catch(() => {
+                // Si falla por columna no existente, solo continúa
+                console.log('ℹ️  delete_prefix_cmd_message aún no está disponible en BD');
+            });
 
             let cached = guildCache.get(guildId);
             if (!cached) cached = { settings: {}, permissions: [] };
-            cached.settings.delete_prefix_cmd_message = newState;
+            cached.settings.delete_prefix_cmd_message = !cached.settings.delete_prefix_cmd_message;
             guildCache.set(guildId, cached);
 
             const { embed, components } = await showPrefixMenu(interaction, guildId);
             await smartReply(interaction, { embeds: [embed], components });
         } catch (err) {
             console.error(err);
-            await smartReply(interaction, { embeds: [error("Database error.")] });
+            await smartReply(interaction, { embeds: [error("Error processing toggle.")] });
         }
         return;
     }

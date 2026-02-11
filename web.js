@@ -476,6 +476,16 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
             delete_prefix_cmd_message: false,
             ...(settingsRes.rows[0] || {})
         };
+        
+        // Intenta obtener delete_prefix_cmd_message si existe
+        try {
+            const delRes = await db.query('SELECT delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guildId], true);
+            if (delRes.rows?.[0]?.delete_prefix_cmd_message !== undefined) {
+                settings.delete_prefix_cmd_message = delRes.rows[0].delete_prefix_cmd_message;
+            }
+        } catch (e) {
+            // Column doesn't exist yet, use default
+        }
 
         const logsRes = await db.query('SELECT log_type, channel_id FROM log_channels WHERE guildid = $1', [guildId]);
         const logs = {};
