@@ -9,10 +9,14 @@ async function showPrefixMenu(interaction, guildId) {
     
     try {
         const res = await db.query('SELECT prefix, delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guildId]);
-        if (res.rows[0]) settings = res.rows[0];
+        if (res.rows[0]) {
+            settings = res.rows[0];
+            console.log(`ℹ️  [showPrefixMenu] Cargado: prefix="${settings.prefix}", delete_prefix_cmd_message=${settings.delete_prefix_cmd_message}`);
+        }
     } catch (e) {
         // Si falla por columna no existente, intenta sin delete_prefix_cmd_message
         if (e.message.includes('delete_prefix_cmd_message')) {
+            console.log('⚠️  [showPrefixMenu] Columna delete_prefix_cmd_message no existe, usando fallback');
             const res = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guildId]);
             if (res.rows[0]) settings = { prefix: res.rows[0].prefix, delete_prefix_cmd_message: false };
         } else {
@@ -142,6 +146,7 @@ module.exports = async (interaction) => {
                      ON CONFLICT (guildid) DO UPDATE SET delete_prefix_cmd_message = $2`,
                     [guildId, newState]
                 );
+                console.log(`✅ [prefix toggle] Guardado delete_prefix_cmd_message=${newState} para guild ${guildId}`);
             } catch (e) {
                 if (e.message?.includes('delete_prefix_cmd_message')) {
                     console.log('ℹ️  No se pudo actualizar delete_prefix_cmd_message (columna no existe aún)');

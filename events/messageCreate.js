@@ -10,10 +10,20 @@ const { validateCommandPermissions, sendCommandLog } = require('../utils/logicHe
 const antiSpamState = new Map();
 
 function scheduleCommandMessageDeletion(message, guildData) {
-    if (guildData.settings?.delete_prefix_cmd_message) {
+    const shouldDelete = guildData.settings?.delete_prefix_cmd_message;
+    
+    if (shouldDelete) {
+        console.log(`🗑️  [${message.guild.name}] Eliminando comando: "${message.content.substring(0, 50)}" en ${guildData.settings.delete_prefix_cmd_message ? 'HABILITADO' : 'DESHABILITADO'}`);
         setTimeout(() => {
-            message.delete().catch(() => {});
+            message.delete().catch((err) => {
+                console.log(`⚠️  No se pudo eliminar mensaje: ${err.message}`);
+            });
         }, 500);
+    } else {
+        // Debug: mostrar por qué NO se elimina
+        if (process.env.DEBUG_DELETE_PREFIX) {
+            console.log(`[${message.guild.name}] NO eliminar comando - delete_prefix_cmd_message=${shouldDelete} (guildData.settings=${JSON.stringify(guildData.settings).substring(0, 100)})`);
+        }
     }
 }
 
@@ -38,6 +48,7 @@ module.exports = {
             } catch (e) {
                 // Si falla por columna no existente, intenta sin delete_prefix_cmd_message
                 if (e.message.includes('delete_prefix_cmd_message')) {
+                    console.log('⚠️  [messageCreate] Columna delete_prefix_cmd_message aún no existe, usando fallback');
                     [settingsRes, permsRes] = await Promise.all([
                         db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, log_channel_id FROM guild_settings WHERE guildid = $1', [guild.id]),
                         db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guild.id])
@@ -47,14 +58,20 @@ module.exports = {
                 }
             }
 
+            const baseSettings = settingsRes.rows[0] || {};
             guildData = { 
                 settings: {
                     prefix: '!',
-                    delete_prefix_cmd_message: false,
-                    ...settingsRes.rows[0]
+                    delete_prefix_cmd_message: baseSettings.delete_prefix_cmd_message ?? false,
+                    ...baseSettings
                 },
                 permissions: permsRes.rows || [] 
             };
+            
+            // DEBUG: Log la configuración cargada
+            if (baseSettings.delete_prefix_cmd_message !== undefined) {
+                console.log(`✅ [${guild.name}] delete_prefix_cmd_message=${baseSettings.delete_prefix_cmd_message}`);
+            }
             
             guildCache.set(guild.id, guildData);
         }
