@@ -10,20 +10,10 @@ const { validateCommandPermissions, sendCommandLog } = require('../utils/logicHe
 const antiSpamState = new Map();
 
 function scheduleCommandMessageDeletion(message, guildData) {
-    const shouldDelete = guildData.settings?.delete_prefix_cmd_message;
-    
-    if (shouldDelete) {
-        console.log(`🗑️  [${message.guild.name}] Eliminando comando: "${message.content.substring(0, 50)}" en ${guildData.settings.delete_prefix_cmd_message ? 'HABILITADO' : 'DESHABILITADO'}`);
+    if (guildData.settings?.delete_prefix_cmd_message) {
         setTimeout(() => {
-            message.delete().catch((err) => {
-                console.log(`⚠️  No se pudo eliminar mensaje: ${err.message}`);
-            });
+            message.delete().catch(() => {});
         }, 500);
-    } else {
-        // Debug: mostrar por qué NO se elimina
-        if (process.env.DEBUG_DELETE_PREFIX) {
-            console.log(`[${message.guild.name}] NO eliminar comando - delete_prefix_cmd_message=${shouldDelete} (guildData.settings=${JSON.stringify(guildData.settings).substring(0, 100)})`);
-        }
     }
 }
 
@@ -67,11 +57,6 @@ module.exports = {
                 },
                 permissions: permsRes.rows || [] 
             };
-            
-            // DEBUG: Log la configuración cargada
-            if (baseSettings.delete_prefix_cmd_message !== undefined) {
-                console.log(`✅ [${guild.name}] delete_prefix_cmd_message=${baseSettings.delete_prefix_cmd_message}`);
-            }
             
             guildCache.set(guild.id, guildData);
         }
