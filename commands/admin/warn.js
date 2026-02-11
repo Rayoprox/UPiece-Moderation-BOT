@@ -36,8 +36,21 @@ module.exports = {
         
         const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
         if (targetMember) {
-            const guildSettingsResult = await db.query('SELECT staff_roles FROM guild_settings WHERE guildid = $1', [guildId]);
-            const staffIds = guildSettingsResult.rows[0]?.staff_roles ? guildSettingsResult.rows[0].staff_roles.split(',') : [];
+            let staffIds = [];
+            
+            // Intenta SELECT staff_roles; si no existe, usa fallback
+            try {
+                const guildSettingsResult = await db.query('SELECT staff_roles FROM guild_settings WHERE guildid = $1', [guildId]);
+                staffIds = guildSettingsResult.rows[0]?.staff_roles ? guildSettingsResult.rows[0].staff_roles.split(',') : [];
+            } catch (e) {
+                if (e.message?.includes('staff_roles')) {
+                    console.log('ℹ️  [warn.js] Columna staff_roles no existe aún en BD');
+                    staffIds = [];
+                } else {
+                    throw e;
+                }
+            }
+            
             if (targetMember.roles.cache.some(r => staffIds.includes(r.id))) return interaction.editReply({ embeds: [error('You cannot moderate a staff member.')] });
             if (moderatorMember.roles.highest.position <= targetMember.roles.highest.position) return interaction.editReply({ embeds: [error('You cannot warn a user with a role equal to or higher than your own.')] });
         }

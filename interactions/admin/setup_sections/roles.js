@@ -12,9 +12,20 @@ module.exports = async (interaction) => {
     if (customId === 'setup_staff' || customId === 'setup_staff_menu') {
         if (!await safeDefer(interaction, true)) return;
         
-        const res = await db.query("SELECT staff_roles FROM guild_settings WHERE guildid = $1", [guildId]);
+        let rawRoles = null;
         
-        const rawRoles = res.rows[0]?.staff_roles;
+        // Intenta SELECT staff_roles; si no existe, usa fallback
+        try {
+            const res = await db.query("SELECT staff_roles FROM guild_settings WHERE guildid = $1", [guildId]);
+            rawRoles = res.rows[0]?.staff_roles;
+        } catch (e) {
+            if (e.message?.includes('staff_roles')) {
+                console.log('ℹ️  [roles.js] Columna staff_roles no existe aún en BD');
+            } else {
+                throw e;
+            }
+        }
+        
         const currentRoles = rawRoles ? rawRoles.split(',').map(r => `<@&${r}>`).join(', ') : '`None`';
         const commandList = STAFF_COMMANDS.map(c => `\`${c}\``).join(', ');
 
@@ -47,7 +58,16 @@ module.exports = async (interaction) => {
     if (interaction.isRoleSelectMenu() && customId === 'select_staff_roles') {
         if (!await safeDefer(interaction, true)) return;
         
-        await db.query("INSERT INTO guild_settings (guildid, staff_roles) VALUES ($1, $2) ON CONFLICT (guildid) DO UPDATE SET staff_roles = $2", [guildId, values.join(',')]);
+        try {
+            await db.query("INSERT INTO guild_settings (guildid, staff_roles) VALUES ($1, $2) ON CONFLICT (guildid) DO UPDATE SET staff_roles = $2", [guildId, values.join(',')]);
+        } catch (e) {
+            if (e.message?.includes('staff_roles')) {
+                console.log('ℹ️  [roles.js] No se pudo actualizar staff_roles (columna no existe aún)');
+            } else {
+                throw e;
+            }
+        }
+        
         guildCache.flush(guildId);
         
         const back = new ButtonBuilder().setCustomId('setup_staff').setLabel('Back').setStyle(ButtonStyle.Primary);

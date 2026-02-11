@@ -33,10 +33,23 @@ async function validateCommandPermissions(client, guild, member, user, commandNa
     if (!guildData) {
         const mainGuildId = process.env.DISCORD_GUILD_ID;
         const mainGuildName = client.guilds.cache.get(mainGuildId)?.name || guild?.name || 'this server';
-        const [settingsRes, permsRes] = await Promise.all([
-            db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [mainGuildId]),
-            db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [mainGuildId])
-        ]);
+        
+        let settingsRes, permsRes;
+        
+        // Intenta SELECT con universal_lock; si no existe, usa fallback
+        try {
+            settingsRes = await db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [mainGuildId]);
+        } catch (e) {
+            if (e.message?.includes('universal_lock')) {
+                console.log('ℹ️  [logicHelper] Columna universal_lock no existe aún en BD');
+                settingsRes = { rows: [{ universal_lock: false }] };
+            } else {
+                throw e;
+            }
+        }
+        
+        permsRes = await db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [mainGuildId]);
+        
         guildData = { settings: settingsRes.rows[0] || {}, permissions: permsRes.rows };
         guildCache.set(guild.id, guildData);
     }

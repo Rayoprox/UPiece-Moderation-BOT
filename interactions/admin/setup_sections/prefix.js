@@ -5,8 +5,20 @@ const { success, error } = require('../../../utils/embedFactory.js');
 const { safeDefer, smartReply } = require('../../../utils/interactionHelpers.js');
 
 async function showPrefixMenu(interaction, guildId) {
-    const res = await db.query('SELECT prefix, delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guildId]);
-    const settings = res.rows[0] || { prefix: '!', delete_prefix_cmd_message: false };
+    let settings = { prefix: '!', delete_prefix_cmd_message: false };
+    
+    try {
+        const res = await db.query('SELECT prefix, delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guildId]);
+        if (res.rows[0]) settings = res.rows[0];
+    } catch (e) {
+        // Si falla por columna no existente, intenta sin delete_prefix_cmd_message
+        if (e.message.includes('delete_prefix_cmd_message')) {
+            const res = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guildId]);
+            if (res.rows[0]) settings = { prefix: res.rows[0].prefix, delete_prefix_cmd_message: false };
+        } else {
+            throw e;
+        }
+    }
 
     const embed = new EmbedBuilder()
         .setTitle('⌨️ Prefix Configuration')
@@ -103,18 +115,41 @@ module.exports = async (interaction) => {
         if (!await safeDefer(interaction, true)) return;
 
         try {
-            const res = await db.query(
-                'SELECT delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1',
-                [guildId]
-            );
-            const currentState = res.rows[0]?.delete_prefix_cmd_message || false;
+            let currentState = false;
+            
+            // Intenta SELECT con la columna; si no existe, usa fallback
+            try {
+                const res = await db.query(
+                    'SELECT delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1',
+                    [guildId]
+                );
+                currentState = res.rows[0]?.delete_prefix_cmd_message || false;
+            } catch (e) {
+                if (e.message?.includes('delete_prefix_cmd_message')) {
+                    console.log('ℹ️  Columna delete_prefix_cmd_message no existe aún en BD');
+                    currentState = false;
+                } else {
+                    throw e;
+                }
+            }
+            
             const newState = !currentState;
 
-            await db.query(
-                `INSERT INTO guild_settings (guildid, delete_prefix_cmd_message) VALUES ($1, $2) 
-                 ON CONFLICT (guildid) DO UPDATE SET delete_prefix_cmd_message = $2`,
-                [guildId, newState]
-            );
+            // Intenta UPDATE con la columna; si falla, ignora
+            try {
+                await db.query(
+                    `INSERT INTO guild_settings (guildid, delete_prefix_cmd_message) VALUES ($1, $2) 
+                     ON CONFLICT (guildid) DO UPDATE SET delete_prefix_cmd_message = $2`,
+                    [guildId, newState]
+                );
+            } catch (e) {
+                if (e.message?.includes('delete_prefix_cmd_message')) {
+                    console.log('ℹ️  No se pudo actualizar delete_prefix_cmd_message (columna no existe aún)');
+                    // Simplemente continúa sin actualizar esa columna específica
+                } else {
+                    throw e;
+                }
+            }
 
             let cached = guildCache.get(guildId);
             if (!cached) cached = { settings: {}, permissions: [] };

@@ -122,8 +122,20 @@ const protectRoute = async (req, res, next) => {
 
     try {
         const mgId = process.env.DISCORD_GUILD_ID;
-        const settingsRes = await db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [mgId]);
-        const universalLock = !!settingsRes.rows[0]?.universal_lock;
+        
+        let universalLock = false;
+        
+        // Intenta SELECT universal_lock; si no existe, usa fallback
+        try {
+            const settingsRes = await db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [mgId]);
+            universalLock = !!settingsRes.rows[0]?.universal_lock;
+        } catch (e) {
+            if (e.message?.includes('universal_lock')) {
+                console.log('ℹ️  [web.js] Columna universal_lock no existe aún en BD');
+            } else {
+                throw e;
+            }
+        }
 
         const mainGuild = botClient.guilds.cache.get(mgId);
         if (!mainGuild) return res.status(404).send('Server not accessible.');
@@ -415,12 +427,22 @@ app.get('/guilds', auth, async (req, res) => {
             if (botClient) {
                 const guild = botClient.guilds.cache.get(uGuild.id);
                 if (guild) {
-                    const dbSettings = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guild.id]);
+                    let prefix = '!';
+                    
+                    // Intenta SELECT prefix; si no existe, usa fallback
+                    try {
+                        const dbSettings = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guild.id]);
+                        prefix = dbSettings.rows[0]?.prefix || '!';
+                    } catch (e) {
+                        console.log('[web.js] Error al obtener prefix:', e.message?.includes('prefix') ? 'columna no existe' : e.message);
+                        prefix = '!';
+                    }
+                    
                     administrableGuilds.push({
                         id: guild.id,
                         name: guild.name,
                         icon: guild.iconURL({ extension: 'png', size: 128 }),
-                        prefix: dbSettings.rows[0]?.prefix || '!',
+                        prefix: prefix,
                         memberCount: guild.memberCount,
                         type: (guild.id === process.env.DISCORD_APPEAL_GUILD_ID) ? 'Appeals' : 'Main'
                     });
@@ -471,7 +493,17 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
 
         if (!guild) return res.redirect('/guilds');
 
-        let settingsRes = await db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, delete_prefix_cmd_message, log_channel_id FROM guild_settings WHERE guildid = $1', [guildId]);
+        let settingsRes;
+        try {
+            settingsRes = await db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, delete_prefix_cmd_message, log_channel_id FROM guild_settings WHERE guildid = $1', [guildId]);
+        } catch (e) {
+            // Si falla por columna no existente, intenta sin delete_prefix_cmd_message
+            if (e.message.includes('delete_prefix_cmd_message')) {
+                settingsRes = await db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, log_channel_id FROM guild_settings WHERE guildid = $1', [guildId]);
+            } else {
+                throw e;
+            }
+        }
         const settings = {
             delete_prefix_cmd_message: false,
             ...(settingsRes.rows[0] || {})

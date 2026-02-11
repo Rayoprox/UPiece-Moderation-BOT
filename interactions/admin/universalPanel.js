@@ -21,13 +21,44 @@ module.exports = async (interaction) => {
 
     if (customId === 'univ_toggle_lock') {
         if (!await safeDefer(interaction, true)) return;
-        const res = await db.query("SELECT universal_lock FROM guild_settings WHERE guildid = $1", [guild.id]);
-        const newState = !(res.rows[0]?.universal_lock);
-        await db.query("INSERT INTO guild_settings (guildid, universal_lock) VALUES ($1, $2) ON CONFLICT (guildid) DO UPDATE SET universal_lock = $2", [guild.id, newState]);
-        guildCache.flush(guild.id);
         
-        const cmd = client.commands.get('universalpanel');
-        return await cmd.execute(interaction);
+        try {
+            let currentState = false;
+            
+            // Intenta SELECT universal_lock; si no existe, usa fallback
+            try {
+                const res = await db.query("SELECT universal_lock FROM guild_settings WHERE guildid = $1", [guild.id]);
+                currentState = res.rows[0]?.universal_lock || false;
+            } catch (e) {
+                if (e.message?.includes('universal_lock')) {
+                    console.log('ℹ️  Columna universal_lock no existe aún en BD');
+                    currentState = false;
+                } else {
+                    throw e;
+                }
+            }
+            
+            const newState = !currentState;
+            
+            // Intenta UPDATE universal_lock; si falla, ignora
+            try {
+                await db.query("INSERT INTO guild_settings (guildid, universal_lock) VALUES ($1, $2) ON CONFLICT (guildid) DO UPDATE SET universal_lock = $2", [guild.id, newState]);
+            } catch (e) {
+                if (e.message?.includes('universal_lock')) {
+                    console.log('ℹ️  No se pudo actualizar universal_lock (columna no existe aún)');
+                } else {
+                    throw e;
+                }
+            }
+            
+            guildCache.flush(guild.id);
+            
+            const cmd = client.commands.get('universalpanel');
+            return await cmd.execute(interaction);
+        } catch (err) {
+            console.error('[univ_toggle_lock]', err);
+            await interaction.editReply({ content: '❌ Error al actualizar universal_lock.' });
+        }
     }
 
     if (customId === 'univ_config_setup') {

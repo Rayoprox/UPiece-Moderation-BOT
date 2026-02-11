@@ -29,10 +29,23 @@ module.exports = {
         let guildData = guildCache.get(guild.id);
       
         if (!guildData || !guildData.settings) {
-            const [settingsRes, permsRes] = await Promise.all([
-                db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, delete_prefix_cmd_message, log_channel_id FROM guild_settings WHERE guildid = $1', [guild.id]),
-                db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guild.id])
-            ]);
+            let settingsRes, permsRes;
+            try {
+                [settingsRes, permsRes] = await Promise.all([
+                    db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, delete_prefix_cmd_message, log_channel_id FROM guild_settings WHERE guildid = $1', [guild.id]),
+                    db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guild.id])
+                ]);
+            } catch (e) {
+                // Si falla por columna no existente, intenta sin delete_prefix_cmd_message
+                if (e.message.includes('delete_prefix_cmd_message')) {
+                    [settingsRes, permsRes] = await Promise.all([
+                        db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, log_channel_id FROM guild_settings WHERE guildid = $1', [guild.id]),
+                        db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guild.id])
+                    ]);
+                } else {
+                    throw e;
+                }
+            }
 
             guildData = { 
                 settings: {

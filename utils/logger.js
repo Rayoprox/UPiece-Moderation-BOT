@@ -37,9 +37,22 @@ module.exports = {
 
     initLogger: async () => {
         try {
-            const res = await db.query("SELECT log_channel_id FROM guild_settings WHERE guildid = 'GLOBAL_LOGGER'");
-            if (res.rows[0]?.log_channel_id) {
-                loggerWebhook = new WebhookClient({ url: res.rows[0].log_channel_id });
+            let logChannelId = null;
+            
+            // Intenta SELECT log_channel_id; si no existe, usa fallback
+            try {
+                const res = await db.query("SELECT log_channel_id FROM guild_settings WHERE guildid = 'GLOBAL_LOGGER'");
+                logChannelId = res.rows[0]?.log_channel_id;
+            } catch (e) {
+                if (e.message?.includes('log_channel_id')) {
+                    console.log('ℹ️  [logger] Columna log_channel_id no existe aún en BD');
+                } else {
+                    throw e;
+                }
+            }
+            
+            if (logChannelId) {
+                loggerWebhook = new WebhookClient({ url: logChannelId });
                 console.log("✅ Persistent Logger Loaded");
             }
 

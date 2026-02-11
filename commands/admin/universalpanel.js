@@ -15,8 +15,20 @@ module.exports = {
             });
         }
 
-        const res = await db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [interaction.guild.id]);
-        const isLocked = res.rows[0]?.universal_lock || false;
+        let isLocked = false;
+        
+        // Intenta SELECT universal_lock; si no existe, usa fallback
+        try {
+            const res = await db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [interaction.guild.id]);
+            isLocked = res.rows[0]?.universal_lock || false;
+        } catch (e) {
+            if (e.message?.includes('universal_lock')) {
+                console.log('ℹ️  [universalpanel cmd] Columna universal_lock no existe aún en BD');
+                isLocked = false;
+            } else {
+                throw e;
+            }
+        }
 
         const embed = new EmbedBuilder()
             .setTitle('Management Control Panel')

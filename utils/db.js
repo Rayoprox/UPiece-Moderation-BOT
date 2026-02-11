@@ -24,7 +24,7 @@ const db = {
     },
 
     ensureTables: async () => {
-        console.log('🔄 Creando tablas si no existen y verificando integridad de base de datos...');
+        console.log('\n🔄 Creando tablas si no existen y verificando integridad de base de datos...');
         
         await db.query(`CREATE TABLE IF NOT EXISTS global_settings (key TEXT PRIMARY KEY, value TEXT);`);
         
@@ -158,14 +158,27 @@ const db = {
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN unban_timestamp BIGINT`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs RENAME COLUMN "endsAt" TO endsat;`, [], true); } catch (e) {}
         
-        try { await db.query(`ALTER TABLE guild_settings ADD COLUMN universal_lock BOOLEAN DEFAULT FALSE`, [], true); } catch (e) {}
-        console.log('✅ Columna universal_lock - OK');
-        try { await db.query(`ALTER TABLE guild_settings ADD COLUMN prefix TEXT DEFAULT '!'`, [], true); } catch (e) {}
-        console.log('✅ Columna prefix - OK');
-        try { await db.query(`ALTER TABLE guild_settings ADD COLUMN delete_prefix_cmd_message BOOLEAN DEFAULT FALSE`, [], true); } catch (e) {}
-        console.log('✅ Columna delete_prefix_cmd_message - OK');
-        try { await db.query(`ALTER TABLE guild_settings ADD COLUMN log_channel_id TEXT`, [], true); } catch (e) {}
-        console.log('✅ Columna log_channel_id - OK'); 
+        // Función helper para crear/verificar columnas con debug explícito
+        const ensureColumn = async (tableName, columnDef) => {
+            const colName = columnDef.split(' ')[0];
+            try {
+                await db.query(`ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`);
+                console.log(`✅ CREADA: Columna "${colName}" en tabla "${tableName}"`);
+            } catch (e) {
+                if (e.message.includes('already exists')) {
+                    console.log(`⏭️  EXISTE: Columna "${colName}" ya existe en "${tableName}" - Sin cambios`);
+                } else {
+                    console.log(`❌ FALLO: No se pudo crear "${colName}" en "${tableName}" - ${e.message.substring(0, 60)}`);
+                }
+            }
+        };
+
+        // Asegurar columnas de guild_settings
+        console.log('\n📋 Verificando tabla guild_settings...');
+        await ensureColumn('guild_settings', 'universal_lock BOOLEAN DEFAULT FALSE');
+        await ensureColumn('guild_settings', 'prefix TEXT DEFAULT \'!\'');
+        await ensureColumn('guild_settings', 'delete_prefix_cmd_message BOOLEAN DEFAULT FALSE');
+        await ensureColumn('guild_settings', 'log_channel_id TEXT'); 
 
         try { await db.query(`ALTER TABLE guild_backups ADD COLUMN antinuke_ignore_supreme BOOLEAN DEFAULT TRUE`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE guild_backups ADD COLUMN antinuke_ignore_verified BOOLEAN DEFAULT TRUE`, [], true); } catch (e) {}
@@ -183,7 +196,27 @@ const db = {
         try { await db.query(`ALTER TABLE custom_commands ADD COLUMN allowed_roles TEXT`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE ban_appeals ADD COLUMN source TEXT DEFAULT 'DISCORD'`, [], true); } catch (e) {}
 
-        console.log('✅ PostgreSQL: Todas las tablas y columnas verificadas e inicializadas correctamente.');
+        // Diagnóstico final: Verificar qué columnas tiene guild_settings realmente
+        console.log('\n📊 DIAGNÓSTICO FINAL - Columnas en tabla guild_settings:');
+        try {
+            const colRes = await db.query(`
+                SELECT column_name, data_type, is_nullable, column_default 
+                FROM information_schema.columns 
+                WHERE table_name = 'guild_settings' AND table_schema = 'public'
+                ORDER BY ordinal_position
+            `);
+            if (colRes.rows.length > 0) {
+                colRes.rows.forEach(col => {
+                    console.log(`   ✅ ${col.column_name} (${col.data_type})${col.column_default ? ` DEFAULT ${col.column_default}` : ''}`);
+                });
+            } else {
+                console.log('   ⚠️  No se encontraron columnas');
+            }
+        } catch (e) {
+            console.log('   ⚠️  No se pudo verificar columnas:', e.message.substring(0, 50));
+        }
+
+        console.log('\n✅ PostgreSQL: Todas las tablas y columnas verificadas e inicializadas correctamente.\n');
     }
 };
 

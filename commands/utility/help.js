@@ -16,8 +16,20 @@ module.exports = {
         const member = interaction.member;
         const guildId = guild.id;
 
-        const settingsRes = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guildId]);
-        const prefix = settingsRes.rows[0]?.prefix || '!';
+        let prefix = '!';
+        
+        // Intenta SELECT prefix; si no existe, usa fallback
+        try {
+            const settingsRes = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guildId]);
+            prefix = settingsRes.rows[0]?.prefix || '!';
+        } catch (e) {
+            if (e.message?.includes('prefix')) {
+                console.log('[help.js] Error: columna prefix no existe');
+            } else {
+                console.error('[help.js] Error al obtener prefix:', e.message);
+            }
+            prefix = '!';
+        }
 
         const SITE_URL = (process.env.CALLBACK_URL || '').replace(/\/auth\/discord\/callback$/, '') || 'Not configured';
         const book = emojis?.book || '📖';
