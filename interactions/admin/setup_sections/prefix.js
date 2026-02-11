@@ -5,33 +5,14 @@ const { success, error } = require('../../../utils/embedFactory.js');
 const { safeDefer, smartReply } = require('../../../utils/interactionHelpers.js');
 
 async function showPrefixMenu(interaction, guildId) {
-    let settings = { prefix: '!', delete_prefix_cmd_message: false };
-    
-    // Intenta obtener ambas columnas (silent si no existen)
-    try {
-        const res = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guildId]);
-        if (res.rows[0]) {
-            settings.prefix = res.rows[0].prefix;
-        }
-    } catch (e) {
-        console.log('⚠️ Error obteniendo prefix');
-    }
-
-    // Intenta obtener delete_prefix_cmd_message si existe
-    try {
-        const res = await db.query('SELECT delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guildId], true);
-        if (res.rows?.[0]?.delete_prefix_cmd_message !== undefined) {
-            settings.delete_prefix_cmd_message = res.rows[0].delete_prefix_cmd_message;
-        }
-    } catch (e) {
-        // Columna no existe, usa valor por defecto
-    }
+    const res = await db.query('SELECT prefix, delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guildId]);
+    const settings = res.rows[0] || { prefix: '!', delete_prefix_cmd_message: false };
 
     const embed = new EmbedBuilder()
         .setTitle('⌨️ Prefix Configuration')
         .setDescription('Manage your server prefix and command message behavior.')
         .addFields(
-            { name: 'Current Prefix', value: `\`${settings.prefix || '!'}\``, inline: true },
+            { name: 'Current Prefix', value: `\`${settings.prefix}\``, inline: true },
             { name: 'Delete Command Messages', value: settings.delete_prefix_cmd_message ? '✅ ENABLED' : '❌ DISABLED', inline: true }
         )
         .setColor('#5865F2')
@@ -122,27 +103,29 @@ module.exports = async (interaction) => {
         if (!await safeDefer(interaction, true)) return;
 
         try {
-            // Intenta actualizar la columna, pero si no existe, ignora el error
+            const res = await db.query(
+                'SELECT delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1',
+                [guildId]
+            );
+            const currentState = res.rows[0]?.delete_prefix_cmd_message || false;
+            const newState = !currentState;
+
             await db.query(
-                `INSERT INTO guild_settings (guildid, delete_prefix_cmd_message) VALUES ($1, TRUE) 
-                 ON CONFLICT (guildid) DO UPDATE SET delete_prefix_cmd_message = NOT EXCLUDED.delete_prefix_cmd_message`,
-                [guildId],
-                true  // silent mode - ignore error if column doesn't exist
-            ).catch(() => {
-                // Si falla por columna no existente, solo continúa
-                console.log('ℹ️  delete_prefix_cmd_message aún no está disponible en BD');
-            });
+                `INSERT INTO guild_settings (guildid, delete_prefix_cmd_message) VALUES ($1, $2) 
+                 ON CONFLICT (guildid) DO UPDATE SET delete_prefix_cmd_message = $2`,
+                [guildId, newState]
+            );
 
             let cached = guildCache.get(guildId);
             if (!cached) cached = { settings: {}, permissions: [] };
-            cached.settings.delete_prefix_cmd_message = !cached.settings.delete_prefix_cmd_message;
+            cached.settings.delete_prefix_cmd_message = newState;
             guildCache.set(guildId, cached);
 
             const { embed, components } = await showPrefixMenu(interaction, guildId);
             await smartReply(interaction, { embeds: [embed], components });
         } catch (err) {
             console.error(err);
-            await smartReply(interaction, { embeds: [error("Error processing toggle.")] });
+            await smartReply(interaction, { embeds: [error("Database error.")] });
         }
         return;
     }

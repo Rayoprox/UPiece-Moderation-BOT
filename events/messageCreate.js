@@ -29,16 +29,10 @@ module.exports = {
         let guildData = guildCache.get(guild.id);
       
         if (!guildData || !guildData.settings) {
-            let settingsRes, permsRes;
-            try {
-                // Intenta primero sin la columna que puede no existir
-                [settingsRes, permsRes] = await Promise.all([
-                    db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, log_channel_id FROM guild_settings WHERE guildid = $1', [guild.id]),
-                    db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guild.id])
-                ]);
-            } catch (e) {
-                throw e;
-            }
+            const [settingsRes, permsRes] = await Promise.all([
+                db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, delete_prefix_cmd_message, log_channel_id FROM guild_settings WHERE guildid = $1', [guild.id]),
+                db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guild.id])
+            ]);
 
             guildData = { 
                 settings: {
@@ -48,16 +42,6 @@ module.exports = {
                 },
                 permissions: permsRes.rows || [] 
             };
-            
-            // Intenta obtener delete_prefix_cmd_message si existe (silent mode)
-            try {
-                const delRes = await db.query('SELECT delete_prefix_cmd_message FROM guild_settings WHERE guildid = $1', [guild.id], true);
-                if (delRes.rows?.[0]?.delete_prefix_cmd_message !== undefined) {
-                    guildData.settings.delete_prefix_cmd_message = delRes.rows[0].delete_prefix_cmd_message;
-                }
-            } catch (e) {
-                // Column doesn't exist, use default
-            }
             
             guildCache.set(guild.id, guildData);
         }
