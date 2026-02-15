@@ -12,7 +12,6 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('mute')
         .setDescription('Mutes a member for a specified duration (uses Timeout).')
-        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages)
         .addUserOption(option => option.setName('user').setDescription('The user to mute.').setRequired(true))
         .addStringOption(option => option.setName('duration').setDescription('Duration of the mute (e.g., 10m, 1h, 2d). Max: 28 days.').setRequired(true))
         .addStringOption(option => option.setName('reason').setDescription('The reason for the mute.').setRequired(false)),

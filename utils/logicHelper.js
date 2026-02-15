@@ -43,10 +43,12 @@ async function validateCommandPermissions(client, guild, member, user, commandNa
     const command = client.commands.get(commandName);
     if (!command) return { valid: false, reason: 'Command not found' };
 
-    if (DEVELOPER_IDS.includes(user.id)) {
+    // 1. SUPREME → Bypass total
+    if (SUPREME_IDS.includes(user.id)) {
         return { valid: true, isAdmin: true, bypass: true };
     }
 
+    // License check (before everything)
     if (command.data.name !== 'redeem') {
         const licRes = await db.query("SELECT expires_at FROM licenses WHERE guild_id = $1", [guild.id]);
         const hasLicense = licRes.rows.length > 0 && 
@@ -60,75 +62,124 @@ async function validateCommandPermissions(client, guild, member, user, commandNa
         }
     }
 
-    if (SUPREME_IDS.includes(user.id)) {
+    // Developer → Bypass total
+    if (DEVELOPER_IDS.includes(user.id)) {
         return { valid: true, isAdmin: true, bypass: true };
     }
 
     const mainGuildId = process.env.DISCORD_GUILD_ID;
-
     let guildData = guildCache.get(guild.id);
     
     if (!guildData) {
-        const mainGuildName = client.guilds.cache.get(mainGuildId)?.name || guild?.name || 'this server';
-        
         let settingsRes, permsRes;
-        
-        // Intenta SELECT con universal_lock; si no existe, usa fallback
         try {
             settingsRes = await db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [mainGuildId]);
         } catch (e) {
             if (e.message?.includes('universal_lock')) {
-                console.log('ℹ️  [logicHelper] Columna universal_lock no existe aún en BD');
                 settingsRes = { rows: [{ universal_lock: false }] };
             } else {
                 throw e;
             }
         }
-        
         permsRes = await db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [mainGuildId]);
-        
         guildData = { settings: settingsRes.rows[0] || {}, permissions: permsRes.rows };
         guildCache.set(guild.id, guildData);
     }
 
     const universalLock = guildData.settings.universal_lock === true;
+    const isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
 
+    // 2. LOCKDOWN LOGIC
+    if (universalLock) {
+        // Lockdown active: Admins eliminated from hierarchy, only specific roles allowed
+        let allowed = false;
+        const specificRoles = guildData.permissions
+            .filter(p => p.command_name === commandName)
+            .map(r => r.role_id);
+        
+        if (specificRoles.length > 0) {
+            allowed = member.roles.cache.some(r => specificRoles.includes(r.id));
+        }
+        
+        if (!allowed) {
+            return { 
+                valid: false, 
+                reason: `**${guild.name} Lockdown Active.**\nAdmin permissions are temporarily suspended. Contact the Server Management.`
+            };
+        }
+        return { valid: true, isAdmin: false };
+    }
+
+    // 3. NO LOCKDOWN → Admin bypass everything
+    if (isAdmin) {
+        return { valid: true, isAdmin: true };
+    }
+
+    // 4. Check if command is disabled
+    try {
+        const cmdSettingsRes = await db.query('SELECT enabled FROM command_settings WHERE guildid = $1 AND command_name = $2', [mainGuildId, commandName]);
+        if (cmdSettingsRes.rows.length > 0 && cmdSettingsRes.rows[0].enabled === false) {
+            return { valid: false, reason: `⚠️ **Command \`${commandName}\` is Disabled**` };
+        }
+    } catch (e) {
+        if (!e.message?.includes('command_settings')) {
+            console.error('[validateCommandPermissions] Error checking command settings:', e.message);
+        }
+    }
+
+    // 5. Check if channel is ignored
+    try {
+        const currentChannelId = channelId || (guild.channels.cache.get(guild.id)?.id || '');
+        const ignoredRes = await db.query('SELECT ignored_channels FROM command_settings WHERE guildid = $1 AND command_name = $2', [mainGuildId, commandName]);
+        if (ignoredRes.rows.length > 0 && ignoredRes.rows[0].ignored_channels) {
+            const ignoredRaw = ignoredRes.rows[0].ignored_channels;
+            const ignoredChannels = Array.isArray(ignoredRaw)
+                ? ignoredRaw.filter(Boolean)
+                : (typeof ignoredRaw === 'string' ? ignoredRaw.split(',').filter(Boolean) : []);
+            if (ignoredChannels.includes(currentChannelId)) {
+                return { valid: false, reason: `⛔ **This channel is ignored for that command**` };
+            }
+        }
+    } catch (e) {
+        if (!e.message?.includes('command_settings')) {
+            console.error('[validateCommandPermissions] Error checking ignored channels:', e.message);
+        }
+    }
+
+    // 6. Check specific permissions
     const specificRoles = guildData.permissions
         .filter(p => p.command_name === commandName)
         .map(r => r.role_id);
     
-    let isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
-    if (universalLock) isAdmin = false; 
-
-    const hasSpecificRules = specificRoles.length > 0;
-    const hasSpecificPermission = hasSpecificRules && member.roles.cache.some(r => specificRoles.includes(r.id));
-    const isPublic = command.isPublic ?? false;
-    const isStaffCommand = STAFF_COMMANDS.includes(commandName);
-
-    let allowed = false;
-
-    if (isAdmin) allowed = true;
-    else if (hasSpecificRules) { 
-        if (hasSpecificPermission) allowed = true; 
+    if (specificRoles.length > 0) {
+        const hasSpecificPermission = member.roles.cache.some(r => specificRoles.includes(r.id));
+        if (hasSpecificPermission) {
+            return { valid: true, isAdmin: false };
+        }
+        // Has specific rules but doesn't have the role
+        return { valid: false, reason: "You do not have permission to use this command." };
     }
-    else if (!hasSpecificRules && isStaffCommand) {
+
+    // 7. Check staff command with staff roles
+    const isStaffCommand = STAFF_COMMANDS.includes(commandName);
+    if (isStaffCommand) {
         const staffRaw = guildData.settings.staff_roles || '';
         const staffRoles = staffRaw ? staffRaw.split(',').filter(Boolean) : [];
         const hasStaffRole = staffRoles.length > 0 && member.roles.cache.some(r => staffRoles.includes(r.id));
-        if (hasStaffRole) allowed = true;
+        
+        if (hasStaffRole) {
+            return { valid: true, isAdmin: false };
+        }
     }
 
-    else if (isPublic) allowed = true;
-
-    if (!allowed) {
-        const mainGuildName = client.guilds.cache.get(mainGuildId)?.name || guild?.name || 'this server';
-        const msg = universalLock && member.permissions.has(PermissionsBitField.Flags.Administrator)
-            ? `**${mainGuildName} Lockdown Active.**\nAdmin permissions are temporarily suspended. Contact the Server Management.`
-            : "You do not have permission to use this command.";
-        return { valid: false, reason: msg };
+    // 8. Check if public
+    const isPublic = command.isPublic ?? false;
+    if (isPublic) {
+        return { valid: true, isAdmin: false };
     }
 
-    return { valid: true, isAdmin };
+    // 9. Default deny
+    return { valid: false, reason: "You do not have permission to use this command." };
 }
 
 async function sendCommandLog(interaction, db, isAdmin) {

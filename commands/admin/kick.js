@@ -10,8 +10,7 @@ module.exports = {
     isPublic: true,
     data: new SlashCommandBuilder()
         .setName('kick')
-        .setDescription('Kicks a member from the server.')
-        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages)
+        .setDescription('Kicks a member from the server.')        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages)
         .addUserOption(option => option.setName('user').setDescription('The user to kick.').setRequired(true))
         .addStringOption(option => option.setName('reason').setDescription('The reason for the kick.').setRequired(false)),
 

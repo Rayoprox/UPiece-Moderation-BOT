@@ -15,8 +15,7 @@ module.exports = {
     isPublic: true,
     data: new SlashCommandBuilder()
         .setName('ban')
-        .setDescription('Bans a member from the server.')
-        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages) 
+        .setDescription('Bans a member from the server.')        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageMessages)
         .addUserOption(option => option.setName('user').setDescription('The user to ban (mention or ID).').setRequired(true))
         .addStringOption(option => option.setName('reason').setDescription('The reason for the ban.'))
         .addStringOption(option => option.setName('duration').setDescription('Duration of the ban (e.g., 7d, 2h, 30m). Permanent if omitted.'))
