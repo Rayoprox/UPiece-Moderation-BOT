@@ -71,7 +71,8 @@ module.exports = {
             customId.startsWith('setup_perm') ||
             customId.startsWith('select_command_perms') ||
             customId.startsWith('select_perm_command_') ||
-            customId.startsWith('perms_role_select_') ||
+            customId.startsWith('perm_role_select_') ||
+            customId.startsWith('perm_select_ignored_channels_') ||
             customId === 'select_delete_perm'
         ) {
             return await setupPermissions(interaction);

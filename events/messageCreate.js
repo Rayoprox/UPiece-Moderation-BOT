@@ -8,6 +8,7 @@ const ms = require('ms');
 const { checkCommandAvailability, validateCommandPermissions, sendCommandLog } = require('../utils/logicHelper.js');
 
 const antiSpamState = new Map();
+const spamCooldown = new Map(); // userId -> { expiresAt, type }
 
 function scheduleCommandMessageDeletion(message, guildData) {
     if (guildData.settings?.delete_prefix_cmd_message) {
@@ -67,6 +68,8 @@ module.exports = {
         try {
             const protRes = await db.query('SELECT * FROM automod_protections WHERE guildid = $1', [guild.id]);
             const prot = protRes.rows[0];
+            if (!prot && process.env.DEBUG_ANTIMOD) console.log(`[DEBUG] No automod_protections row for guild ${guild.id}`);
+            if (prot && process.env.DEBUG_ANTIMOD) console.log(`[DEBUG] Automod config loaded:`, JSON.stringify(prot, null, 2));
             if (prot) {
                 const protectedRoles = prot.antimention_roles || [];
                 const bypassRoles = prot.antimention_bypass || [];
@@ -101,45 +104,91 @@ module.exports = {
                     }
                 }
 
-                if (prot.antispam) {
+                if (prot && prot.antispam && typeof prot.antispam === 'object' && Object.keys(prot.antispam).length > 0) {
                     const antispam = prot.antispam;
+                    if (process.env.DEBUG_ANTIMOD) console.log(`[DEBUG] Processing antispam for guild with config:`, JSON.stringify(antispam, null, 2));
                     const guildState = antiSpamState.get(guild.id) || new Map();
                     antiSpamState.set(guild.id, guildState);
 
-                    if (antispam.mps && antispam.mps.threshold > 0) {
+                    // Check MPS (Messages Per Second)
+                    if (antispam.mps && antispam.mps.enabled && antispam.mps.threshold > 0) {
                         const thr = antispam.mps.threshold;
+                        const window = (antispam.mps.window_seconds || 1) * 1000;
                         const bypass = (antispam.mps.bypass || []);
                         const senderBypass = member.permissions.has(PermissionsBitField.Flags.Administrator) || member.roles.cache.hasAny(...bypass);
                         if (!senderBypass) {
                             const userState = guildState.get(author.id) || [];
                             const now = Date.now();
                             userState.push(now);
-                            const window = now - 1000;
-                            const recent = userState.filter(t => t >= window);
+                            const windowStart = now - window;
+                            const recent = userState.filter(t => t >= windowStart);
                             guildState.set(author.id, recent);
                             if (recent.length > thr) {
-                                const embed = new EmbedBuilder().setDescription('Please avoid spamming messages (messages/sec limit exceeded).').setColor('#f59e0b');
-                                const sent = await message.channel.send({ embeds: [embed] }).catch(() => null);
-                                if (sent) setTimeout(() => sent.delete().catch(() => {}), 3000);
+
+                                const userId = author.id;
+                                const cooldownData = spamCooldown.get(userId);
+                                const nowCheck = Date.now();
+                                
+                                // Solo alertar UNA VEZ cada 5 segundos
+                                if (!cooldownData || cooldownData.expiresAt < nowCheck) {
+                                    // 1. Timeout
+                                    await member.timeout(5000).catch(() => {});
+                                    
+                                    // 2. Mensaje
+                                    const embed = new EmbedBuilder()
+                                        .setDescription(`**Do not Spam** ${author}`)
+                                        .setColor('#EF4444');
+                                    const sent = await message.channel.send({ embeds: [embed] }).catch(() => null);
+                                    if (sent) setTimeout(() => sent.delete().catch(() => {}), 3000);
+                                    
+                                    // Marcar en cooldown
+                                    spamCooldown.set(userId, { expiresAt: nowCheck + 5000, type: 'mps' });
+                                }
+                                
+                                // 3. Siempre eliminar el mensaje
+                                await message.delete().catch(() => {});
+                                return;
                             }
                         }
                     }
 
-                    if (antispam.repeated && antispam.repeated.threshold > 0) {
+                    // Check Repeated Characters
+                    if (antispam.repeated && antispam.repeated.enabled && antispam.repeated.threshold >= 3) {
                         const thr = antispam.repeated.threshold;
                         const bypass = (antispam.repeated.bypass || []);
                         const senderBypass = member.permissions.has(PermissionsBitField.Flags.Administrator) || member.roles.cache.hasAny(...bypass);
                         if (!senderBypass) {
                             const regex = new RegExp(`(.)\\1{${thr - 1},}`);
                             if (regex.test(message.content)) {
-                                const embed = new EmbedBuilder().setDescription('Please avoid repeated characters.').setColor('#f59e0b');
-                                const sent = await message.channel.send({ embeds: [embed] }).catch(() => null);
-                                if (sent) setTimeout(() => sent.delete().catch(() => {}), 3000);
+                                const userId = author.id;
+                                const cooldownData = spamCooldown.get(userId);
+                                const nowCheck = Date.now();
+                                
+                                // Solo alertar UNA VEZ cada 5 segundos
+                                if (!cooldownData || cooldownData.expiresAt < nowCheck) {
+                                    // 1. Timeout
+                                    await member.timeout(5000).catch(() => {});
+                                    
+                                    // 2. Mensaje
+                                    const embed = new EmbedBuilder()
+                                        .setDescription(`**Do not use duplicated characters** ${author}`)
+                                        .setColor('#EF4444');
+                                    const sent = await message.channel.send({ embeds: [embed] }).catch(() => null);
+                                    if (sent) setTimeout(() => sent.delete().catch(() => {}), 3000);
+                                    
+                                    // Marcar en cooldown
+                                    spamCooldown.set(userId, { expiresAt: nowCheck + 5000, type: 'repeated' });
+                                }
+                                
+                                // 3. Siempre eliminar el mensaje
+                                await message.delete().catch(() => {});
+                                return;
                             }
                         }
                     }
 
-                    if (antispam.emoji && antispam.emoji.threshold > 0) {
+                    // Check Emoji Spam
+                    if (antispam.emoji && antispam.emoji.enabled && antispam.emoji.threshold >= 3) {
                         const thr = antispam.emoji.threshold;
                         const bypass = (antispam.emoji.bypass || []);
                         const senderBypass = member.permissions.has(PermissionsBitField.Flags.Administrator) || member.roles.cache.hasAny(...bypass);
@@ -148,9 +197,30 @@ module.exports = {
                             const unicodeEmojiMatches = message.content.match(/(\p{Extended_Pictographic})/gu) || [];
                             const totalEmojis = customEmojiMatches.length + unicodeEmojiMatches.length;
                             if (totalEmojis > thr) {
-                                const embed = new EmbedBuilder().setDescription('Please avoid emoji spamming.').setColor('#f59e0b');
-                                const sent = await message.channel.send({ embeds: [embed] }).catch(() => null);
-                                if (sent) setTimeout(() => sent.delete().catch(() => {}), 3000);
+
+                                const userId = author.id;
+                                const cooldownData = spamCooldown.get(userId);
+                                const nowCheck = Date.now();
+                                
+                                // Solo alertar UNA VEZ cada 5 segundos
+                                if (!cooldownData || cooldownData.expiresAt < nowCheck) {
+                                    // 1. Timeout
+                                    await member.timeout(5000).catch(() => {});
+                                    
+                                    // 2. Mensaje
+                                    const embed = new EmbedBuilder()
+                                        .setDescription(`**Do not spam emojis** ${author}`)
+                                        .setColor('#EF4444');
+                                    const sent = await message.channel.send({ embeds: [embed] }).catch(() => null);
+                                    if (sent) setTimeout(() => sent.delete().catch(() => {}), 3000);
+                                    
+                                    // Marcar en cooldown
+                                    spamCooldown.set(userId, { expiresAt: nowCheck + 5000, type: 'emoji' });
+                                }
+                                
+                                // 3. Siempre eliminar el mensaje
+                                await message.delete().catch(() => {});
+                                return;
                             }
                         }
                     }

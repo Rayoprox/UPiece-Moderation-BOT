@@ -170,7 +170,7 @@ module.exports = async (interaction) => {
     if (interaction.isChannelSelectMenu() && customId.startsWith('perm_select_ignored_channels_')) {
         await safeDefer(interaction, true);
         const cmdName = customId.replace('perm_select_ignored_channels_', '');
-        const selectedChannels = values.join(',');
+        const selectedChannels = values.length > 0 ? values : null;
 
         await db.query(
             'INSERT INTO command_settings (guildid, command_name, enabled, ignored_channels) VALUES ($1, $2, TRUE, $3) ON CONFLICT (guildid, command_name) DO UPDATE SET ignored_channels = EXCLUDED.ignored_channels',
@@ -178,7 +178,14 @@ module.exports = async (interaction) => {
         );
 
         guildCache.flush(guildId);
-        return await showCommandConfig(interaction, guild, client, guildId, cmdName);
+        
+        const successEmbed = success(`✅ **Ignored channels updated** for **/${cmdName}**\n${values.length > 0 ? `Added: ${values.map(v => `<#${v}>`).join(', ')}` : 'Cleared all ignored channels'}`);
+        await interaction.editReply({ embeds: [successEmbed] });
+        
+        setTimeout(async () => {
+            return await showCommandConfig(interaction, guild, client, guildId, cmdName);
+        }, 1500);
+        return;
     }
 
     // Open allowed roles editor
@@ -224,7 +231,14 @@ module.exports = async (interaction) => {
         }
 
         guildCache.flush(guildId);
-        return await showCommandConfig(interaction, guild, client, guildId, cmdName);
+        
+        const successEmbed = success(`✅ **Allowed roles updated** for **/${cmdName}**\n${values.length > 0 ? `Roles: ${values.map(v => `<@&${v}>`).join(', ')}` : 'All roles allowed (override removed)'}`);
+        await interaction.editReply({ embeds: [successEmbed] });
+        
+        setTimeout(async () => {
+            return await showCommandConfig(interaction, guild, client, guildId, cmdName);
+        }, 1500);
+        return;
     }
 
     // Toggle command enabled/disabled
@@ -242,7 +256,14 @@ module.exports = async (interaction) => {
         );
 
         guildCache.flush(guildId);
-        return await showCommandConfig(interaction, guild, client, guildId, cmdName);
+        
+        const statusEmbed = success(`✅ **/${cmdName}** is now **${newEnabled ? 'ENABLED' : 'DISABLED'}**`);
+        await interaction.editReply({ embeds: [statusEmbed] });
+        
+        setTimeout(async () => {
+            return await showCommandConfig(interaction, guild, client, guildId, cmdName);
+        }, 1500);
+        return;
     }
 
     // Delete command configuration
@@ -259,8 +280,9 @@ module.exports = async (interaction) => {
             new ButtonBuilder().setCustomId('setup_permissions').setLabel('Return to Permissions View').setStyle(ButtonStyle.Primary)
         );
 
+        const successEmbed = success(`🗑️ **Configuration for /${cmdName}** has been deleted.\nRoles and ignored channels reset to defaults.`);
         await interaction.editReply({ 
-            embeds: [success(`Configuration for **/${cmdName}** has been deleted.`)], 
+            embeds: [successEmbed], 
             components: [row] 
         });
         return;

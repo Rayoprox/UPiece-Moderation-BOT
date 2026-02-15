@@ -44,7 +44,7 @@ module.exports = async (interaction) => {
             return await automodMain(interaction);
         }
 
-        if (customId === 'automod_anti_mention' || customId === 'automod_anti_spam' || customId.startsWith('automod_antispam_') || customId === 'automod_antimention_roles' || customId === 'automod_antimention_bypass') {
+        if (customId === 'automod_anti_mention' || customId === 'automod_anti_spam' || customId.startsWith('automod_antispam_') || customId === 'automod_antimention_roles' || customId === 'automod_antimention_bypass' || customId.startsWith('modal_antispam_')) {
             return await automodMain(interaction);
         }
 
@@ -68,7 +68,7 @@ module.exports = async (interaction) => {
         const isSelect = customId.startsWith('select_');
         const isReset = customId === 'delete_all_data' || customId === 'confirm_delete_data' || customId === 'cancel_setup';
         const isAntinuke = customId.startsWith('antinuke_');
-        const isPermsRole = customId.startsWith('perms_role_select_') || customId.startsWith('perm_role_select_') || customId.startsWith('perm_select_ignored_channels_');
+        const isPermsRole = customId.startsWith('perm_role_select_') || customId.startsWith('perm_select_ignored_channels_');
         const isSetupModal = customId === 'modal_setup_prefix' || customId === 'modal_prefix_change';
         const isPrefixUI = customId === 'prefix_change' || customId === 'prefix_toggle_delete';
 

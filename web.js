@@ -125,7 +125,6 @@ const protectRoute = async (req, res, next) => {
         
         let universalLock = false;
         
-        // Intenta SELECT universal_lock; si no existe, usa fallback
         try {
             const settingsRes = await db.query('SELECT universal_lock FROM guild_settings WHERE guildid = $1', [mgId]);
             universalLock = !!settingsRes.rows[0]?.universal_lock;
@@ -429,7 +428,6 @@ app.get('/guilds', auth, async (req, res) => {
                 if (guild) {
                     let prefix = '!';
                     
-                    // Intenta SELECT prefix; si no existe, usa fallback
                     try {
                         const dbSettings = await db.query('SELECT prefix FROM guild_settings WHERE guildid = $1', [guild.id]);
                         prefix = dbSettings.rows[0]?.prefix || '!';
@@ -497,7 +495,6 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
         try {
             settingsRes = await db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, delete_prefix_cmd_message, log_channel_id FROM guild_settings WHERE guildid = $1', [guildId]);
         } catch (e) {
-            // Si falla por columna no existente, intenta sin delete_prefix_cmd_message
             if (e.message.includes('delete_prefix_cmd_message')) {
                 settingsRes = await db.query('SELECT guildid, staff_roles, mod_immunity, universal_lock, prefix, log_channel_id FROM guild_settings WHERE guildid = $1', [guildId]);
             } else {
@@ -561,7 +558,6 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
             commandOverrides[r.command_name].roles.push(r.role_id);
         });
         
-        // Add command settings for commands without roles
         Object.keys(commandSettingsMap).forEach(cmd => {
             if (!commandOverrides[cmd]) {
                 commandOverrides[cmd] = { roles: [], ...commandSettingsMap[cmd] };
@@ -738,11 +734,9 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
             }
         }
 
-        // Actualizar configuración del guild
         try {
             await db.query(`INSERT INTO guild_settings (guildid, prefix, delete_prefix_cmd_message, staff_roles) VALUES ($1, $2, $3, $4) ON CONFLICT (guildid) DO UPDATE SET prefix = $2, delete_prefix_cmd_message = $3, staff_roles = $4`, [guildId, prefix || '!', delete_prefix_cmd_message === 'on', staff_roles || null]);
         } catch (e) {
-            // Si la columna delete_prefix_cmd_message no existe, intentar sin ella
             if (e.message.includes('delete_prefix_cmd_message')) {
                 console.log('⚠️ delete_prefix_cmd_message no existe aún, insertando sin ella...');
                 await db.query(`INSERT INTO guild_settings (guildid, prefix, staff_roles) VALUES ($1, $2, $3) ON CONFLICT (guildid) DO UPDATE SET prefix = $2, staff_roles = $3`, [guildId, prefix || '!', staff_roles || null]);
@@ -792,9 +786,8 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
                 for (const rId of ov.roles) {
                     await db.query("INSERT INTO command_permissions (guildid, command_name, role_id) VALUES ($1, $2, $3)", [guildId, ov.command, rId]);
                 }
-                // Save command settings (enabled, ignored_channels)
                 const enabled = ov.enabled !== false;
-                const ignoredChannels = ov.ignoredChannels && Array.isArray(ov.ignoredChannels) ? ov.ignoredChannels.join(',') : '';
+                const ignoredChannels = ov.ignoredChannels && Array.isArray(ov.ignoredChannels) && ov.ignoredChannels.length > 0 ? ov.ignoredChannels : null;
                 await db.query(
                     "INSERT INTO command_settings (guildid, command_name, enabled, ignored_channels) VALUES ($1, $2, $3, $4) ON CONFLICT (guildid, command_name) DO UPDATE SET enabled = $3, ignored_channels = $4",
                     [guildId, ov.command, enabled, ignoredChannels]
