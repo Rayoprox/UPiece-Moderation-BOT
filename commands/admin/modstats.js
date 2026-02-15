@@ -13,7 +13,7 @@ module.exports = {
         const targetUser = interaction.options.getUser('user');
         const guildId = interaction.guild.id;
 
-        const query = `SELECT caseid, action, status, moderatorid FROM modlogs WHERE guildid = $1 AND moderatorid = $2`;
+        const query = `SELECT caseid, action, status, moderatorid, timestamp FROM modlogs WHERE guildid = $1 AND moderatorid = $2`;
         const params = [guildId, targetUser.id];
         
         const result = await db.query(query, params);
