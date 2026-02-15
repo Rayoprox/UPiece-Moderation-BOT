@@ -41,7 +41,8 @@ module.exports = {
             }
 
             const action = log.action;
-            const ts = Number(log.timestamp) || 0;
+            const rawTs = Number(log.timestamp) || 0;
+            const ts = rawTs > 0 && rawTs < 1000000000000 ? rawTs * 1000 : rawTs;
 
             if (action === 'WARN') {
                 increment('warns', ts);
