@@ -5,7 +5,7 @@ const { error } = require('../utils/embedFactory.js');
 const guildCache = require('../utils/guildCache.js');
 const ms = require('ms'); 
 
-const { validateCommandPermissions, sendCommandLog } = require('../utils/logicHelper.js');
+const { checkCommandAvailability, validateCommandPermissions, sendCommandLog } = require('../utils/logicHelper.js');
 
 const antiSpamState = new Map();
 
@@ -193,17 +193,26 @@ module.exports = {
             return;
         }
 
+        const availability = await checkCommandAvailability(guild, commandName, db, message.channelId);
+        if (!availability.available) {
+            const sent = await message.channel.send({ embeds: [error(availability.reason)] }).catch(() => null);
+            if (sent) setTimeout(() => sent.delete().catch(() => {}), 3000);
+            scheduleCommandMessageDeletion(message, guildData);
+            return;
+        }
+
         const result = await validateCommandPermissions(
             message.client, 
             guild, 
             member, 
             author, 
             commandName, 
-            db
+            db,
+            message.channelId
         );
 
         if (!result.valid) {
-            message.channel.send({ embeds: [error(result.reason)] });
+            const sent = await message.channel.send({ embeds: [error(result.reason)] }).catch(() => null);
             scheduleCommandMessageDeletion(message, guildData);
             return;
         }

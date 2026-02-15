@@ -67,7 +67,13 @@ module.exports = {
             return await setupRoles(interaction);
         }
 
-        if (customId.startsWith('setup_perm') || customId.startsWith('select_command_perms') || customId.startsWith('perms_role_select_') || customId === 'select_delete_perm') {
+        if (
+            customId.startsWith('setup_perm') ||
+            customId.startsWith('select_command_perms') ||
+            customId.startsWith('select_perm_command_') ||
+            customId.startsWith('perms_role_select_') ||
+            customId === 'select_delete_perm'
+        ) {
             return await setupPermissions(interaction);
         }
 

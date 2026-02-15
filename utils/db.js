@@ -24,8 +24,7 @@ const db = {
     },
 
     ensureTables: async () => {
-        console.log('\n🔄 Creando tablas si no existen y verificando integridad de base de datos...');
-        
+        console.log('Checking DB status...');
         await db.query(`CREATE TABLE IF NOT EXISTS global_settings (key TEXT PRIMARY KEY, value TEXT);`);
         
         await db.query(`
@@ -41,6 +40,7 @@ const db = {
         await db.query(`CREATE TABLE IF NOT EXISTS log_channels (id SERIAL PRIMARY KEY, guildid TEXT NOT NULL, log_type TEXT NOT NULL, channel_id TEXT, UNIQUE (guildid, log_type));`);
         await db.query(`CREATE TABLE IF NOT EXISTS guild_settings (id SERIAL PRIMARY KEY, guildid TEXT UNIQUE NOT NULL, staff_roles TEXT, mod_immunity BOOLEAN DEFAULT TRUE, universal_lock BOOLEAN DEFAULT FALSE, prefix TEXT DEFAULT '!', delete_prefix_cmd_message BOOLEAN DEFAULT FALSE, log_channel_id TEXT);`);
         await db.query(`CREATE TABLE IF NOT EXISTS command_permissions (id SERIAL PRIMARY KEY, guildid TEXT NOT NULL, command_name TEXT NOT NULL, role_id TEXT NOT NULL, UNIQUE (guildid, command_name, role_id));`);
+        await db.query(`CREATE TABLE IF NOT EXISTS command_settings (id SERIAL PRIMARY KEY, guildid TEXT NOT NULL, command_name TEXT NOT NULL, enabled BOOLEAN DEFAULT TRUE, ignored_channels TEXT, UNIQUE (guildid, command_name));`);
         await db.query(`CREATE TABLE IF NOT EXISTS automod_rules (id SERIAL PRIMARY KEY, guildid TEXT NOT NULL, rule_order INTEGER NOT NULL, warnings_count INTEGER NOT NULL, action_type TEXT NOT NULL, action_duration TEXT, UNIQUE (guildid, warnings_count));`);
         await db.query(`CREATE TABLE IF NOT EXISTS automod_protections (guildid TEXT PRIMARY KEY, antimention_roles TEXT[], antimention_bypass TEXT[], antispam JSONB);`);
         
@@ -158,23 +158,16 @@ const db = {
         try { await db.query(`ALTER TABLE modlogs ADD COLUMN unban_timestamp BIGINT`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE modlogs RENAME COLUMN "endsAt" TO endsat;`, [], true); } catch (e) {}
         
-        // Función helper para crear/verificar columnas con debug explícito
+        // Función helper para crear/verificar columnas sin logging
         const ensureColumn = async (tableName, columnDef) => {
-            const colName = columnDef.split(' ')[0];
             try {
-                await db.query(`ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`);
-                console.log(`✅ CREADA: Columna "${colName}" en tabla "${tableName}"`);
+                await db.query(`ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`, [], true);
             } catch (e) {
-                if (e.message.includes('already exists')) {
-                    console.log(`⏭️  EXISTE: Columna "${colName}" ya existe en "${tableName}" - Sin cambios`);
-                } else {
-                    console.log(`❌ FALLO: No se pudo crear "${colName}" en "${tableName}" - ${e.message.substring(0, 60)}`);
-                }
+                // Sin logging: se omiten errores esperados como "already exists"
             }
         };
 
         // Asegurar columnas de guild_settings
-        console.log('\n📋 Verificando tabla guild_settings...');
         await ensureColumn('guild_settings', 'universal_lock BOOLEAN DEFAULT FALSE');
         await ensureColumn('guild_settings', 'prefix TEXT DEFAULT \'!\'');
         await ensureColumn('guild_settings', 'delete_prefix_cmd_message BOOLEAN DEFAULT FALSE');
@@ -196,34 +189,13 @@ const db = {
         try { await db.query(`ALTER TABLE custom_commands ADD COLUMN allowed_roles TEXT`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE ban_appeals ADD COLUMN source TEXT DEFAULT 'DISCORD'`, [], true); } catch (e) {}
 
-        // Diagnóstico final: Verificar qué columnas tiene guild_settings realmente
-        console.log('\n📊 DIAGNÓSTICO FINAL - Columnas en tabla guild_settings:');
-        try {
-            const colRes = await db.query(`
-                SELECT column_name, data_type, is_nullable, column_default 
-                FROM information_schema.columns 
-                WHERE table_name = 'guild_settings' AND table_schema = 'public'
-                ORDER BY ordinal_position
-            `);
-            if (colRes.rows.length > 0) {
-                colRes.rows.forEach(col => {
-                    console.log(`   ✅ ${col.column_name} (${col.data_type})${col.column_default ? ` DEFAULT ${col.column_default}` : ''}`);
-                });
-            } else {
-                console.log('   ⚠️  No se encontraron columnas');
-            }
-        } catch (e) {
-            console.log('   ⚠️  No se pudo verificar columnas:', e.message.substring(0, 50));
-        }
-
-        console.log('\n✅ PostgreSQL: Todas las tablas y columnas verificadas e inicializadas correctamente.\n');
+        // Fin de ensureTables
     }
 };
 
 const keepAlive = () => {
     db.query('SELECT 1;', [], true)
-        .then(() => console.log('🔄 Sent keep-alive ping to the database.'))
-        .catch(err => console.error('❌ Failed to send keep-alive ping:', err));
+    .catch(err => console.error('❌ Failed to send keep-alive ping:', err));
 };
 
 setInterval(keepAlive, 6 * 60 * 60 * 1000); 

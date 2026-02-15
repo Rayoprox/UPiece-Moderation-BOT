@@ -68,7 +68,7 @@ module.exports = async (interaction) => {
         const isSelect = customId.startsWith('select_');
         const isReset = customId === 'delete_all_data' || customId === 'confirm_delete_data' || customId === 'cancel_setup';
         const isAntinuke = customId.startsWith('antinuke_');
-        const isPermsRole = customId.startsWith('perms_role_select_');
+        const isPermsRole = customId.startsWith('perms_role_select_') || customId.startsWith('perm_role_select_') || customId.startsWith('perm_select_ignored_channels_');
         const isSetupModal = customId === 'modal_setup_prefix' || customId === 'modal_prefix_change';
         const isPrefixUI = customId === 'prefix_change' || customId === 'prefix_toggle_delete';
 

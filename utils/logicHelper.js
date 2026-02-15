@@ -3,7 +3,43 @@ const { DEVELOPER_IDS, SUPREME_IDS, STAFF_COMMANDS } = require('./config.js');
 const { error } = require('./embedFactory.js');
 const guildCache = require('./guildCache.js');
 
-async function validateCommandPermissions(client, guild, member, user, commandName, db) {
+async function checkCommandAvailability(guild, commandName, db, channelId = null) {
+    const mainGuildId = process.env.DISCORD_GUILD_ID;
+    if (!mainGuildId) return { available: true };
+
+    try {
+        const cmdSettingsRes = await db.query('SELECT enabled FROM command_settings WHERE guildid = $1 AND command_name = $2', [mainGuildId, commandName]);
+        if (cmdSettingsRes.rows.length > 0 && cmdSettingsRes.rows[0].enabled === false) {
+            return { available: false, reason: `⚠️ **Command \`${commandName}\` is Disabled**`, code: 'COMMAND_DISABLED' };
+        }
+    } catch (e) {
+        if (!e.message?.includes('command_settings')) {
+            console.error('[checkCommandAvailability] Error checking command settings:', e.message);
+        }
+    }
+
+    try {
+        const currentChannelId = channelId || (guild.channels.cache.get(guild.id)?.id || '');
+        const ignoredRes = await db.query('SELECT ignored_channels FROM command_settings WHERE guildid = $1 AND command_name = $2', [mainGuildId, commandName]);
+        if (ignoredRes.rows.length > 0 && ignoredRes.rows[0].ignored_channels) {
+            const ignoredRaw = ignoredRes.rows[0].ignored_channels;
+            const ignoredChannels = Array.isArray(ignoredRaw)
+                ? ignoredRaw.filter(Boolean)
+                : (typeof ignoredRaw === 'string' ? ignoredRaw.split(',').filter(Boolean) : []);
+            if (ignoredChannels.includes(currentChannelId)) {
+                return { available: false, reason: `⛔ **This channel is ignored for that command**`, code: 'CHANNEL_IGNORED' };
+            }
+        }
+    } catch (e) {
+        if (!e.message?.includes('command_settings')) {
+            console.error('[checkCommandAvailability] Error checking ignored channels:', e.message);
+        }
+    }
+
+    return { available: true };
+}
+
+async function validateCommandPermissions(client, guild, member, user, commandName, db, channelId = null) {
     const command = client.commands.get(commandName);
     if (!command) return { valid: false, reason: 'Command not found' };
 
@@ -28,10 +64,11 @@ async function validateCommandPermissions(client, guild, member, user, commandNa
         return { valid: true, isAdmin: true, bypass: true };
     }
 
+    const mainGuildId = process.env.DISCORD_GUILD_ID;
+
     let guildData = guildCache.get(guild.id);
     
     if (!guildData) {
-        const mainGuildId = process.env.DISCORD_GUILD_ID;
         const mainGuildName = client.guilds.cache.get(mainGuildId)?.name || guild?.name || 'this server';
         
         let settingsRes, permsRes;
@@ -84,6 +121,7 @@ async function validateCommandPermissions(client, guild, member, user, commandNa
     else if (isPublic) allowed = true;
 
     if (!allowed) {
+        const mainGuildName = client.guilds.cache.get(mainGuildId)?.name || guild?.name || 'this server';
         const msg = universalLock && member.permissions.has(PermissionsBitField.Flags.Administrator)
             ? `**${mainGuildName} Lockdown Active.**\nAdmin permissions are temporarily suspended. Contact the Server Management.`
             : "You do not have permission to use this command.";
@@ -122,4 +160,4 @@ async function sendCommandLog(interaction, db, isAdmin) {
     }
 }
 
-module.exports = { validateCommandPermissions, sendCommandLog };
+module.exports = { checkCommandAvailability, validateCommandPermissions, sendCommandLog };

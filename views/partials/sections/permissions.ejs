@@ -1,0 +1,107 @@
+<div id="permissions" class="section">
+    <h2>Permissions</h2>
+    
+    <!-- Staff Roles Section -->
+    <div class="form-group">
+        <label class="label">Staff Roles</label>
+        <select id="staff_roles" multiple style="height:100px">
+            <option value="">None</option>
+            <% const staffArr = (settings.staff_roles||'').split(',').filter(Boolean); 
+               guildRoles.forEach(r=>{ %>
+            <option value="<%= r.id %>" style="color:<%= r.color %>" <%= staffArr.includes(r.id)?'selected':'' %>>
+                @<%= r.name %>
+            </option>
+            <% }) %>
+        </select>
+    </div>
+    
+    <hr style="border:0;border-top:1px solid var(--border);margin:30px 0">
+    
+    <!-- Command Permissions Section -->
+    <h3>Command Permissions</h3>
+    
+    <!-- Search Bar -->
+    <div class="search-box" style="margin-bottom: 20px;">
+        <input type="text" id="perm_search" placeholder="🔍 Search commands..." style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid var(--border); background: var(--input-bg); color: inherit;">
+    </div>
+    
+    <!-- Commands List (filled by JavaScript) -->
+    <div id="perms-list" class="item-list"></div>
+    
+    <!-- Permission Modal -->
+    <div id="perm_modal" class="modal" style="display: none; z-index: 1000;">
+        <div class="modal-content" style="width: 90%; max-width: 500px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 id="perm_modal_title"></h3>
+                <button onclick="closePermModal()" style="background: none; border: none; font-size: 20px; cursor: pointer;">✕</button>
+            </div>
+            
+            <div id="perm_modal_body"></div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn-save" onclick="savePermConfig()" style="flex: 1;">Save</button>
+                <button class="btn-cancel" onclick="closePermModal()" style="flex: 1;">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.command-item {
+    background: var(--item-bg);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 4px solid;
+    transition: all 0.3s ease;
+}
+
+.command-item:hover {
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.command-item.enabled {
+    border-left-color: #57F287;
+}
+
+.command-item.disabled {
+    border-left-color: #ED4245;
+}
+
+.btn-action {
+    background: var(--btn-secondary);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.btn-action:hover {
+    background: var(--btn-secondary-hover);
+    transform: scale(1.05);
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background: var(--modal-bg);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+</style>

@@ -536,11 +536,36 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
         const antiSpam = protections.antispam || {};
         
         const cmdPermsRes = await db.query('SELECT command_name, role_id FROM command_permissions WHERE guildid = $1', [guildId]);
+        const cmdSettingsRes = await db.query('SELECT command_name, enabled, ignored_channels FROM command_settings WHERE guildid = $1', [guildId]);
+        
+        const commandSettingsMap = {};
+        cmdSettingsRes.rows.forEach(r => {
+            let ignoredChannels = [];
+            if (r.ignored_channels) {
+                if (typeof r.ignored_channels === 'string') {
+                    ignoredChannels = r.ignored_channels.split(',').filter(Boolean);
+                } else if (Array.isArray(r.ignored_channels)) {
+                    ignoredChannels = r.ignored_channels;
+                }
+            }
+            commandSettingsMap[r.command_name] = {
+                enabled: r.enabled !== false,
+                ignoredChannels: ignoredChannels
+            };
+        });
+        
         const commandOverrides = {};
         cmdPermsRes.rows.forEach(r => {
             if(r.command_name === 'setup') return;
-            if(!commandOverrides[r.command_name]) commandOverrides[r.command_name] = [];
-            commandOverrides[r.command_name].push(r.role_id);
+            if(!commandOverrides[r.command_name]) commandOverrides[r.command_name] = { roles: [], ...commandSettingsMap[r.command_name] };
+            commandOverrides[r.command_name].roles.push(r.role_id);
+        });
+        
+        // Add command settings for commands without roles
+        Object.keys(commandSettingsMap).forEach(cmd => {
+            if (!commandOverrides[cmd]) {
+                commandOverrides[cmd] = { roles: [], ...commandSettingsMap[cmd] };
+            }
         });
 
         const customCmdsRes = await db.query('SELECT * FROM custom_commands WHERE guildid = $1', [guildId]);
@@ -564,7 +589,7 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
             settings, logs, antinuke, antinukeSettings, lockdownChannels,
             automodRules, antiMention, antiSpam, commandOverrides,
             customCommands, ticketPanels,
-            botCommands, guildRoles, textChannels, categories
+            botCommands, guildRoles, textChannels, categories, channels
         });
     } catch (e) { console.error(e); res.status(500).send("Error loading setup"); }
 });
@@ -760,11 +785,20 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
             [guildId, antiMentionProtected.length ? antiMentionProtected : null, antiMentionBypass.length ? antiMentionBypass : null, antiSpamConfig]
         );
         await db.query("DELETE FROM command_permissions WHERE guildid = $1 AND command_name != 'setup'", [guildId]);
+        await db.query("DELETE FROM command_settings WHERE guildid = $1", [guildId]);
+        
         if (command_overrides && Array.isArray(command_overrides)) {
             for (const ov of command_overrides) {
                 for (const rId of ov.roles) {
                     await db.query("INSERT INTO command_permissions (guildid, command_name, role_id) VALUES ($1, $2, $3)", [guildId, ov.command, rId]);
                 }
+                // Save command settings (enabled, ignored_channels)
+                const enabled = ov.enabled !== false;
+                const ignoredChannels = ov.ignoredChannels && Array.isArray(ov.ignoredChannels) ? ov.ignoredChannels.join(',') : '';
+                await db.query(
+                    "INSERT INTO command_settings (guildid, command_name, enabled, ignored_channels) VALUES ($1, $2, $3, $4) ON CONFLICT (guildid, command_name) DO UPDATE SET enabled = $3, ignored_channels = $4",
+                    [guildId, ov.command, enabled, ignoredChannels]
+                );
             }
         }
 

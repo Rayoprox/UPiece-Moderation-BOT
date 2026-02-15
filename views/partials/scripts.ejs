@@ -1,6 +1,6 @@
 <script>
     let automodRules = <%- JSON.stringify(automodRules) %>;
-    let commandOverrides = <%- JSON.stringify(Object.entries(commandOverrides).map(([k,v])=>({command:k, roles:v}))) %>;
+    let commandOverrides = <%- JSON.stringify(commandOverrides) %>;
     let customCommands = <%- JSON.stringify(customCommands.map(c => {
         let parsed;
         try { parsed = JSON.parse(c.response_json); } catch { parsed = { content: c.response_json }; }
@@ -24,6 +24,11 @@
     const guildRolesMap = <%- JSON.stringify(guildRoles.reduce((acc,r)=>{acc[r.id]=r.name;return acc},{})) %>;
     const textChannelsMap = <%- JSON.stringify(textChannels.reduce((acc,c)=>{acc[c.id]=c.name;return acc},{})) %>;
     const categoriesMap = <%- JSON.stringify(categories.reduce((acc,c)=>{acc[c.id]=c.name;return acc},{})) %>;
+    
+    let allRoles = <%- JSON.stringify(guildRoles) %> || [];
+    let allChannels = <%- JSON.stringify(channels || []) %>;
+    let botCommands = <%- JSON.stringify(botCommands || []) %>;
+    
     function isValidEmoji(emoji) {
         const regex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])|<?(a)?:?(\w{2,32}):(\d{17,19})>?|^\d{17,19}$/;
         return regex.test(emoji);
@@ -192,20 +197,157 @@
         renderAutomod(); document.getElementById('am_warns').value=''; document.getElementById('am_duration').value='';
     }
 
-    function renderPerms() {
-        document.getElementById('perms-list').innerHTML = commandOverrides.map((o,i) => `
-            <div class="item-row">
-                <div class="item-info"><span style="color:#8b5cf6;font-weight:bold">/${o.command}</span><span style="color:#555">Allowed:</span>
-                    ${o.roles.map(r=>`<span class="tag role-tag">@${guildRolesMap[r]||r}</span>`).join('')}
-                </div>
-                <button class="btn-act btn-del" onclick="commandOverrides.splice(${i},1);renderPerms()">🗑️</button>
-            </div>`).join('');
+    function removePerm(btn) {
+        const item = btn.closest('[data-command]');
+        const cmd = item.getAttribute('data-command');
+        delete commandOverrides[cmd];
+        item.remove();
     }
-    function addPerm() {
-        const c = document.getElementById('perm_cmd').value, rs = Array.from(document.getElementById('perm_roles').selectedOptions).map(o=>o.value);
-        if(rs.length===0) return showToast("Select at least one role", 'error');
-        commandOverrides = commandOverrides.filter(o=>o.command!==c); commandOverrides.push({command:c, roles:rs}); renderPerms();
-        document.getElementById('perm_roles').value = "";
+
+    let currentEditingCommand = null;
+    function renderPerms() {
+        try {
+            if (!document.getElementById('perms-list')) return;
+            
+            // Ensure variables are arrays
+            if (!Array.isArray(allRoles)) allRoles = [];
+            if (!Array.isArray(allChannels)) allChannels = [];
+            if (!Array.isArray(botCommands)) botCommands = [];
+            if (typeof commandOverrides !== 'object') commandOverrides = {};
+            
+            const guildRolesMapLocal = allRoles.reduce((acc, r) => { acc[r.id] = r.name; return acc; }, {});
+            const commandsList = botCommands;
+            
+            if (commandsList.length === 0) {
+                document.getElementById('perms-list').innerHTML = '<p style="color: #999; padding: 20px;">No commands configured yet.</p>';
+                return;
+            }
+            
+            document.getElementById('perms-list').innerHTML = commandsList.map(cmd => {
+                const config = commandOverrides[cmd] || { roles: [], enabled: true, ignoredChannels: [] };
+                const enabled = config.enabled !== false;
+                const hasRoles = Array.isArray(config.roles) && config.roles.length > 0;
+                const roleNames = hasRoles ? config.roles.map(r => guildRolesMapLocal[r] || r).join(', ') : 'All';
+                const ignoredChannels = Array.isArray(config.ignoredChannels) ? config.ignoredChannels.length : 0;
+                
+                return `<div class="command-item ${enabled ? 'enabled' : 'disabled'}" data-command="${cmd}" style="background: var(--item-bg); border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                            <strong>/${cmd}</strong>
+                            <span style="padding: 2px 8px; border-radius: 3px; font-size: 12px; background: ${enabled ? '#50b282' : '#da373c'}; color: white;">${enabled ? '🟢 ON' : '🔴 OFF'}</span>
+                        </div>
+                        <div style="font-size: 12px; color: #999;">
+                            Roles: @${roleNames} ${ignoredChannels > 0 ? `| ${ignoredChannels} ignored channel${ignoredChannels > 1 ? 's' : ''}` : ''}
+                        </div>
+                    </div>
+                    <div class="perm-actions">
+                        <button class="btn-action" onclick="configurePerm('${cmd}')" style="padding: 6px 12px; font-size: 12px;">⚙️</button>
+                        <label class="switch perm-switch">
+                            <input type="checkbox" ${enabled ? 'checked' : ''} onchange="togglePermission('${cmd}')">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>`;
+            }).join('');
+            
+            // Setup search functionality
+            const searchInput = document.getElementById('perm_search');
+            if (searchInput) {
+                searchInput.addEventListener('input', function(e) {
+                    const query = e.target.value.toLowerCase();
+                    document.querySelectorAll('#perms-list .command-item').forEach(item => {
+                        const cmdName = item.getAttribute('data-command');
+                        item.style.display = cmdName.toLowerCase().includes(query) ? 'flex' : 'none';
+                    });
+                });
+            }
+        } catch (e) {
+            console.error('Error in renderPerms:', e);
+            document.getElementById('perms-list').innerHTML = '<p style="color: #da373c; padding: 20px;">Error loading permissions. Check console.</p>';
+        }
+    }
+
+    function configurePerm(cmdName) {
+        currentEditingCommand = cmdName;
+        const config = commandOverrides[cmdName] || { roles: [], enabled: true, ignoredChannels: [] };
+        
+        document.getElementById('perm_modal_title').textContent = '';
+        
+        const rolesOptions = allRoles.map(r => 
+            `<option value="${r.id}" style="color: ${r.color}">${r.name}</option>`
+        ).join('');
+        
+        const channelsOptions = allChannels.map(c => 
+            `<option value="${c.id}"># ${c.name}</option>`
+        ).join('');
+        
+        const bodyHtml = `
+            <div class="perm-block perm-block-full">
+                <div class="perm-block-title">Configure: /${cmdName}</div>
+                <label class="label">🔐 Allowed Roles</label>
+                <select id="edit_perm_roles" multiple class="config-select" style="height: 120px; width: 100%;">
+                    ${rolesOptions}
+                </select>
+                <small style="color: #999;">Leave empty to allow all roles</small>
+                <div class="perm-divider"></div>
+                <label class="label">📍 Ignored Channels</label>
+                <select id="edit_perm_channels" multiple class="config-select" style="height: 120px; width: 100%;">
+                    ${channelsOptions}
+                </select>
+                <small style="color: #999;">Commands won't work in these channels</small>
+            </div>
+        `;
+        
+        document.getElementById('perm_modal_body').innerHTML = bodyHtml;
+        enhanceAllSelects();
+        
+        // Set current values
+        if (Array.isArray(config.roles)) {
+            config.roles.forEach(role => {
+                const option = document.querySelector(`#edit_perm_roles option[value="${role}"]`);
+                if (option) option.selected = true;
+            });
+        }
+        
+        if (Array.isArray(config.ignoredChannels)) {
+            config.ignoredChannels.forEach(ch => {
+                const option = document.querySelector(`#edit_perm_channels option[value="${ch}"]`);
+                if (option) option.selected = true;
+            });
+        }
+        
+        document.getElementById('perm_modal').style.display = 'flex';
+    }
+
+    function closePermModal() {
+        document.getElementById('perm_modal').style.display = 'none';
+        currentEditingCommand = null;
+    }
+
+    function savePermConfig() {
+        if (!currentEditingCommand) return;
+        
+        const selectedRoles = Array.from(document.getElementById('edit_perm_roles').selectedOptions).map(o => o.value);
+        const selectedChannels = Array.from(document.getElementById('edit_perm_channels').selectedOptions).map(o => o.value);
+        
+        if (!commandOverrides[currentEditingCommand]) {
+            commandOverrides[currentEditingCommand] = { roles: [], enabled: true, ignoredChannels: [] };
+        }
+        
+        commandOverrides[currentEditingCommand].roles = selectedRoles;
+        commandOverrides[currentEditingCommand].ignoredChannels = selectedChannels;
+        
+        renderPerms();
+        closePermModal();
+    }
+
+    function togglePermission(cmdName) {
+        if (!commandOverrides[cmdName]) {
+            commandOverrides[cmdName] = { roles: [], enabled: true, ignoredChannels: [] };
+        }
+        
+        commandOverrides[cmdName].enabled = !commandOverrides[cmdName].enabled;
+        renderPerms();
     }
 
     let currentCCIndex = -1;
@@ -456,7 +598,12 @@
                     bypass: Array.from(document.getElementById('antispam_emoji_bypass').selectedOptions).map(o=>o.value)
                 }
             },
-            command_overrides: commandOverrides,
+            command_overrides: Object.entries(commandOverrides).map(([command, config]) => ({
+                command,
+                roles: config.roles || [],
+                enabled: config.enabled !== false,
+                ignoredChannels: config.ignoredChannels || []
+            })),
             custom_commands: finalCC, ticket_panels: ticketPanels
         };
         try {

@@ -2,7 +2,7 @@ const db = require('../utils/db.js');
 const { safeDefer } = require('../utils/interactionHelpers.js');
 const { error } = require('../utils/embedFactory.js');
 
-const { validateCommandPermissions, sendCommandLog } = require('../utils/logicHelper.js');
+const { checkCommandAvailability, validateCommandPermissions, sendCommandLog } = require('../utils/logicHelper.js');
 
 module.exports = async (interaction) => {
     const client = interaction.client;
@@ -16,17 +16,28 @@ module.exports = async (interaction) => {
 
     try {
      
+        const availability = await checkCommandAvailability(interaction.guild, interaction.commandName, db, interaction.channelId);
+        if (!availability.available) {
+            await interaction.editReply({ embeds: [error(availability.reason)] });
+            setTimeout(() => {
+                interaction.deleteReply().catch(() => {});
+            }, 3000);
+            return;
+        }
+
         const result = await validateCommandPermissions(
             client, 
             interaction.guild, 
             interaction.member, 
             interaction.user, 
-            interaction.commandName, 
-            db
+            interaction.commandName,
+            db,
+            interaction.channelId
         );
 
         if (!result.valid) {
-            return interaction.editReply({ embeds: [error(result.reason)] });
+            await interaction.editReply({ embeds: [error(result.reason)] });
+            return;
         }
 
         await command.execute(interaction);
