@@ -9,6 +9,18 @@ module.exports = async (interaction) => {
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
 
+    // Validate command guild restrictions based on deploy property
+    const commandDeploy = command.deploy || 'all';
+    if (commandDeploy === 'main' && interaction.guildId !== process.env.DISCORD_GUILD_ID) {
+        return interaction.reply({ content: '❌ This command is not available in this server.', ephemeral: true }).catch(() => {});
+    }
+    if (commandDeploy === 'appeal' && interaction.guildId !== process.env.DISCORD_APPEAL_GUILD_ID) {
+        return interaction.reply({ content: '❌ This command is not available in this server.', ephemeral: true }).catch(() => {});
+    }
+    if (commandDeploy === 'developer' && interaction.guildId !== process.env.DISCORD_GUILD_ID) {
+        return interaction.reply({ content: '❌ This command is not available in this server.', ephemeral: true }).catch(() => {});
+    }
+
     const isPublic = command.isPublic ?? false;
 
     

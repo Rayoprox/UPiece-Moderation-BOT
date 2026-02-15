@@ -22,7 +22,8 @@ module.exports = {
     async execute(message) {
         if (message.author.bot || !message.guild) return;
 
-        if (process.env.DISCORD_GUILD_ID && message.guild.id !== process.env.DISCORD_GUILD_ID) return;
+        const allowedGuilds = [process.env.DISCORD_GUILD_ID, process.env.DISCORD_APPEAL_GUILD_ID].filter(Boolean);
+        if (allowedGuilds.length > 0 && !allowedGuilds.includes(message.guild.id)) return;
 
         const { guild, author, member } = message;
 
