@@ -158,31 +158,35 @@ module.exports = {
                         const bypass = (antispam.repeated.bypass || []);
                         const senderBypass = member.permissions.has(PermissionsBitField.Flags.Administrator) || member.roles.cache.hasAny(...bypass);
                         if (!senderBypass) {
-                            const regex = new RegExp(`(.)\\1{${thr - 1},}`);
-                            if (regex.test(message.content)) {
-                                const userId = author.id;
-                                const cooldownData = spamCooldown.get(userId);
-                                const nowCheck = Date.now();
-                                
-                                // Solo alertar UNA VEZ cada 5 segundos
-                                if (!cooldownData || cooldownData.expiresAt < nowCheck) {
-                                    // 1. Timeout
-                                    await member.timeout(5000).catch(() => {});
+                            // Extract URLs and strip them from content check
+                            const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|discord\.gg\/[^\s]+)/gi;
+                            const contentWithoutUrls = message.content.replace(urlRegex, '');
+                            
+                            // Only check for repeated characters if there's actual content after removing URLs
+                            if (contentWithoutUrls.trim().length > 0) {
+                                const regex = new RegExp(`(.)\\1{${thr - 1},}`);
+                                if (regex.test(contentWithoutUrls)) {
+                                    const userId = author.id;
+                                    const cooldownData = spamCooldown.get(userId);
+                                    const nowCheck = Date.now();
                                     
-                                    // 2. Mensaje
-                                    const embed = new EmbedBuilder()
-                                        .setDescription(`**Do not use duplicated characters** ${author}`)
-                                        .setColor('#EF4444');
-                                    const sent = await message.channel.send({ embeds: [embed] }).catch(() => null);
-                                    if (sent) setTimeout(() => sent.delete().catch(() => {}), 3000);
+                                    // Solo alertar UNA VEZ cada 5 segundos (sin timeout)
+                                    if (!cooldownData || cooldownData.expiresAt < nowCheck) {
+                                        // Solo enviar mensaje de advertencia, SIN timeout
+                                        const embed = new EmbedBuilder()
+                                            .setDescription(`**Do not use duplicated characters** ${author}`)
+                                            .setColor('#EF4444');
+                                        const sent = await message.channel.send({ embeds: [embed] }).catch(() => null);
+                                        if (sent) setTimeout(() => sent.delete().catch(() => {}), 3000);
+                                        
+                                        // Marcar en cooldown
+                                        spamCooldown.set(userId, { expiresAt: nowCheck + 5000, type: 'repeated' });
+                                    }
                                     
-                                    // Marcar en cooldown
-                                    spamCooldown.set(userId, { expiresAt: nowCheck + 5000, type: 'repeated' });
+                                    // Eliminar el mensaje
+                                    await message.delete().catch(() => {});
+                                    return;
                                 }
-                                
-                                // 3. Siempre eliminar el mensaje
-                                await message.delete().catch(() => {});
-                                return;
                             }
                         }
                     }
@@ -202,12 +206,9 @@ module.exports = {
                                 const cooldownData = spamCooldown.get(userId);
                                 const nowCheck = Date.now();
                                 
-                                // Solo alertar UNA VEZ cada 5 segundos
+                                // Solo alertar UNA VEZ cada 5 segundos (sin timeout)
                                 if (!cooldownData || cooldownData.expiresAt < nowCheck) {
-                                    // 1. Timeout
-                                    await member.timeout(5000).catch(() => {});
-                                    
-                                    // 2. Mensaje
+                                    // Solo enviar mensaje de advertencia, SIN timeout
                                     const embed = new EmbedBuilder()
                                         .setDescription(`**Do not spam emojis** ${author}`)
                                         .setColor('#EF4444');
@@ -218,7 +219,7 @@ module.exports = {
                                     spamCooldown.set(userId, { expiresAt: nowCheck + 5000, type: 'emoji' });
                                 }
                                 
-                                // 3. Siempre eliminar el mensaje
+                                // Siempre eliminar el mensaje
                                 await message.delete().catch(() => {});
                                 return;
                             }

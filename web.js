@@ -1005,4 +1005,69 @@ app.get('/transcript/:id', async (req, res) => {
     } catch (error) { res.status(500).send('Error'); }
 });
 
+// Ruta para ver Backup Preview
+app.get('/backup-preview/:guildId/:token', auth, protectRoute, async (req, res) => {
+    try {
+        const { guildId, token } = req.params;
+
+        // Obtener el backup del usuario
+        const backupResult = await db.query('SELECT backup_history, data FROM guild_backups WHERE guildid = $1', [guildId]);
+        if (!backupResult.rows.length) {
+            return res.status(404).render('error', { message: 'No backup found for this server.' });
+        }
+
+        const backupRow = backupResult.rows[0];
+        let backupHistory = [];
+        let backup = null;
+
+        // Intentar obtener del historial
+        if (backupRow.backup_history) {
+            try {
+                backupHistory = JSON.parse(backupRow.backup_history);
+                if (backupHistory.length > 0) {
+                    backup = backupHistory[0]; // Usar el más reciente
+                }
+            } catch (e) {
+                // Fallback al dato antiguo
+            }
+        }
+
+        // Fallback al campo data antiguo
+        if (!backup && backupRow.data) {
+            backup = backupRow.data;
+        }
+
+        if (!backup) {
+            return res.status(404).render('error', { message: 'Invalid backup data.' });
+        }
+
+        // Procesar datos del backup para la vista
+        const channels = backup.channels || [];
+        const roles = backup.roles || [];
+        
+        const categoryCount = channels.filter(c => c.type === 4).length;
+        const textChannelCount = channels.filter(c => c.type === 0).length;
+        const guild = req.user.guilds.find(g => g.id === guildId);
+
+        res.render('backup-preview', {
+            guildName: guild?.name || 'Unknown Server',
+            backupTimestamp: backup.timestamp,
+            channelCount: channels.length,
+            roleCount: roles.length,
+            categoryCount,
+            textChannelCount,
+            channels: channels.sort((a, b) => {
+                // Colocar categorías primero
+                if ((a.type === 4) && (b.type !== 4)) return -1;
+                if ((a.type !== 4) && (b.type === 4)) return 1;
+                return (a.position || 0) - (b.position || 0);
+            }),
+            roles: roles.sort((a, b) => (b.position || 0) - (a.position || 0))
+        });
+    } catch (error) {
+        console.error('Backup preview error:', error);
+        res.status(500).render('error', { message: 'Error loading backup preview.' });
+    }
+});
+
 module.exports = app;
