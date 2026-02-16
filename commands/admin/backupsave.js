@@ -24,8 +24,9 @@ module.exports = {
                 expiresIn: 24 * 60 * 60 * 1000 // 24 horas
             });
 
-            // Construir URL del preview
-            const previewUrl = `${process.env.WEB_URL || 'http://localhost:3000'}/backup-preview/${interaction.guild.id}/${token}`;
+            // Construir URL del preview usando CALLBACK_URL
+            const baseUrl = process.env.CALLBACK_URL.replace('/auth/discord/callback', '');
+            const previewUrl = `${baseUrl}/backup-preview/${interaction.guild.id}/${token}`;
 
             const embed = new EmbedBuilder()
                 .setTitle('✅ Backup Saved Successfully!')
