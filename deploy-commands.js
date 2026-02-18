@@ -21,6 +21,7 @@ for (const folder of commandFolders) {
         if ('data' in command && 'execute' in command) {
             switch (command.deploy) {
                 case 'main':
+                case 'developer':
                     mainGuildCommands.push(command.data.toJSON());
                     break;
                 case 'appeal':

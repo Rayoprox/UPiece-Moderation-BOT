@@ -29,11 +29,11 @@ async function processDeletionRequests(client) {
                             if (!guild) continue;
                             const member = await guild.members.fetch(userId).catch(() => null);
                             if (!member) continue;
-                            const configRes = await db.query("SELECT verified_role, unverified_role FROM verification_config WHERE guild_id = $1", [row.guildid]);
+                            const configRes = await db.query("SELECT verified_role_id, unverified_role_id FROM verification_config WHERE guildid = $1", [row.guildid]);
                             if (configRes.rows.length > 0) {
-                                const { verified_role, unverified_role } = configRes.rows[0];
-                                if (verified_role && member.roles.cache.has(verified_role)) await member.roles.remove(verified_role).catch(() => {});
-                                if (unverified_role) await member.roles.add(unverified_role).catch(() => {});
+                                const { verified_role_id, unverified_role_id } = configRes.rows[0];
+                                if (verified_role_id && member.roles.cache.has(verified_role_id)) await member.roles.remove(verified_role_id).catch(() => {});
+                                if (unverified_role_id) await member.roles.add(unverified_role_id).catch(() => {});
                             }
                         } catch (e) { /* guild/member not accessible */ }
                     }
