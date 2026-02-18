@@ -49,7 +49,9 @@ async function validateCommandPermissions(client, guild, member, user, commandNa
     }
 
     // License check (before everything)
-    if (command.data.name !== 'redeem') {
+    // Exclude license management commands from license verification
+    const licenseCommands = ['redeem', 'generate_license', 'delete_license'];
+    if (!licenseCommands.includes(command.data.name)) {
         const licRes = await db.query("SELECT expires_at FROM licenses WHERE guild_id = $1", [guild.id]);
         const hasLicense = licRes.rows.length > 0 && 
             (licRes.rows[0].expires_at === null || parseInt(licRes.rows[0].expires_at) > Date.now());
