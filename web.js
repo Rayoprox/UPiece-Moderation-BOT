@@ -352,11 +352,7 @@ app.post('/verify/submit', auth, async (req, res) => {
         const vpnResult = vpnDetector.check(clientIp);
         
         if (vpnResult.blocked) {
-            console.log(`[VERIFY] ⛔ VPN/DC blocked: ${username} (${userId}) — IP: ${clientIp} — Reason: ${vpnResult.reason}`);
-            return res.status(403).json({ 
-                error: 'VPN or Proxy detected. Please disable your VPN/Proxy and try again.',
-                reason: vpnResult.reason 
-            });
+            console.log(`[VERIFY] ⚠️ VPN/DC detected (allowed): ${username} (${userId}) — IP: ${clientIp} — Reason: ${vpnResult.reason}`);
         }
         
         // Check if already verified
@@ -414,32 +410,86 @@ app.post('/verify/submit', auth, async (req, res) => {
         // Run suspicion check
         const suspicion = await checkUserSuspicion(botClient, db, userId, targetGuild, req.clientIp, username, fingerprint);
         
-        // Send verification log to warning channel
+        // ── Build verification log embed ──
         try {
             if (config.channel_id) {
                 const logChannel = botClient?.channels.cache.get(config.channel_id);
                 if (logChannel) {
                     const user = await botClient.users.fetch(userId).catch(() => null);
-                    const accountAge = user ? Math.floor((Date.now() - user.createdTimestamp) / 86400000) : '?';
-                    const fp = req.body.fingerprint ? '✅ Stored' : '❌ Not captured';
+                    const accountAgeDays = user ? Math.floor((Date.now() - user.createdTimestamp) / 86400000) : null;
+                    
+                    // ── Determine scenario ──
+                    const isVPN = vpnResult.blocked;
+                    const isAlt = suspicion.riskScore >= 50;
+                    const isSuspicious = suspicion.riskScore >= 25 && suspicion.riskScore < 50;
+                    
+                    // Detect linked accounts (IP or fingerprint match)
+                    const linkedAccounts = suspicion.flags.filter(f => 
+                        f.includes('IP matches') || f.includes('FINGERPRINT matches') || f.includes('Same device')
+                    );
+                    const hasLinkedAccounts = linkedAccounts.length > 0;
+                    
+                    let title, color, description;
+                    
+                    if (isAlt && isVPN) {
+                        // ── CRITICAL: Alt + VPN ──
+                        title = '🚨 Alt Account + VPN Detected';
+                        color = 0xe74c3c;
+                        description = `<@${userId}> completed verification but **multiple red flags** were detected. This user is very likely an **alt account using a VPN** to evade bans.`;
+                    } else if (isAlt) {
+                        // ── ALT detected ──
+                        title = '⚠️ Possible Alt Account Detected';
+                        color = 0xe67e22;
+                        description = `<@${userId}> completed verification but is **likely an alt account**. Linked connections were found with other accounts in this server.`;
+                    } else if (isVPN) {
+                        // ── VPN detected ──
+                        title = '🔒 VPN / Proxy Detected';
+                        color = 0xf39c12;
+                        description = `<@${userId}> completed verification using a **VPN or Proxy**. This may be legitimate, but keep an eye on this user.`;
+                    } else if (isSuspicious) {
+                        // ── Somewhat suspicious ──
+                        title = '📋 Verification Completed — Minor Flags';
+                        color = 0xf1c40f;
+                        description = `<@${userId}> completed verification. Some minor flags were raised during analysis.`;
+                    } else {
+                        // ── ALL CLEAN ──
+                        title = '✅ Verification Completed';
+                        color = 0x2ecc71;
+                        description = `<@${userId}> has been verified successfully. No issues detected.`;
+                    }
                     
                     const logEmbed = new EmbedBuilder()
-                        .setTitle('📋 New Verification Completed')
-                        .setColor(suspicion.riskScore >= 40 ? 0xe67e22 : 0x2ecc71)
+                        .setTitle(title)
+                        .setDescription(description)
+                        .setColor(color)
                         .setThumbnail(user?.displayAvatarURL() || null)
-                        .addFields(
-                            { name: 'User', value: `**${username}** (<@${userId}>)`, inline: true },
-                            { name: 'Account Age', value: `${accountAge} days`, inline: true },
-                            { name: 'Avatar', value: user?.avatar ? '✅ Custom' : '⚠️ Default', inline: true },
-                            { name: 'IP', value: '🔒 Stored', inline: true },
-                            { name: 'Fingerprint', value: fp, inline: true },
-                            { name: 'Risk Score', value: `${suspicion.riskScore}/100 (${suspicion.riskLevel})`, inline: true }
-                        )
-                        .setFooter({ text: `User ID: ${userId}` })
-                        .setTimestamp();
+                        .setTimestamp()
+                        .setFooter({ text: `ID: ${userId}` });
                     
+                    // ── Security Checks ──
+                    const checks = [
+                        `${accountAgeDays !== null && accountAgeDays >= 30 ? '✅' : accountAgeDays !== null && accountAgeDays >= 7 ? '⚠️' : '❌'} Account Age: **${accountAgeDays !== null ? accountAgeDays + ' days' : 'Unknown'}**`,
+                        `${user?.avatar ? '✅' : '⚠️'} Avatar: **${user?.avatar ? 'Custom' : 'Default'}**`,
+                        `${fingerprint ? '✅' : '⚠️'} Fingerprint: **${fingerprint ? 'Captured' : 'Not captured'}**`,
+                        `${!isVPN ? '✅' : '❌'} VPN/Proxy: **${isVPN ? (vpnResult.reason === 'vpn' ? 'VPN Detected' : 'Datacenter Detected') : 'Not detected'}**`,
+                        `${!hasLinkedAccounts ? '✅' : '❌'} Linked Accounts: **${hasLinkedAccounts ? 'Found' : 'None'}**`,
+                    ];
+                    logEmbed.addFields({ name: '🔍 Security Checks', value: checks.join('\n'), inline: false });
+                    
+                    // ── Risk Score bar ──
+                    const score = Math.min(suspicion.riskScore, 100);
+                    const filled = Math.round(score / 10);
+                    const bar = '🟥'.repeat(Math.min(filled, 10)) + '⬜'.repeat(Math.max(10 - filled, 0));
+                    logEmbed.addFields({ name: '📊 Risk Score', value: `${bar} **${score}/100** (${suspicion.riskLevel})`, inline: false });
+                    
+                    // ── Flags (only if there are any) ──
                     if (suspicion.flags && suspicion.flags.length > 0) {
-                        logEmbed.addFields({ name: 'Flags', value: suspicion.flags.join('\n').slice(0, 1024), inline: false });
+                        logEmbed.addFields({ name: '🚩 Flags', value: suspicion.flags.join('\n').slice(0, 1024), inline: false });
+                    }
+                    
+                    // ── Linked accounts detail (if alt) ──
+                    if (hasLinkedAccounts) {
+                        logEmbed.addFields({ name: '🔗 Linked Connections', value: linkedAccounts.join('\n').slice(0, 1024), inline: false });
                     }
                     
                     await logChannel.send({ embeds: [logEmbed] }).catch(() => {});

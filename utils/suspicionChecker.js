@@ -180,35 +180,6 @@ async function checkUserSuspicion(client, db, userId, guildId, ip, username, fin
             riskColor = 0xf39c12; // Yellow
         }
         
-        // Send alert if suspicious (score >= 40)
-        if (riskScore >= 40) {
-            const configRes = await db.query(
-                "SELECT channel_id FROM verification_config WHERE guildid = $1 AND enabled = true",
-                [guildId]
-            );
-            
-            if (configRes.rows.length > 0 && configRes.rows[0].channel_id) {
-                const channel = client.channels.cache.get(configRes.rows[0].channel_id);
-                
-                if (channel) {
-                    const embed = new EmbedBuilder()
-                        .setTitle(`⚠️ Suspicious User Detected`)
-                        .setDescription(`**${username}** (${userId}) has been flagged during verification.`)
-                        .addFields(
-                            { name: 'Risk Level', value: riskLevel, inline: true },
-                            { name: 'Risk Score', value: `${riskScore}/100`, inline: true },
-                            { name: 'IP Address', value: `\`${ip}\``, inline: true },
-                            { name: 'Flags', value: flags.length > 0 ? flags.join('\n') : 'None', inline: false }
-                        )
-                        .setColor(riskColor)
-                        .setTimestamp()
-                        .setFooter({ text: `User ID: ${userId}` });
-                    
-                    await channel.send({ embeds: [embed] }).catch(console.error);
-                }
-            }
-        }
-        
         // Update risk score in database
         await db.query(
             `UPDATE user_ips 
