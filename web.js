@@ -356,9 +356,10 @@ app.post('/verify/submit', auth, async (req, res) => {
         }
         
         // Save IP and fingerprint
+        const fingerprint = req.body.fingerprint || null;
         await db.query(
-            "INSERT INTO user_ips (userid, guildid, ip_address, user_agent, timestamp, verified) VALUES ($1, $2, $3, $4, $5, true)",
-            [userId, targetGuild, req.clientIp, req.userAgent, Date.now()]
+            "INSERT INTO user_ips (userid, guildid, ip_address, fingerprint, user_agent, timestamp, verified) VALUES ($1, $2, $3, $4, $5, $6, true)",
+            [userId, targetGuild, req.clientIp, fingerprint, req.userAgent, Date.now()]
         );
         
         // Save verification status
@@ -398,7 +399,7 @@ app.post('/verify/submit', auth, async (req, res) => {
         }
         
         // Run suspicion check
-        const suspicion = await checkUserSuspicion(botClient, db, userId, targetGuild, req.clientIp, username);
+        const suspicion = await checkUserSuspicion(botClient, db, userId, targetGuild, req.clientIp, username, fingerprint);
         
         // Send verification log to warning channel
         try {

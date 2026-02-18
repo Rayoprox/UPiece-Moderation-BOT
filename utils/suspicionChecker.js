@@ -10,7 +10,7 @@ const { EmbedBuilder } = require('discord.js');
  * @param {string} username - Username for logging
  * @returns {Promise<Object>} Suspicion analysis result
  */
-async function checkUserSuspicion(client, db, userId, guildId, ip, username) {
+async function checkUserSuspicion(client, db, userId, guildId, ip, username, fingerprint) {
     try {
         let riskScore = 0;
         const flags = [];
@@ -109,7 +109,44 @@ async function checkUserSuspicion(client, db, userId, guildId, ip, username) {
             riskScore += 5;
         }
         
-        // 6. Check default Discord avatar
+        // 6. Fingerprint match with banned users
+        if (fingerprint) {
+            const fpBanned = await db.query(
+                `SELECT DISTINCT m.userid, m.usertag
+                 FROM modlogs m
+                 JOIN user_ips u ON m.userid = u.userid
+                 WHERE m.guildid = $1
+                 AND m.action = 'BAN'
+                 AND m.status = 'ACTIVE'
+                 AND u.fingerprint = $2
+                 AND m.userid != $3
+                 LIMIT 5`,
+                [guildId, fingerprint, userId]
+            );
+            
+            if (fpBanned.rows.length > 0) {
+                const names = fpBanned.rows.map(r => r.usertag).join(', ');
+                flags.push(`🖥️ FINGERPRINT matches ${fpBanned.rows.length} banned user(s): ${names}`);
+                riskScore += 80;
+            }
+            
+            // 7. Fingerprint match with other (non-banned) accounts
+            const fpOthers = await db.query(
+                `SELECT DISTINCT userid
+                 FROM user_ips
+                 WHERE fingerprint = $1
+                 AND guildid = $2
+                 AND userid != $3`,
+                [fingerprint, guildId, userId]
+            );
+            
+            if (fpOthers.rows.length > 0) {
+                flags.push(`🖥️ Same device/browser used by ${fpOthers.rows.length} other account(s)`);
+                riskScore += 40;
+            }
+        }
+        
+        // 8. Check default Discord avatar
         if (user && user.avatar === null) {
             flags.push('🖼️ Using default Discord avatar');
             riskScore += 15;

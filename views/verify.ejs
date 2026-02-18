@@ -263,6 +263,72 @@
             document.getElementById('captchaInput').focus();
         }
 
+        // ── Browser Fingerprint Generator ──
+        function generateFingerprint() {
+            const components = [];
+            
+            // Screen
+            components.push(`${screen.width}x${screen.height}x${screen.colorDepth}`);
+            components.push(screen.pixelDepth || 0);
+            
+            // Timezone
+            components.push(Intl.DateTimeFormat().resolvedOptions().timeZone || '');
+            components.push(new Date().getTimezoneOffset());
+            
+            // Language
+            components.push(navigator.language || '');
+            components.push((navigator.languages || []).join(','));
+            
+            // Hardware
+            components.push(navigator.hardwareConcurrency || 0);
+            components.push(navigator.deviceMemory || 0);
+            components.push(navigator.maxTouchPoints || 0);
+            components.push(navigator.platform || '');
+            
+            // Canvas fingerprint
+            try {
+                const c = document.createElement('canvas');
+                c.width = 200; c.height = 50;
+                const ctx2 = c.getContext('2d');
+                ctx2.textBaseline = 'top';
+                ctx2.font = '14px Arial';
+                ctx2.fillStyle = '#f60';
+                ctx2.fillRect(125, 1, 62, 20);
+                ctx2.fillStyle = '#069';
+                ctx2.fillText('FP.canvas', 2, 15);
+                ctx2.fillStyle = 'rgba(102,204,0,0.7)';
+                ctx2.fillText('FP.canvas', 4, 17);
+                components.push(c.toDataURL().slice(-50));
+            } catch(e) { components.push('no-canvas'); }
+            
+            // WebGL
+            try {
+                const gl = document.createElement('canvas').getContext('webgl');
+                if (gl) {
+                    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+                    components.push(dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : 'no-dbg');
+                    components.push(dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : 'no-dbg');
+                } else { components.push('no-webgl'); }
+            } catch(e) { components.push('no-webgl'); }
+            
+            // Plugins
+            const plugins = [];
+            for (let i = 0; i < Math.min(navigator.plugins.length, 10); i++) {
+                plugins.push(navigator.plugins[i].name);
+            }
+            components.push(plugins.join('|'));
+            
+            // Simple hash
+            const raw = components.join('###');
+            let hash = 0;
+            for (let i = 0; i < raw.length; i++) {
+                const ch = raw.charCodeAt(i);
+                hash = ((hash << 5) - hash) + ch;
+                hash |= 0;
+            }
+            return Math.abs(hash).toString(36);
+        }
+
         async function submitVerification() {
             const input = document.getElementById('captchaInput').value.toUpperCase();
             const btn = document.querySelector('.btn:not(.btn-refresh)');
@@ -286,13 +352,18 @@
             btn.disabled = true;
             btn.textContent = 'Verifying...';
             
+            // Generate fingerprint
+            let fp = null;
+            try { fp = generateFingerprint(); } catch(e) {}
+            
             try {
                 const response = await fetch('/verify/submit', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         captcha: input,
-                        guildId: '<%= guildId || "" %>'
+                        guildId: '<%= guildId || "" %>',
+                        fingerprint: fp
                     })
                 });
                 
