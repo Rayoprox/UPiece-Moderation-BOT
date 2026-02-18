@@ -316,6 +316,10 @@
             });
         }
         
+        // Sync custom dropdown UIs after setting values
+        syncSelectUI('edit_perm_roles');
+        syncSelectUI('edit_perm_channels');
+        
         document.getElementById('perm_modal').style.display = 'flex';
     }
 
@@ -381,6 +385,8 @@
         document.getElementById('cc_emb_img').value = c.embedData?.image?.url || '';
         const rolesSel = document.getElementById('edit_cc_roles');
         Array.from(rolesSel.options).forEach(o => o.selected = c.roles.includes(o.value));
+        syncSelectUI('edit_cc_roles');
+        syncSelectUI('cc_mode');
         toggleCCMode();
         switchSubTab('btn-cc_msg'); 
         document.getElementById('overlay-cc').style.display = 'flex';
@@ -445,6 +451,8 @@
         document.getElementById('tk_col_welcome').value = p.welcomeColor;
         document.getElementById('tk_limit').value = p.ticketLimit;
         document.getElementById('tk_id').disabled = (i !== -1);
+        // Sync custom dropdown UIs after setting values
+        ['tk_cat', 'tk_role_supp', 'tk_role_black', 'tk_log', 'tk_btn_style'].forEach(id => syncSelectUI(id));
         switchSubTab('btn-tk_app');
         document.getElementById('overlay-ticket').style.display = 'flex';
     }
@@ -696,6 +704,7 @@
                             this.classList.add('selected');
                             updateTrigger();
                             customSelect.classList.remove('open');
+                            repositionDropdown(false);
                         }
                     });
                     optionsDiv.appendChild(div);
@@ -708,47 +717,63 @@
             function updateTrigger() {
                 const selected = Array.from(el.selectedOptions);
                 const textDiv = trigger.querySelector('.selection-text');
-                if (selected.length === 0) {
+                const hasSelection = selected.length > 0 && !(selected.length === 1 && selected[0].value === '');
+                
+                if (!hasSelection) {
                     textDiv.innerHTML = '<span style="color:var(--sub)">Select option...</span>';
-                } else if (el.multiple) {
-                    textDiv.innerHTML = selected.map(s => 
-                        `<span class="select-badge">${s.text}<span class="badge-close" onclick="deselect('${el.id}', '${s.value}', event)">×</span></span>`
-                    ).join('');
                 } else {
-                    const s = selected[0];
-                    const color = s.style.color;
-                    textDiv.innerHTML = `${color ? `<span class="color-dot" style="background:${color}"></span>` : ''}${s.text}`;
+                    textDiv.innerHTML = selected.map(s => {
+                        const color = s.style.color || null;
+                        return `<span class="select-badge">${color ? `<span class="color-dot" style="background:${color}"></span>` : ''}${s.text}<span class="badge-close" onclick="deselect('${el.id}', '${s.value}', event)">×</span></span>`;
+                    }).join('');
                 }
             }
             
             window.deselect = function(selectId, val, e) {
                 e.stopPropagation();
                 const select = document.getElementById(selectId);
-                const opt = Array.from(select.options).find(o => o.value === val);
-                if(opt) opt.selected = false;
-                const parent = select.closest('.custom-select-wrapper');
-                parent.querySelector(`.custom-option[data-value="${val}"]`).classList.remove('selected');
-                const event = new Event('change');
-                select.dispatchEvent(event);
-                const textContainer = parent.querySelector('.selection-text');
-                const newSelected = Array.from(select.selectedOptions);
-                if (newSelected.length === 0) {
-                    textContainer.innerHTML = '<span style="color:var(--sub)">Select option...</span>';
+                if (select.multiple) {
+                    const opt = Array.from(select.options).find(o => o.value === val);
+                    if(opt) opt.selected = false;
                 } else {
-                    textContainer.innerHTML = newSelected.map(s => 
-                        `<span class="select-badge">${s.text}<span class="badge-close" onclick="deselect('${selectId}', '${s.value}', event)">×</span></span>`
-                    ).join('');
+                    select.value = '';
                 }
+                const parent = select.closest('.custom-select-wrapper');
+                const optEl = parent.querySelector(`.custom-option[data-value="${val}"]`);
+                if(optEl) optEl.classList.remove('selected');
+                select.dispatchEvent(new Event('change'));
             };
+
+            function repositionDropdown(isOpen) {
+                if (isOpen) {
+                    const rect = trigger.getBoundingClientRect();
+                    optionsDiv.style.position = 'fixed';
+                    optionsDiv.style.top = rect.bottom + 'px';
+                    optionsDiv.style.left = rect.left + 'px';
+                    optionsDiv.style.width = rect.width + 'px';
+                } else {
+                    optionsDiv.style.position = '';
+                    optionsDiv.style.top = '';
+                    optionsDiv.style.left = '';
+                    optionsDiv.style.width = '';
+                }
+            }
 
             updateTrigger();
 
-            trigger.addEventListener('click', function() {
+            trigger.addEventListener('click', function(e) {
+                if (e.target.closest('.badge-close')) return;
                 document.querySelectorAll('.custom-select').forEach(s => {
-                    if(s !== customSelect) s.classList.remove('open');
+                    if(s !== customSelect) {
+                        s.classList.remove('open');
+                        const otherOpts = s.querySelector('.custom-options');
+                        if(otherOpts) { otherOpts.style.position = ''; otherOpts.style.top = ''; otherOpts.style.left = ''; otherOpts.style.width = ''; }
+                    }
                 });
+                const willOpen = !customSelect.classList.contains('open');
                 customSelect.classList.toggle('open');
-                if(customSelect.classList.contains('open')) searchInput.focus();
+                repositionDropdown(willOpen);
+                if(willOpen) searchInput.focus();
             });
             
             el.addEventListener('change', updateTrigger);
@@ -756,9 +781,38 @@
 
         window.addEventListener('click', function(e) {
             if (!e.target.closest('.custom-select-wrapper')) {
-                document.querySelectorAll('.custom-select').forEach(s => s.classList.remove('open'));
+                document.querySelectorAll('.custom-select').forEach(s => {
+                    s.classList.remove('open');
+                    const opts = s.querySelector('.custom-options');
+                    if(opts) { opts.style.position = ''; opts.style.top = ''; opts.style.left = ''; opts.style.width = ''; }
+                });
             }
         });
+
+        // Close fixed-position dropdowns when scrolling inside overlay-content
+        document.querySelectorAll('.overlay-content').forEach(container => {
+            container.addEventListener('scroll', function() {
+                container.querySelectorAll('.custom-select.open').forEach(s => {
+                    s.classList.remove('open');
+                    const opts = s.querySelector('.custom-options');
+                    if(opts) { opts.style.position = ''; opts.style.top = ''; opts.style.left = ''; opts.style.width = ''; }
+                });
+            });
+        });
+    }
+
+    /* Sync a native select's value with its custom dropdown UI */
+    function syncSelectUI(selectId) {
+        const el = document.getElementById(selectId);
+        if (!el) return;
+        const wrapper = el.closest('.custom-select-wrapper');
+        if (!wrapper) return;
+        wrapper.querySelectorAll('.custom-option').forEach(opt => {
+            const nativeOpt = Array.from(el.options).find(o => o.value === opt.dataset.value);
+            if (nativeOpt && nativeOpt.selected) opt.classList.add('selected');
+            else opt.classList.remove('selected');
+        });
+        el.dispatchEvent(new Event('change'));
     }
 
     window.onload = () => { renderPerms(); renderCC(); renderTickets(); updateDurationField(); enhanceAllSelects(); showAutomodMain(); };

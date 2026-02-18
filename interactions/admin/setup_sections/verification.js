@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ChannelType } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelSelectMenuBuilder, RoleSelectMenuBuilder, ChannelType } = require('discord.js');
 const db = require('../../../utils/db.js');
 const { success, error } = require('../../../utils/embedFactory.js');
 const { smartReply } = require('../../../utils/interactionHelpers.js');
@@ -13,6 +13,19 @@ async function loadConfig(guildId) {
         dm_message: 'Welcome! Please verify your account to access the server.',
         require_captcha: true
     };
+}
+
+async function saveField(guildId, config, field, value) {
+    const updated = { ...config, [field]: value };
+    await db.query(`
+        INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (guildid) DO UPDATE SET ${field} = $${Object.keys(updated).indexOf(field) + 2}
+    `.replace(
+        `$${Object.keys(updated).indexOf(field) + 2}`,
+        `EXCLUDED.${field}`
+    ), [guildId, updated.enabled, updated.channel_id, updated.verified_role_id, updated.unverified_role_id, updated.dm_message, updated.require_captcha]);
+    return updated;
 }
 
 async function showVerificationMenu(interaction, config) {
@@ -71,7 +84,7 @@ async function showVerificationMenu(interaction, config) {
 }
 
 module.exports = async function setupVerification(interaction) {
-    const { customId, guild, values } = interaction;
+    const { customId, guild } = interaction;
     const config = await loadConfig(guild.id);
 
     // Main verification menu
@@ -82,7 +95,6 @@ module.exports = async function setupVerification(interaction) {
     // Toggle verification system
     if (customId === 'verification_toggle') {
         const newState = !config.enabled;
-        
         await db.query(`
             INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -96,7 +108,6 @@ module.exports = async function setupVerification(interaction) {
     // Toggle CAPTCHA requirement
     if (customId === 'verification_captcha_toggle') {
         const newState = !config.require_captcha;
-        
         await db.query(`
             INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -107,42 +118,27 @@ module.exports = async function setupVerification(interaction) {
         return await showVerificationMenu(interaction, config);
     }
 
-    // Channel selection menu
+    // ── Channel selection (native Discord picker — searchable) ──
     if (customId === 'verification_channel_select') {
-        const textChannels = guild.channels.cache.filter(c => c.type === ChannelType.GuildText);
-        
-        if (textChannels.size === 0) {
-            return await smartReply(interaction, { embeds: [error('No text channels found!')] });
-        }
-
-        const options = textChannels.map(channel => 
-            new StringSelectMenuOptionBuilder()
-                .setLabel(`#${channel.name}`)
-                .setValue(channel.id)
-                .setDescription('Set as warnings channel')
-                .setDefault(config.channel_id === channel.id)
-        ).slice(0, 25);
-
-        const selectMenu = new StringSelectMenuBuilder()
+        const channelMenu = new ChannelSelectMenuBuilder()
             .setCustomId('verification_channel_selected')
-            .setPlaceholder('Select a channel for warnings')
-            .addOptions(options);
+            .setPlaceholder('Search and select a channel...')
+            .addChannelTypes(ChannelType.GuildText);
 
-        const row = new ActionRowBuilder().addComponents(selectMenu);
+        const row = new ActionRowBuilder().addComponents(channelMenu);
         const backRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('setup_verification').setLabel('Cancel').setStyle(ButtonStyle.Secondary).setEmoji('⬅️')
         );
 
-        return await smartReply(interaction, { 
-            embeds: [new EmbedBuilder().setTitle('Select Warnings Channel').setDescription('Choose where suspicious user alerts will be sent.').setColor('#667eea')],
+        return await smartReply(interaction, {
+            embeds: [new EmbedBuilder().setTitle('📺 Select Warnings Channel').setDescription('Choose where suspicious user alerts will be sent.\nYou can **search** by typing the channel name.').setColor('#667eea')],
             components: [row, backRow]
         });
     }
 
-    // Channel selected
-    if (customId === 'verification_channel_selected') {
-        const channelId = values[0];
-        
+    // Channel selected (native)
+    if (customId === 'verification_channel_selected' && interaction.isChannelSelectMenu()) {
+        const channelId = interaction.values[0];
         await db.query(`
             INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -153,42 +149,26 @@ module.exports = async function setupVerification(interaction) {
         return await showVerificationMenu(interaction, config);
     }
 
-    // Verified role selection menu
+    // ── Verified role selection (native Discord picker — searchable) ──
     if (customId === 'verification_verified_role') {
-        const roles = guild.roles.cache.filter(r => r.name !== '@everyone' && !r.managed);
-        
-        if (roles.size === 0) {
-            return await smartReply(interaction, { embeds: [error('No roles found!')] });
-        }
-
-        const options = roles.sort((a, b) => b.position - a.position).map(role => 
-            new StringSelectMenuOptionBuilder()
-                .setLabel(role.name)
-                .setValue(role.id)
-                .setDescription('Given after verification')
-                .setDefault(config.verified_role_id === role.id)
-        ).slice(0, 25);
-
-        const selectMenu = new StringSelectMenuBuilder()
+        const roleMenu = new RoleSelectMenuBuilder()
             .setCustomId('verification_verified_role_selected')
-            .setPlaceholder('Select verified role')
-            .addOptions(options);
+            .setPlaceholder('Search and select a role...');
 
-        const row = new ActionRowBuilder().addComponents(selectMenu);
+        const row = new ActionRowBuilder().addComponents(roleMenu);
         const backRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('setup_verification').setLabel('Cancel').setStyle(ButtonStyle.Secondary).setEmoji('⬅️')
         );
 
-        return await smartReply(interaction, { 
-            embeds: [new EmbedBuilder().setTitle('Select Verified Role').setDescription('Role assigned after successful verification.').setColor('#667eea')],
+        return await smartReply(interaction, {
+            embeds: [new EmbedBuilder().setTitle('✅ Select Verified Role').setDescription('Role assigned after successful verification.\nYou can **search** by typing the role name.').setColor('#667eea')],
             components: [row, backRow]
         });
     }
 
-    // Verified role selected
-    if (customId === 'verification_verified_role_selected') {
-        const roleId = values[0];
-        
+    // Verified role selected (native)
+    if (customId === 'verification_verified_role_selected' && interaction.isRoleSelectMenu()) {
+        const roleId = interaction.values[0];
         await db.query(`
             INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -199,42 +179,26 @@ module.exports = async function setupVerification(interaction) {
         return await showVerificationMenu(interaction, config);
     }
 
-    // Unverified role selection menu
+    // ── Unverified role selection (native Discord picker — searchable) ──
     if (customId === 'verification_unverified_role') {
-        const roles = guild.roles.cache.filter(r => r.name !== '@everyone' && !r.managed);
-        
-        if (roles.size === 0) {
-            return await smartReply(interaction, { embeds: [error('No roles found!')] });
-        }
-
-        const options = roles.sort((a, b) => b.position - a.position).map(role => 
-            new StringSelectMenuOptionBuilder()
-                .setLabel(role.name)
-                .setValue(role.id)
-                .setDescription('Given to new members')
-                .setDefault(config.unverified_role_id === role.id)
-        ).slice(0, 25);
-
-        const selectMenu = new StringSelectMenuBuilder()
+        const roleMenu = new RoleSelectMenuBuilder()
             .setCustomId('verification_unverified_role_selected')
-            .setPlaceholder('Select unverified role')
-            .addOptions(options);
+            .setPlaceholder('Search and select a role...');
 
-        const row = new ActionRowBuilder().addComponents(selectMenu);
+        const row = new ActionRowBuilder().addComponents(roleMenu);
         const backRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('setup_verification').setLabel('Cancel').setStyle(ButtonStyle.Secondary).setEmoji('⬅️')
         );
 
-        return await smartReply(interaction, { 
-            embeds: [new EmbedBuilder().setTitle('Select Unverified Role').setDescription('Role assigned to new members before verification.').setColor('#667eea')],
+        return await smartReply(interaction, {
+            embeds: [new EmbedBuilder().setTitle('⏳ Select Unverified Role').setDescription('Role assigned to new members before verification.\nYou can **search** by typing the role name.').setColor('#667eea')],
             components: [row, backRow]
         });
     }
 
-    // Unverified role selected
-    if (customId === 'verification_unverified_role_selected') {
-        const roleId = values[0];
-        
+    // Unverified role selected (native)
+    if (customId === 'verification_unverified_role_selected' && interaction.isRoleSelectMenu()) {
+        const roleId = interaction.values[0];
         await db.query(`
             INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha)
             VALUES ($1, $2, $3, $4, $5, $6, $7)

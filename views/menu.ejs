@@ -33,10 +33,11 @@
         .logout-btn:hover{background:var(--red);color:#fff;box-shadow:0 0 15px var(--red-glow);border-color:var(--red)}
         
         .menu-grid{
-            display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
-            gap:30px;max-width:800px;width:90%;margin:60px auto;
+            display:grid;grid-template-columns:repeat(3,1fr);
+            gap:30px;max-width:1100px;width:90%;margin:60px auto;
             animation:fadeUp 0.6s ease-out;
         }
+        @media(max-width:900px){.menu-grid{grid-template-columns:1fr}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
         
         .menu-card{
@@ -55,6 +56,10 @@
         
         .menu-card.appeals::before{background:var(--red);box-shadow:0 0 15px var(--red-glow)}
         .menu-card.appeals:hover{border-color:var(--red)}
+        
+        .menu-card.verification::before{background:#43b581;box-shadow:0 0 15px rgba(67,181,129,0.5)}
+        .menu-card.verification:hover{border-color:#43b581}
+        .menu-card.verification:hover .card-btn{background:#43b581;border-color:#43b581;color:#fff;box-shadow:0 0 20px rgba(67,181,129,0.5)}
         
         .card-icon{font-size:3.5rem;margin-bottom:20px;display:block}
         .card-title{font-size:1.4rem;font-weight:800;margin-bottom:10px}
@@ -105,6 +110,14 @@
             <div class="card-title">Appeal System</div>
             <p class="card-desc">Submit a ban appeal or check the status of an existing appeal you've submitted.</p>
             <span class="card-btn">Open Appeals</span>
+        </a>
+        
+        <a href="/verify" class="menu-card verification <%= verificationEnabled ? '' : 'no-access' %>">
+            <% if (!verificationEnabled) { %><span class="no-access-badge">Disabled</span><% } %>
+            <span class="card-icon">🛡️</span>
+            <div class="card-title">Verification</div>
+            <p class="card-desc">Verify your account to gain access to the server. Includes CAPTCHA and security checks.</p>
+            <span class="card-btn">Verify Now</span>
         </a>
     </div>
     

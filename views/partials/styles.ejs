@@ -206,19 +206,21 @@
     .custom-select-trigger:hover { border-color: var(--sub); }
     .custom-select.open .custom-select-trigger { border-color: var(--acc); box-shadow: 0 0 10px var(--acc-glow); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
     .custom-options {
-        position: absolute; display: block; top: 100%; left: 0; right: 0;
+        display: block;
         background: #1c1c22; border: 1px solid #3a3a46; border-top: 0;
         border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;
-        box-shadow: 0 16px 28px rgba(0,0,0,0.7); z-index: 999;
-        opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-10px);
-        transition: 0.3s; max-height: 250px; overflow-y: auto;
+        box-shadow: 0 16px 28px rgba(0,0,0,0.7); z-index: 9999;
+        opacity: 0; visibility: hidden; pointer-events: none;
+        max-height: 250px; overflow-y: auto;
     }
-    .custom-select.open .custom-options { opacity: 1; visibility: visible; pointer-events: all; transform: translateY(0); }
+    /* When not fixed-positioned, use absolute fallback */
+    .custom-options:not([style*="position: fixed"]) { position: absolute; top: 100%; left: 0; right: 0; }
+    .custom-select.open .custom-options { opacity: 1; visibility: visible; pointer-events: all; }
     .custom-option {
         position: relative; display: flex; align-items: center; padding: 10px 15px;
         font-size: 0.9rem; color: var(--text); cursor: pointer; transition: 0.2s; border-bottom: 1px solid rgba(255,255,255,0.05);
     }
-    .custom-option:hover { background: rgba(139,92,246,0.12); color: white; padding-left: 20px; }
+    .custom-option:hover { background: rgba(139,92,246,0.12); color: white; }
     .custom-option.selected { background: var(--acc); color: black; font-weight: bold; }
     .custom-option .color-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 10px; display: inline-block; }
 

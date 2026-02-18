@@ -234,7 +234,13 @@ app.get('/menu', auth, async (req, res) => {
         }
     } catch(e) { console.error('[MENU-ACCESS-CHECK]', e); }
 
-    res.render('menu', { user: req.user, serverName, hasStaffAccess });
+    let verificationEnabled = false;
+    try {
+        const vRes = await db.query('SELECT enabled FROM verification_config WHERE guildid = $1', [process.env.DISCORD_GUILD_ID]);
+        verificationEnabled = vRes.rows.length > 0 && vRes.rows[0].enabled === true;
+    } catch(e) { console.error('[MENU-VERIF-CHECK]', e); }
+
+    res.render('menu', { user: req.user, serverName, hasStaffAccess, verificationEnabled });
 });
 
 // Privacy Policy
