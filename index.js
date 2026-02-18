@@ -8,6 +8,7 @@ const db = require('./utils/db.js');
 const { startScheduler, resumePunishmentsOnStart } = require('./utils/temporary_punishment_handler.js');
 const { initLogger } = require('./utils/logger.js');
 const { startDeletionScheduler } = require('./utils/deletionScheduler.js');
+const vpnDetector = require('./utils/vpnDetector.js');
 
 if (!process.env.DISCORD_TOKEN) {
     console.error("❌ Discord Token missing");
@@ -137,6 +138,18 @@ async function deployCommandsBackground() {
         startScheduler(client);
         resumePunishmentsOnStart(client);
         startDeletionScheduler(client);
+
+        // Cargar listas VPN locales (sin límites, sin API keys)
+        vpnDetector.loadLists().then(() => {
+            console.log('[VPN-DETECTOR] Ready:', vpnDetector.stats());
+        }).catch(err => {
+            console.warn('[VPN-DETECTOR] Non-critical error:', err.message);
+        });
+
+        // Auto-actualizar listas cada 24h
+        setInterval(() => {
+            vpnDetector.loadLists().catch(() => {});
+        }, 24 * 60 * 60 * 1000);
 
     } catch (error) {
         console.error('❌ CRITICAL ERROR during startup:', error);

@@ -1,4 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
+const vpnDetector = require('./vpnDetector');
 
 /**
  * Analyzes user suspicion based on multiple factors
@@ -107,6 +108,18 @@ async function checkUserSuspicion(client, db, userId, guildId, ip, username, fin
         } else if (accountsOnIp > 2) {
             flags.push(`👥 IP shared by ${accountsOnIp} users`);
             riskScore += 5;
+        }
+        
+        // 5.5 Local VPN/Datacenter detection (unlimited, no API)
+        if (ip && vpnDetector.ready) {
+            const vpnResult = vpnDetector.check(ip);
+            if (vpnResult.isVPN) {
+                flags.push('🔒 IP detected as **VPN/Proxy** (local database)');
+                riskScore += 35;
+            } else if (vpnResult.isDatacenter) {
+                flags.push('🏢 IP detected as **Datacenter/Hosting** (local database)');
+                riskScore += 25;
+            }
         }
         
         // 6. Fingerprint match with banned users

@@ -30,7 +30,7 @@ module.exports = {
         try {
             // ── 1. Gather all verified user IPs for this guild ──
             const ipRows = (await db.query(
-                `SELECT userid, ip_address, user_agent, timestamp, risk_score
+                `SELECT userid, ip_address, fingerprint, user_agent, timestamp, risk_score
                  FROM user_ips
                  WHERE guildid = $1
                  ORDER BY timestamp DESC`,
@@ -66,16 +66,27 @@ module.exports = {
             // ── 4. Build IP → users map and user → IPs map ──
             const ipToUsers = {};   // ip → Set<userid>
             const userToIPs = {};   // userid → Set<ip>
+            const fpToUsers = {};   // fingerprint → Set<userid>
+            const userToFPs = {};   // userid → Set<fingerprint>
             const userLatestUA = {}; // userid → latest user_agent
             const userLatestTime = {}; // userid → latest timestamp
 
             for (const row of ipRows) {
-                if (!row.ip_address) continue;
-                if (!ipToUsers[row.ip_address]) ipToUsers[row.ip_address] = new Set();
-                ipToUsers[row.ip_address].add(row.userid);
+                if (row.ip_address) {
+                    if (!ipToUsers[row.ip_address]) ipToUsers[row.ip_address] = new Set();
+                    ipToUsers[row.ip_address].add(row.userid);
 
-                if (!userToIPs[row.userid]) userToIPs[row.userid] = new Set();
-                userToIPs[row.userid].add(row.ip_address);
+                    if (!userToIPs[row.userid]) userToIPs[row.userid] = new Set();
+                    userToIPs[row.userid].add(row.ip_address);
+                }
+
+                if (row.fingerprint) {
+                    if (!fpToUsers[row.fingerprint]) fpToUsers[row.fingerprint] = new Set();
+                    fpToUsers[row.fingerprint].add(row.userid);
+
+                    if (!userToFPs[row.userid]) userToFPs[row.userid] = new Set();
+                    userToFPs[row.userid].add(row.fingerprint);
+                }
 
                 if (!userLatestTime[row.userid] || row.timestamp > userLatestTime[row.userid]) {
                     userLatestTime[row.userid] = row.timestamp;
@@ -83,8 +94,8 @@ module.exports = {
                 }
             }
 
-            // ── 5. Detect alt clusters (users sharing IPs) ──
-            // Union-Find to group users connected by shared IPs
+            // ── 5. Detect alt clusters (users sharing IPs OR fingerprints) ──
+            // Union-Find to group users connected by shared IPs or fingerprints
             const parent = {};
             function find(x) {
                 if (!parent[x]) parent[x] = x;
@@ -93,14 +104,21 @@ module.exports = {
             }
             function union(a, b) { parent[find(a)] = find(b); }
 
+            // Union by shared IP
             for (const [, users] of Object.entries(ipToUsers)) {
+                const arr = [...users];
+                for (let i = 1; i < arr.length; i++) union(arr[0], arr[i]);
+            }
+
+            // Union by shared fingerprint
+            for (const [, users] of Object.entries(fpToUsers)) {
                 const arr = [...users];
                 for (let i = 1; i < arr.length; i++) union(arr[0], arr[i]);
             }
 
             // Group into clusters
             const clusters = {};
-            const allUsers = new Set(Object.keys(userToIPs));
+            const allUsers = new Set([...Object.keys(userToIPs), ...Object.keys(userToFPs)]);
             for (const uid of allUsers) {
                 const root = find(uid);
                 if (!clusters[root]) clusters[root] = new Set();
@@ -136,7 +154,7 @@ module.exports = {
             // ── 7. If focusing on a specific user ──
             if (focusUser) {
                 return sendUserFocusReport(interaction, focusUser, {
-                    userToIPs, ipToUsers, userInfo, bannedUserIds, bannedByTag,
+                    userToIPs, ipToUsers, fpToUsers, userToFPs, userInfo, bannedUserIds, bannedByTag,
                     verifiedSet, userLatestUA, userLatestTime, ipRows, targetGuild
                 });
             }
@@ -164,6 +182,17 @@ module.exports = {
                     }
                 }
 
+                // Shared fingerprints between members
+                const sharedFPs = new Set();
+                for (const uid of group) {
+                    if (userToFPs[uid]) {
+                        for (const fp of userToFPs[uid]) {
+                            if (fpToUsers[fp] && fpToUsers[fp].size >= 2) sharedFPs.add(fp);
+                        }
+                    }
+                }
+                const hasFPMatch = sharedFPs.size > 0;
+
                 // Compare user agents
                 const agents = {};
                 for (const uid of group) {
@@ -188,6 +217,12 @@ module.exports = {
                 } else if (hasBanned) {
                     title = '⚠️ Alt Cluster With Banned User';
                     color = 0xe67e22;
+                } else if (hasFPMatch && sharedIPs.size === 0) {
+                    title = '🖥️ Same Device Cluster (Fingerprint match, different IPs)';
+                    color = 0xe67e22;
+                } else if (hasFPMatch) {
+                    title = '🖥️ Shared IP + Fingerprint Cluster';
+                    color = 0x3498db;
                 } else {
                     title = '👥 Shared IP Cluster (No bans)';
                     color = 0x3498db;
@@ -214,6 +249,7 @@ module.exports = {
                     .addFields(
                         { name: `Users (${group.length})`, value: memberLines.slice(0, 1024), inline: false },
                         { name: `Shared IPs (${sharedIPs.size})`, value: ipLines.slice(0, 1024), inline: true },
+                        { name: `Fingerprint Match`, value: hasFPMatch ? `✅ Yes — ${sharedFPs.size} shared fingerprint(s)` : '❌ No match', inline: true },
                         { name: 'Same Browser/Device', value: sameUA ? '✅ Yes — same User-Agent detected' : '❌ No — different devices', inline: true }
                     );
 
@@ -285,21 +321,28 @@ module.exports = {
 // Helper: Focused report on a single user
 // ═══════════════════════════════════════════
 async function sendUserFocusReport(interaction, userId, ctx) {
-    const { userToIPs, ipToUsers, userInfo, bannedUserIds, bannedByTag, verifiedSet, userLatestUA, userLatestTime, ipRows, targetGuild } = ctx;
+    const { userToIPs, ipToUsers, fpToUsers, userToFPs, userInfo, bannedUserIds, bannedByTag, verifiedSet, userLatestUA, userLatestTime, ipRows, targetGuild } = ctx;
 
     const info = userInfo[userId] || {};
     const userIPs = userToIPs[userId] ? [...userToIPs[userId]] : [];
 
-    // Find all connected accounts through IP chain
+    // Find all connected accounts through IP chain AND fingerprint chain
     const connected = new Set();
     const visited = new Set();
     function dfs(uid) {
         if (visited.has(uid)) return;
         visited.add(uid);
         connected.add(uid);
+        // Traverse IPs
         const ips = userToIPs[uid] || new Set();
         for (const ip of ips) {
             const users = ipToUsers[ip] || new Set();
+            for (const u of users) dfs(u);
+        }
+        // Traverse fingerprints
+        const fps = userToFPs[uid] || new Set();
+        for (const fp of fps) {
+            const users = fpToUsers[fp] || new Set();
             for (const u of users) dfs(u);
         }
     }

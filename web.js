@@ -7,6 +7,7 @@ const { EmbedBuilder, PermissionsBitField, ChannelType, ButtonBuilder, ButtonSty
 const db = require('./utils/db');
 const { SUPREME_IDS } = require('./utils/config');
 const { checkUserSuspicion } = require('./utils/suspicionChecker');
+const vpnDetector = require('./utils/vpnDetector');
 
 const app = express();
 
@@ -346,6 +347,18 @@ app.post('/verify/submit', auth, async (req, res) => {
     const { botClient } = req.app.locals;
     
     try {
+        // ── VPN / Datacenter detection (local, sin límites) ──
+        const clientIp = req.clientIp || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '';
+        const vpnResult = vpnDetector.check(clientIp);
+        
+        if (vpnResult.blocked) {
+            console.log(`[VERIFY] ⛔ VPN/DC blocked: ${username} (${userId}) — IP: ${clientIp} — Reason: ${vpnResult.reason}`);
+            return res.status(403).json({ 
+                error: 'VPN or Proxy detected. Please disable your VPN/Proxy and try again.',
+                reason: vpnResult.reason 
+            });
+        }
+        
         // Check if already verified
         const statusRes = await db.query(
             'SELECT verified FROM verification_status WHERE userid = $1 AND guildid = $2',
