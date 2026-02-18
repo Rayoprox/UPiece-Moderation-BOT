@@ -1132,15 +1132,16 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
         // Verification system configuration
         const verificationConfig = req.body.verification_config || {};
         await db.query(`
-            INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha, deletion_action)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (guildid) DO UPDATE SET 
                 enabled = $2, 
                 channel_id = $3, 
                 verified_role_id = $4, 
                 unverified_role_id = $5, 
                 dm_message = $6, 
-                require_captcha = $7
+                require_captcha = $7,
+                deletion_action = $8
         `, [
             guildId,
             verificationConfig.enabled === true || verificationConfig.enabled === 'on',
@@ -1148,7 +1149,8 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
             verificationConfig.verified_role_id || null,
             verificationConfig.unverified_role_id || null,
             verificationConfig.dm_message || 'Welcome! Please verify your account to access the server.',
-            verificationConfig.require_captcha !== false
+            verificationConfig.require_captcha !== false,
+            verificationConfig.deletion_action || 'nothing'
         ]);
 
         res.json({ success: true });

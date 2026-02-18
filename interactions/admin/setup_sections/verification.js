@@ -11,20 +11,21 @@ async function loadConfig(guildId) {
         verified_role_id: null,
         unverified_role_id: null,
         dm_message: 'Welcome! Please verify your account to access the server.',
-        require_captcha: true
+        require_captcha: true,
+        deletion_action: 'nothing'
     };
 }
 
 async function saveField(guildId, config, field, value) {
     const updated = { ...config, [field]: value };
     await db.query(`
-        INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha, deletion_action)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (guildid) DO UPDATE SET ${field} = $${Object.keys(updated).indexOf(field) + 2}
     `.replace(
         `$${Object.keys(updated).indexOf(field) + 2}`,
         `EXCLUDED.${field}`
-    ), [guildId, updated.enabled, updated.channel_id, updated.verified_role_id, updated.unverified_role_id, updated.dm_message, updated.require_captcha]);
+    ), [guildId, updated.enabled, updated.channel_id, updated.verified_role_id, updated.unverified_role_id, updated.dm_message, updated.require_captcha, updated.deletion_action]);
     return updated;
 }
 
@@ -38,7 +39,7 @@ async function showVerificationMenu(interaction, config) {
             { name: 'Require CAPTCHA', value: config.require_captcha ? '✅ Yes' : '❌ No', inline: true },
             { name: 'Verified Role', value: config.verified_role_id ? `<@&${config.verified_role_id}>` : 'Not set', inline: true },
             { name: 'Unverified Role', value: config.unverified_role_id ? `<@&${config.unverified_role_id}>` : 'Not set', inline: true },
-            { name: '\u200b', value: '\u200b', inline: true },
+            { name: 'On Data Deletion', value: formatDeletionAction(config.deletion_action), inline: true },
             { name: 'DM Message', value: (config.dm_message || 'Not set').substring(0, 100), inline: false }
         )
         .setColor(config.enabled ? '#00ff00' : '#ff0000')
@@ -74,13 +75,27 @@ async function showVerificationMenu(interaction, config) {
             .setStyle(ButtonStyle.Primary)
             .setEmoji('⏳'),
         new ButtonBuilder()
+            .setCustomId('verification_deletion_action')
+            .setLabel('Deletion Action')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('🗑️')
+    );
+
+    const row3 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
             .setCustomId('setup_home')
             .setLabel('Back')
             .setStyle(ButtonStyle.Secondary)
             .setEmoji('⬅️')
     );
 
-    return await smartReply(interaction, { embeds: [embed], components: [row1, row2] });
+    return await smartReply(interaction, { embeds: [embed], components: [row1, row2, row3] });
+}
+
+function formatDeletionAction(action) {
+    if (action === 'kick') return '🚪 Kick From Server';
+    if (action === 'delete_roles') return '🧹 Delete All Roles';
+    return '✅ Do Nothing';
 }
 
 module.exports = async function setupVerification(interaction) {
@@ -96,10 +111,10 @@ module.exports = async function setupVerification(interaction) {
     if (customId === 'verification_toggle') {
         const newState = !config.enabled;
         await db.query(`
-            INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha, deletion_action)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (guildid) DO UPDATE SET enabled = $2
-        `, [guild.id, newState, config.channel_id, config.verified_role_id, config.unverified_role_id, config.dm_message, config.require_captcha]);
+        `, [guild.id, newState, config.channel_id, config.verified_role_id, config.unverified_role_id, config.dm_message, config.require_captcha, config.deletion_action]);
 
         config.enabled = newState;
         return await showVerificationMenu(interaction, config);
@@ -109,12 +124,30 @@ module.exports = async function setupVerification(interaction) {
     if (customId === 'verification_captcha_toggle') {
         const newState = !config.require_captcha;
         await db.query(`
-            INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha, deletion_action)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (guildid) DO UPDATE SET require_captcha = $7
-        `, [guild.id, config.enabled, config.channel_id, config.verified_role_id, config.unverified_role_id, config.dm_message, newState]);
+        `, [guild.id, config.enabled, config.channel_id, config.verified_role_id, config.unverified_role_id, config.dm_message, newState, config.deletion_action]);
 
         config.require_captcha = newState;
+        return await showVerificationMenu(interaction, config);
+    }
+
+    // Cycle data deletion action
+    if (customId === 'verification_deletion_action') {
+        const nextAction = config.deletion_action === 'nothing'
+            ? 'kick'
+            : config.deletion_action === 'kick'
+                ? 'delete_roles'
+                : 'nothing';
+
+        await db.query(`
+            INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha, deletion_action)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (guildid) DO UPDATE SET deletion_action = $8
+        `, [guild.id, config.enabled, config.channel_id, config.verified_role_id, config.unverified_role_id, config.dm_message, config.require_captcha, nextAction]);
+
+        config.deletion_action = nextAction;
         return await showVerificationMenu(interaction, config);
     }
 
@@ -140,10 +173,10 @@ module.exports = async function setupVerification(interaction) {
     if (customId === 'verification_channel_selected' && interaction.isChannelSelectMenu()) {
         const channelId = interaction.values[0];
         await db.query(`
-            INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha, deletion_action)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (guildid) DO UPDATE SET channel_id = $3
-        `, [guild.id, config.enabled, channelId, config.verified_role_id, config.unverified_role_id, config.dm_message, config.require_captcha]);
+        `, [guild.id, config.enabled, channelId, config.verified_role_id, config.unverified_role_id, config.dm_message, config.require_captcha, config.deletion_action]);
 
         config.channel_id = channelId;
         return await showVerificationMenu(interaction, config);
@@ -170,10 +203,10 @@ module.exports = async function setupVerification(interaction) {
     if (customId === 'verification_verified_role_selected' && interaction.isRoleSelectMenu()) {
         const roleId = interaction.values[0];
         await db.query(`
-            INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha, deletion_action)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (guildid) DO UPDATE SET verified_role_id = $4
-        `, [guild.id, config.enabled, config.channel_id, roleId, config.unverified_role_id, config.dm_message, config.require_captcha]);
+        `, [guild.id, config.enabled, config.channel_id, roleId, config.unverified_role_id, config.dm_message, config.require_captcha, config.deletion_action]);
 
         config.verified_role_id = roleId;
         return await showVerificationMenu(interaction, config);
@@ -200,10 +233,10 @@ module.exports = async function setupVerification(interaction) {
     if (customId === 'verification_unverified_role_selected' && interaction.isRoleSelectMenu()) {
         const roleId = interaction.values[0];
         await db.query(`
-            INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha, deletion_action)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (guildid) DO UPDATE SET unverified_role_id = $5
-        `, [guild.id, config.enabled, config.channel_id, config.verified_role_id, roleId, config.dm_message, config.require_captcha]);
+        `, [guild.id, config.enabled, config.channel_id, config.verified_role_id, roleId, config.dm_message, config.require_captcha, config.deletion_action]);
 
         config.unverified_role_id = roleId;
         return await showVerificationMenu(interaction, config);

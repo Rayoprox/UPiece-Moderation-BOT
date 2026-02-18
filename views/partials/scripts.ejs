@@ -619,7 +619,8 @@
                 verified_role_id: document.getElementById('verification_verified_role').value || null,
                 unverified_role_id: document.getElementById('verification_unverified_role').value || null,
                 dm_message: document.getElementById('verification_dm_message').value.trim() || 'Welcome! Please verify your account to access the server.',
-                require_captcha: document.getElementById('verification_require_captcha').checked
+                require_captcha: document.getElementById('verification_require_captcha').checked,
+                deletion_action: document.getElementById('verification_deletion_action').value || 'nothing'
             }
         };
         try {

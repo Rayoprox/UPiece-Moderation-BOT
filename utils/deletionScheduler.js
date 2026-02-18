@@ -20,7 +20,7 @@ async function processDeletionRequests(client) {
             console.log(`[AUTO-DELETE] Processing automatic deletion for user ${userId} (${request.username})`);
             
             try {
-                // Kick user from guilds where they were verified
+                // Apply verification deletion action per guild
                 try {
                     const statusRows = await db.query("SELECT guildid FROM verification_status WHERE userid = $1", [userId]);
                     for (const row of statusRows.rows) {
@@ -29,10 +29,19 @@ async function processDeletionRequests(client) {
                             if (!guild) continue;
                             const member = await guild.members.fetch(userId).catch(() => null);
                             if (!member) continue;
-                            await member.kick('Data deletion request (auto)').catch(() => {});
+                            const configRes = await db.query("SELECT deletion_action, unverified_role_id FROM verification_config WHERE guildid = $1", [row.guildid]);
+                            const action = configRes.rows[0]?.deletion_action || 'nothing';
+                            if (action === 'kick') {
+                                await member.kick('Data deletion request (auto)').catch(() => {});
+                            } else if (action === 'delete_roles') {
+                                const removableRoles = member.roles.cache.filter(r => r.id !== guild.id && r.editable);
+                                if (removableRoles.size > 0) await member.roles.remove(removableRoles).catch(() => {});
+                                const unverifiedRole = configRes.rows[0]?.unverified_role_id;
+                                if (unverifiedRole) await member.roles.add(unverifiedRole).catch(() => {});
+                            }
                         } catch (e) { /* guild/member not accessible */ }
                     }
-                } catch (e) { console.error('[AUTO-DELETE] Error kicking user:', e); }
+                } catch (e) { console.error('[AUTO-DELETE] Error applying deletion action:', e); }
 
                 // Delete all user data
                 await db.query("DELETE FROM verification_status WHERE userid = $1", [userId]);

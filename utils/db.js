@@ -191,6 +191,7 @@ const db = {
         try { await db.query(`ALTER TABLE ban_appeals ADD COLUMN source TEXT DEFAULT 'DISCORD'`, [], true); } catch (e) {}
 
         // Verification system tables
+        try { await db.query(`ALTER TABLE verification_config ADD COLUMN deletion_action TEXT DEFAULT 'nothing'`, [], true); } catch (e) {}
         await db.query(`
             CREATE TABLE IF NOT EXISTS verification_config (
                 guildid TEXT PRIMARY KEY,
@@ -199,7 +200,8 @@ const db = {
                 verified_role_id TEXT,
                 unverified_role_id TEXT,
                 dm_message TEXT DEFAULT 'Welcome! Please verify your account to access the server.',
-                require_captcha BOOLEAN DEFAULT TRUE
+                require_captcha BOOLEAN DEFAULT TRUE,
+                deletion_action TEXT DEFAULT 'nothing'
             );
         `);
 

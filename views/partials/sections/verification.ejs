@@ -9,7 +9,8 @@
         verified_role_id: null,
         unverified_role_id: null,
         dm_message: 'Welcome! Please verify your account to access the server.',
-        require_captcha: true
+        require_captcha: true,
+        deletion_action: 'nothing'
     };
     %>
     
@@ -95,6 +96,19 @@
                 <input type="checkbox" id="verification_require_captcha" <%= vConfig.require_captcha !== false ? 'checked' : '' %>>
                 <span class="slider"></span>
             </label>
+        </div>
+    </div>
+
+    <div class="config-block" style="margin-top: 1.5rem">
+        <h3>🗑️ Data Deletion Action</h3>
+        <div style="margin-top: 1rem">
+            <label>Action when users delete their data</label>
+            <select id="verification_deletion_action" class="config-input">
+                <option value="nothing" <%= vConfig.deletion_action === 'nothing' ? 'selected' : '' %>>Do Nothing</option>
+                <option value="kick" <%= vConfig.deletion_action === 'kick' ? 'selected' : '' %>>Kick From Server</option>
+                <option value="delete_roles" <%= vConfig.deletion_action === 'delete_roles' ? 'selected' : '' %>>Delete All Roles</option>
+            </select>
+            <p class="muted">Applies only to verification data. If you choose “Delete All Roles”, the bot removes all roles it can edit.</p>
         </div>
     </div>
 
