@@ -398,7 +398,42 @@ app.post('/verify/submit', auth, async (req, res) => {
         }
         
         // Run suspicion check
-        await checkUserSuspicion(botClient, db, userId, targetGuild, req.clientIp, username);
+        const suspicion = await checkUserSuspicion(botClient, db, userId, targetGuild, req.clientIp, username);
+        
+        // Send verification log to warning channel
+        try {
+            if (config.channel_id) {
+                const logChannel = botClient?.channels.cache.get(config.channel_id);
+                if (logChannel) {
+                    const user = await botClient.users.fetch(userId).catch(() => null);
+                    const accountAge = user ? Math.floor((Date.now() - user.createdTimestamp) / 86400000) : '?';
+                    const fp = req.body.fingerprint ? '✅ Stored' : '❌ Not captured';
+                    
+                    const logEmbed = new EmbedBuilder()
+                        .setTitle('📋 New Verification Completed')
+                        .setColor(suspicion.riskScore >= 40 ? 0xe67e22 : 0x2ecc71)
+                        .setThumbnail(user?.displayAvatarURL() || null)
+                        .addFields(
+                            { name: 'User', value: `**${username}** (<@${userId}>)`, inline: true },
+                            { name: 'Account Age', value: `${accountAge} days`, inline: true },
+                            { name: 'Avatar', value: user?.avatar ? '✅ Custom' : '⚠️ Default', inline: true },
+                            { name: 'IP', value: '🔒 Stored', inline: true },
+                            { name: 'Fingerprint', value: fp, inline: true },
+                            { name: 'Risk Score', value: `${suspicion.riskScore}/100 (${suspicion.riskLevel})`, inline: true }
+                        )
+                        .setFooter({ text: `User ID: ${userId}` })
+                        .setTimestamp();
+                    
+                    if (suspicion.flags && suspicion.flags.length > 0) {
+                        logEmbed.addFields({ name: 'Flags', value: suspicion.flags.join('\n').slice(0, 1024), inline: false });
+                    }
+                    
+                    await logChannel.send({ embeds: [logEmbed] }).catch(() => {});
+                }
+            }
+        } catch (e) {
+            console.error('[VERIFY] Error sending verification log:', e);
+        }
         
         res.json({ message: 'Verification successful! You now have access to the server.' });
         
