@@ -171,6 +171,7 @@
                 <p style="margin-top: 10px; color: #a8dadc;">You have already completed verification for this server. No further action is needed.</p>
             </div>
             <% } else { %>
+            <% if (requireCaptcha) { %>
             <div class="captcha-container">
                 <h3>Solve the CAPTCHA below</h3>
                 <canvas id="captchaCanvas" width="300" height="100"></canvas>
@@ -180,6 +181,12 @@
             <div class="input-group">
                 <input type="text" id="captchaInput" placeholder="Enter CAPTCHA" maxlength="6" autocomplete="off">
             </div>
+            <% } else { %>
+            <div style="margin: 30px 0; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 10px;">
+                <p style="font-size: 1.1rem; margin-bottom: 5px;">Click the button below to verify your account</p>
+                <p style="color: #a8dadc; font-size: 0.85rem;">Your identity and connection will be checked automatically</p>
+            </div>
+            <% } %>
 
             <button class="btn" onclick="submitVerification()">Verify Account</button>
             
@@ -204,8 +211,10 @@
     <% if (user) { %>
     <script>
         let currentCaptcha = '';
+        const captchaRequired = <%= requireCaptcha ? 'true' : 'false' %>;
 
         function generateCaptcha() {
+            if (!captchaRequired) return;
             const canvas = document.getElementById('captchaCanvas');
             const ctx = canvas.getContext('2d');
             
@@ -330,23 +339,26 @@
         }
 
         async function submitVerification() {
-            const input = document.getElementById('captchaInput').value.toUpperCase();
+            const captchaInput = document.getElementById('captchaInput');
+            const input = captchaInput ? captchaInput.value.toUpperCase() : '';
             const btn = document.querySelector('.btn:not(.btn-refresh)');
             const status = document.getElementById('status');
             
-            if (!input) {
-                status.style.display = 'block';
-                status.className = 'status error';
-                status.textContent = '❌ Please enter the CAPTCHA';
-                return;
-            }
-            
-            if (input !== currentCaptcha) {
-                status.style.display = 'block';
-                status.className = 'status error';
-                status.textContent = '❌ Incorrect CAPTCHA. Please try again.';
-                generateCaptcha();
-                return;
+            if (captchaRequired) {
+                if (!input) {
+                    status.style.display = 'block';
+                    status.className = 'status error';
+                    status.textContent = '❌ Please enter the CAPTCHA';
+                    return;
+                }
+                
+                if (input !== currentCaptcha) {
+                    status.style.display = 'block';
+                    status.className = 'status error';
+                    status.textContent = '❌ Incorrect CAPTCHA. Please try again.';
+                    generateCaptcha();
+                    return;
+                }
             }
             
             btn.disabled = true;
@@ -383,7 +395,7 @@
                     status.textContent = '❌ ' + data.error;
                     btn.disabled = false;
                     btn.textContent = 'Verify Account';
-                    generateCaptcha();
+                    if (captchaRequired) generateCaptcha();
                 }
             } catch (error) {
                 status.style.display = 'block';
@@ -391,17 +403,17 @@
                 status.textContent = '❌ An error occurred. Please try again.';
                 btn.disabled = false;
                 btn.textContent = 'Verify Account';
-                generateCaptcha();
+                if (captchaRequired) generateCaptcha();
             }
         }
         
-        // Generate initial captcha
-        generateCaptcha();
-        
-        // Allow Enter key to submit
-        document.getElementById('captchaInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') submitVerification();
-        });
+        // Generate initial captcha if required
+        if (captchaRequired) {
+            generateCaptcha();
+            document.getElementById('captchaInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') submitVerification();
+            });
+        }
     </script>
     <% } %>
 </body>

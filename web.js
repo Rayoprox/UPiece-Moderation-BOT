@@ -336,12 +336,20 @@ app.get('/verify', async (req, res) => {
         alreadyVerified = statusRes.rows.length > 0 && statusRes.rows[0].verified;
     }
     
+    // Check if captcha is required
+    let requireCaptcha = true;
+    try {
+        const vcRes = await db.query('SELECT require_captcha FROM verification_config WHERE guildid = $1', [guildId]);
+        if (vcRes.rows.length > 0 && vcRes.rows[0].require_captcha === false) requireCaptcha = false;
+    } catch(e) {}
+
     res.render('verify', { 
         user: req.user || null, 
         guildId, 
         guildName, 
         guildIcon,
-        alreadyVerified
+        alreadyVerified,
+        requireCaptcha
     });
 });
 
