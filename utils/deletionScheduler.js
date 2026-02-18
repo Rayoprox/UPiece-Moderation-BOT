@@ -20,7 +20,7 @@ async function processDeletionRequests(client) {
             console.log(`[AUTO-DELETE] Processing automatic deletion for user ${userId} (${request.username})`);
             
             try {
-                // Remove all roles and assign unverified role if configured
+                // Kick user from guilds where they were verified
                 try {
                     const statusRows = await db.query("SELECT guildid FROM verification_status WHERE userid = $1", [userId]);
                     for (const row of statusRows.rows) {
@@ -29,17 +29,10 @@ async function processDeletionRequests(client) {
                             if (!guild) continue;
                             const member = await guild.members.fetch(userId).catch(() => null);
                             if (!member) continue;
-                            // Remove ALL roles
-                            const removableRoles = member.roles.cache.filter(r => r.id !== guild.id && r.editable);
-                            if (removableRoles.size > 0) await member.roles.remove(removableRoles).catch(() => {});
-                            // Add unverified role if configured
-                            const configRes = await db.query("SELECT unverified_role_id FROM verification_config WHERE guildid = $1", [row.guildid]);
-                            if (configRes.rows.length > 0 && configRes.rows[0].unverified_role_id) {
-                                await member.roles.add(configRes.rows[0].unverified_role_id).catch(() => {});
-                            }
+                            await member.kick('Data deletion request (auto)').catch(() => {});
                         } catch (e) { /* guild/member not accessible */ }
                     }
-                } catch (e) { console.error('[AUTO-DELETE] Error removing roles:', e); }
+                } catch (e) { console.error('[AUTO-DELETE] Error kicking user:', e); }
 
                 // Delete all user data
                 await db.query("DELETE FROM verification_status WHERE userid = $1", [userId]);
