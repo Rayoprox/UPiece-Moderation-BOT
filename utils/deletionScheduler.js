@@ -20,20 +20,22 @@ async function processDeletionRequests(client) {
             console.log(`[AUTO-DELETE] Processing automatic deletion for user ${userId} (${request.username})`);
             
             try {
-                // Remove verified roles before deleting data
+                // Remove all roles and assign unverified role if configured
                 try {
-                    const statusRows = await db.query("SELECT guildid FROM verification_status WHERE userid = $1 AND verified = true", [userId]);
+                    const statusRows = await db.query("SELECT guildid FROM verification_status WHERE userid = $1", [userId]);
                     for (const row of statusRows.rows) {
                         try {
                             const guild = await client.guilds.fetch(row.guildid).catch(() => null);
                             if (!guild) continue;
                             const member = await guild.members.fetch(userId).catch(() => null);
                             if (!member) continue;
-                            const configRes = await db.query("SELECT verified_role_id, unverified_role_id FROM verification_config WHERE guildid = $1", [row.guildid]);
-                            if (configRes.rows.length > 0) {
-                                const { verified_role_id, unverified_role_id } = configRes.rows[0];
-                                if (verified_role_id && member.roles.cache.has(verified_role_id)) await member.roles.remove(verified_role_id).catch(() => {});
-                                if (unverified_role_id) await member.roles.add(unverified_role_id).catch(() => {});
+                            // Remove ALL roles
+                            const removableRoles = member.roles.cache.filter(r => r.id !== guild.id && r.editable);
+                            if (removableRoles.size > 0) await member.roles.remove(removableRoles).catch(() => {});
+                            // Add unverified role if configured
+                            const configRes = await db.query("SELECT unverified_role_id FROM verification_config WHERE guildid = $1", [row.guildid]);
+                            if (configRes.rows.length > 0 && configRes.rows[0].unverified_role_id) {
+                                await member.roles.add(configRes.rows[0].unverified_role_id).catch(() => {});
                             }
                         } catch (e) { /* guild/member not accessible */ }
                     }
