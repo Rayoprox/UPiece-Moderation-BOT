@@ -6,6 +6,7 @@ const { join } = require('path');
 const { EmbedBuilder, PermissionsBitField, ChannelType, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
 const db = require('./utils/db');
 const { SUPREME_IDS } = require('./utils/config');
+const { checkUserSuspicion } = require('./utils/suspicionChecker');
 
 const app = express();
 
@@ -61,6 +62,14 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// IP and fingerprint capture middleware
+app.use((req, res, next) => {
+    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress;
+    req.clientIp = ip;
+    req.userAgent = req.headers['user-agent'] || '';
+    next();
+});
+
 app.use((req, res, next) => {
     if (req.path.includes('/auth')) return next();
     next();
@@ -86,6 +95,16 @@ app.get('/auth/discord/appeal-status', (req, res, next) => {
     req.session.returnTo = '/appeal/status';
     req.session.save(() => {
         passport.authenticate('discord', { scope: SCOPES })(req, res, next);
+    });
+});
+
+app.get('/auth/discord/switch', (req, res) => {
+    const returnTo = req.query.returnTo || '/menu';
+    req.logout(() => {
+        req.session.returnTo = returnTo;
+        req.session.save(() => {
+            passport.authenticate('discord', { scope: SCOPES, prompt: 'consent' })(req, res);
+        });
     });
 });
 
@@ -215,6 +234,178 @@ app.get('/menu', auth, async (req, res) => {
     } catch(e) { console.error('[MENU-ACCESS-CHECK]', e); }
 
     res.render('menu', { user: req.user, serverName, hasStaffAccess });
+});
+
+// Privacy Policy
+app.get('/privacy', (req, res) => {
+    res.render('privacy', { user: req.user || null });
+});
+
+app.post('/privacy/request-deletion', auth, async (req, res) => {
+    const userId = req.user.id;
+    const username = req.user.username;
+    
+    try {
+        // Check if already requested
+        const existing = await db.query(
+            "SELECT * FROM data_deletion_requests WHERE userid = $1 AND status = 'PENDING'",
+            [userId]
+        );
+        
+        if (existing.rows.length > 0) {
+            return res.status(400).json({ error: 'You already have a pending deletion request.' });
+        }
+        
+        const timestamp = Date.now();
+        const autoDeleteAt = timestamp + (24 * 60 * 60 * 1000); // 24 hours
+        
+        await db.query(
+            "INSERT INTO data_deletion_requests (userid, username, request_timestamp, auto_delete_at) VALUES ($1, $2, $3, $4)",
+            [userId, username, timestamp, autoDeleteAt]
+        );
+        
+        // Notify developers via DM
+        const { botClient } = req.app.locals;
+        const devIds = (process.env.DEVELOPER_IDS || '').split(',');
+        
+        for (const devId of devIds) {
+            try {
+                const dev = await botClient.users.fetch(devId.trim());
+                const embed = new EmbedBuilder()
+                    .setTitle('🗑️ Data Deletion Request')
+                    .setDescription(`**${username}** (${userId}) has requested data deletion.`)
+                    .addFields(
+                        { name: 'User ID', value: userId, inline: true },
+                        { name: 'Username', value: username, inline: true },
+                        { name: 'Auto-Delete', value: `<t:${Math.floor(autoDeleteAt / 1000)}:R>`, inline: true }
+                    )
+                    .setColor('#e74c3c')
+                    .setTimestamp();
+                
+                const button = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`delete_user_data:${userId}`)
+                        .setLabel('✅ Delete Now')
+                        .setStyle(ButtonStyle.Danger)
+                );
+                
+                await dev.send({ embeds: [embed], components: [button] });
+            } catch (e) {
+                console.error(`[DELETE-REQUEST] Could not notify dev ${devId}:`, e.message);
+            }
+        }
+        
+        await db.query(
+            "UPDATE data_deletion_requests SET notified_devs = true WHERE userid = $1 AND status = 'PENDING'",
+            [userId]
+        );
+        
+        res.json({ 
+            message: 'Deletion request submitted. Developers have been notified. Your data will be automatically deleted in 24 hours if not reviewed.' 
+        });
+        
+    } catch (error) {
+        console.error('[DELETE-REQUEST] Error:', error);
+        res.status(500).json({ error: 'An error occurred while processing your request.' });
+    }
+});
+
+// Verification System
+app.get('/verify', async (req, res) => {
+    const guildId = req.query.guild || process.env.DISCORD_GUILD_ID;
+    const { botClient } = req.app.locals;
+    const guild = botClient?.guilds.cache.get(guildId);
+    
+    const guildName = guild?.name || 'Discord Server';
+    const guildIcon = guild?.iconURL({ extension: 'png', size: 128 }) || null;
+    
+    // Check if user is already verified
+    let alreadyVerified = false;
+    if (req.user) {
+        const statusRes = await db.query(
+            'SELECT verified FROM verification_status WHERE userid = $1 AND guildid = $2',
+            [req.user.id, guildId]
+        );
+        alreadyVerified = statusRes.rows.length > 0 && statusRes.rows[0].verified;
+    }
+    
+    res.render('verify', { 
+        user: req.user || null, 
+        guildId, 
+        guildName, 
+        guildIcon,
+        alreadyVerified
+    });
+});
+
+app.post('/verify/submit', auth, async (req, res) => {
+    const userId = req.user.id;
+    const username = req.user.username;
+    const { guildId } = req.body;
+    const targetGuild = guildId || process.env.DISCORD_GUILD_ID;
+    const { botClient } = req.app.locals;
+    
+    try {
+        // Check if already verified
+        const statusRes = await db.query(
+            'SELECT verified FROM verification_status WHERE userid = $1 AND guildid = $2',
+            [userId, targetGuild]
+        );
+        if (statusRes.rows.length > 0 && statusRes.rows[0].verified) {
+            return res.json({ message: 'You are already verified!' });
+        }
+        
+        // Save IP and fingerprint
+        await db.query(
+            "INSERT INTO user_ips (userid, guildid, ip_address, user_agent, timestamp, verified) VALUES ($1, $2, $3, $4, $5, true)",
+            [userId, targetGuild, req.clientIp, req.userAgent, Date.now()]
+        );
+        
+        // Save verification status
+        await db.query(
+            `INSERT INTO verification_status (userid, guildid, verified, verified_at) 
+             VALUES ($1, $2, true, $3) 
+             ON CONFLICT (userid, guildid) DO UPDATE SET verified = true, verified_at = $3`,
+            [userId, targetGuild, Date.now()]
+        );
+        
+        // Check if verification is enabled for this guild
+        const configRes = await db.query(
+            "SELECT * FROM verification_config WHERE guildid = $1 AND enabled = true",
+            [targetGuild]
+        );
+        
+        if (configRes.rows.length === 0) {
+            return res.json({ message: 'Verification completed!' });
+        }
+        
+        const config = configRes.rows[0];
+        const guild = botClient?.guilds.cache.get(targetGuild);
+        
+        if (!guild) {
+            return res.json({ message: 'Verification completed!' });
+        }
+        
+        // Add verified role
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (member && config.verified_role_id) {
+            await member.roles.add(config.verified_role_id).catch(() => {});
+            
+            // Remove unverified role if exists
+            if (config.unverified_role_id) {
+                await member.roles.remove(config.unverified_role_id).catch(() => {});
+            }
+        }
+        
+        // Run suspicion check
+        await checkUserSuspicion(botClient, db, userId, targetGuild, req.clientIp, username);
+        
+        res.json({ message: 'Verification successful! You now have access to the server.' });
+        
+    } catch (error) {
+        console.error('[VERIFY] Error:', error);
+        res.status(500).json({ error: 'An error occurred during verification.' });
+    }
 });
 
 
@@ -570,6 +761,16 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
         const ticketPanelsRes = await db.query('SELECT * FROM ticket_panels WHERE guild_id = $1', [guildId]);
         const ticketPanels = ticketPanelsRes.rows;
 
+        const verificationRes = await db.query('SELECT * FROM verification_config WHERE guildid = $1', [guildId]);
+        const verificationConfig = verificationRes.rows[0] || {
+            enabled: false,
+            channel_id: null,
+            verified_role_id: null,
+            unverified_role_id: null,
+            dm_message: 'Welcome! Please verify your account to access the server.',
+            require_captcha: true
+        };
+
         const botCommands = Array.from(botClient.commands.values())
             .filter(c => c.category !== 'developer' && c.data.name !== 'setup')
             .map(c => c.data.name)
@@ -580,12 +781,14 @@ app.get('/manage/:guildId/setup', auth, protectRoute, async (req, res) => {
         const textChannels = channels.filter(c => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement);
         const categories = channels.filter(c => c.type === ChannelType.GuildCategory);
 
+        const guildChannels = channels; // Alias para la vista
+
         res.render('setup', { 
             bot: botClient.user, user: req.user, guild, 
             settings, logs, antinuke, antinukeSettings, lockdownChannels,
             automodRules, antiMention, antiSpam, commandOverrides,
-            customCommands, ticketPanels,
-            botCommands, guildRoles, textChannels, categories, channels
+            customCommands, ticketPanels, verificationConfig,
+            botCommands, guildRoles, textChannels, categories, channels, guildChannels
         });
     } catch (e) { console.error(e); res.status(500).send("Error loading setup"); }
 });
@@ -812,6 +1015,28 @@ app.post('/api/setup/:guildId', auth, protectRoute, async (req, res) => {
                 `, [guildId, tp.id, tp.title, tp.description, tp.btnLabel, tp.btnStyle, tp.btnEmoji, tp.supportRole, tp.blacklistRole, tp.category, tp.logChannel, tp.welcomeMsg, tp.panelColor, tp.welcomeColor, tp.ticketLimit]);
             }
         }
+
+        // Verification system configuration
+        const verificationConfig = req.body.verification_config || {};
+        await db.query(`
+            INSERT INTO verification_config (guildid, enabled, channel_id, verified_role_id, unverified_role_id, dm_message, require_captcha)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (guildid) DO UPDATE SET 
+                enabled = $2, 
+                channel_id = $3, 
+                verified_role_id = $4, 
+                unverified_role_id = $5, 
+                dm_message = $6, 
+                require_captcha = $7
+        `, [
+            guildId,
+            verificationConfig.enabled === true || verificationConfig.enabled === 'on',
+            verificationConfig.channel_id || null,
+            verificationConfig.verified_role_id || null,
+            verificationConfig.unverified_role_id || null,
+            verificationConfig.dm_message || 'Welcome! Please verify your account to access the server.',
+            verificationConfig.require_captcha !== false
+        ]);
 
         res.json({ success: true });
     } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }

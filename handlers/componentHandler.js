@@ -6,6 +6,7 @@ const automodMain = require('../interactions/admin/automod_main');
 const appealSystem = require('../interactions/features/appeals');
 const logSystem = require('../interactions/moderation/logs');
 const customCommands = require('../interactions/admin/setup_sections/custom_commands.js');
+const deleteUserData = require('../interactions/developer/deleteUserData.js');
 const { error } = require('../utils/embedFactory.js'); 
 
 const { handleTicketOpen } = require('../interactions/tickets/ticketHandler');
@@ -36,6 +37,11 @@ module.exports = async (interaction) => {
     }
 
     try {
+        // Developer tools
+        if (customId.startsWith('delete_user_data:')) {
+            return await deleteUserData(interaction);
+        }
+
         if (customId.startsWith('univ_')) {
             return await universalPanel(interaction);
         }
@@ -65,6 +71,7 @@ module.exports = async (interaction) => {
 
 
         const isSetup = customId.startsWith('setup_');
+        const isVerification = customId.startsWith('verification_');
         const isSelect = customId.startsWith('select_');
         const isReset = customId === 'delete_all_data' || customId === 'confirm_delete_data' || customId === 'cancel_setup';
         const isAntinuke = customId.startsWith('antinuke_');
@@ -72,7 +79,7 @@ module.exports = async (interaction) => {
         const isSetupModal = customId === 'modal_setup_prefix' || customId === 'modal_prefix_change';
         const isPrefixUI = customId === 'prefix_change' || customId === 'prefix_toggle_delete';
 
-        if (isSetup || isSelect || isReset || isAntinuke || isPermsRole || isSetupModal || isPrefixUI) {
+        if (isSetup || isVerification || isSelect || isReset || isAntinuke || isPermsRole || isSetupModal || isPrefixUI) {
             return await setupSystem.execute(interaction);
         }
 

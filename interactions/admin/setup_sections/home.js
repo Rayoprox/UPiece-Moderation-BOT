@@ -11,6 +11,7 @@ module.exports = {
                 { name: '🔐 Permissions', value: 'Manage Staff Roles and Command Overrides.', inline: true },
                 { name: '🛡️ Protection', value: 'Anti-Nuke system and Lockdown configuration.', inline: true },
                 { name: '🎫 Tickets', value: 'Create and manage support ticket panels.', inline: true },
+                { name: '🔒 Verification', value: 'User verification system with ban evasion detection.', inline: true },
                 { name: '⌨️ Prefix', value: 'Change the server prefix.', inline: true }
             )
             .setColor('#2B2D31') 
@@ -25,11 +26,15 @@ module.exports = {
         );
 
         const row2 = new ActionRowBuilder().addComponents(
+             new ButtonBuilder().setCustomId('setup_verification').setLabel('Verification').setStyle(ButtonStyle.Primary).setEmoji('🔒'),
              new ButtonBuilder().setCustomId('setup_prefix').setLabel('Custom Prefix').setStyle(ButtonStyle.Secondary).setEmoji('⌨️'),
-             new ButtonBuilder().setCustomId('setup_cc_menu').setLabel('Custom Commands').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
+             new ButtonBuilder().setCustomId('setup_cc_menu').setLabel('Custom Commands').setStyle(ButtonStyle.Secondary).setEmoji('⚡')
+        );
+        
+        const row3 = new ActionRowBuilder().addComponents(
              new ButtonBuilder().setCustomId('delete_all_data').setLabel('Reset Data').setStyle(ButtonStyle.Secondary).setEmoji('🗑️')
         );
 
-        return { embed, components: [row, row2] };
+        return { embed, components: [row, row2, row3] };
     }
 };

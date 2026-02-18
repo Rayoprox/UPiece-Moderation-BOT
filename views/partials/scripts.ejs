@@ -604,7 +604,15 @@
                 enabled: config.enabled !== false,
                 ignoredChannels: config.ignoredChannels || []
             })),
-            custom_commands: finalCC, ticket_panels: ticketPanels
+            custom_commands: finalCC, ticket_panels: ticketPanels,
+            verification_config: {
+                enabled: document.getElementById('verification_enabled').checked,
+                channel_id: document.getElementById('verification_channel').value || null,
+                verified_role_id: document.getElementById('verification_verified_role').value || null,
+                unverified_role_id: document.getElementById('verification_unverified_role').value || null,
+                dm_message: document.getElementById('verification_dm_message').value.trim() || 'Welcome! Please verify your account to access the server.',
+                require_captcha: document.getElementById('verification_require_captcha').checked
+            }
         };
         try {
             const res = await fetch('/api/setup/<%= guild.id %>', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});

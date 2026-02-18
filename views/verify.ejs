@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Account - <%= guildName || 'Discord Server' %></title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, #f093fb, #f5576c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .guild-info {
+            margin: 20px 0;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        .guild-info img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin-bottom: 10px;
+        }
+        .captcha-container {
+            margin: 30px 0;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        #captchaCanvas {
+            background: white;
+            border-radius: 8px;
+            margin: 15px auto;
+            display: block;
+            cursor: pointer;
+            border: 2px solid #f093fb;
+        }
+        .input-group {
+            margin: 20px 0;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.1rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 8px;
+            text-align: center;
+            letter-spacing: 5px;
+            font-weight: bold;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #f093fb;
+        }
+        .btn {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .btn:hover {
+            transform: scale(1.02);
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-refresh {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+        .status {
+            display: none;
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .status.success {
+            background: rgba(46, 204, 113, 0.2);
+            border: 1px solid #2ecc71;
+            color: #2ecc71;
+        }
+        .status.error {
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid #e74c3c;
+            color: #e74c3c;
+        }
+        .info {
+            margin-top: 20px;
+            color: #a8dadc;
+            font-size: 0.9rem;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 0.9rem;
+            color: #a8dadc;
+        }
+        .footer a {
+            color: #f093fb;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ Account Verification</h1>
+        
+        <% if (guildName) { %>
+        <div class="guild-info">
+            <% if (guildIcon) { %>
+            <img src="<%= guildIcon %>" alt="<%= guildName %>">
+            <% } %>
+            <h2><%= guildName %></h2>
+            <p>Complete verification to access the server</p>
+        </div>
+        <% } %>
+
+        <% if (user) { %>
+            <div style="margin: 20px 0; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 10px;">
+                <p style="font-size:0.95rem; color:#a8dadc;">Logged in as:</p>
+                <p style="margin-top:5px;"><strong><%= user.username %></strong></p>
+                <a href="/auth/discord/switch?returnTo=/verify?guild=<%= guildId %>" style="display:inline-block; margin-top:12px; padding:8px 16px; font-size:0.85rem; background:rgba(255,255,255,0.15); border-radius:6px; text-decoration:none; color:#fff; transition:0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">🔄 Switch Account</a>
+            </div>
+            
+            <% if (alreadyVerified) { %>
+            <div style="margin: 20px 0; padding: 25px; background: rgba(46,204,113,0.15); border: 1px solid #2ecc71; border-radius: 10px;">
+                <p style="font-size: 2.5rem; margin-bottom: 10px;">✅</p>
+                <h3 style="color: #2ecc71;">You are already verified!</h3>
+                <p style="margin-top: 10px; color: #a8dadc;">You have already completed verification for this server. No further action is needed.</p>
+            </div>
+            <% } else { %>
+            <div class="captcha-container">
+                <h3>Solve the CAPTCHA below</h3>
+                <canvas id="captchaCanvas" width="300" height="100"></canvas>
+                <button class="btn btn-refresh" onclick="generateCaptcha()">🔄 Refresh</button>
+            </div>
+
+            <div class="input-group">
+                <input type="text" id="captchaInput" placeholder="Enter CAPTCHA" maxlength="6" autocomplete="off">
+            </div>
+
+            <button class="btn" onclick="submitVerification()">Verify Account</button>
+            
+            <div id="status" class="status"></div>
+
+            <div class="info">
+                <p>🔒 This verification helps protect the server from bots and malicious users.</p>
+                <p>📧 Make sure you're logged in with the correct Discord account.</p>
+            </div>
+            <% } %>
+        <% } else { %>
+            <p style="margin: 30px 0; font-size: 1.2rem;">Please login to verify your account</p>
+            <a href="/auth/discord" class="btn">Login with Discord</a>
+        <% } %>
+
+        <div class="footer">
+            <p><a href="/privacy">Privacy Policy</a> | <a href="/">Dashboard</a></p>
+            <p>© 2026 Rayus Moderation Bot</p>
+        </div>
+    </div>
+
+    <% if (user) { %>
+    <script>
+        let currentCaptcha = '';
+
+        function generateCaptcha() {
+            const canvas = document.getElementById('captchaCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Background
+            ctx.fillStyle = '#f0f0f0';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Generate random code
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            currentCaptcha = '';
+            for (let i = 0; i < 6; i++) {
+                currentCaptcha += chars[Math.floor(Math.random() * chars.length)];
+            }
+            
+            // Add noise lines
+            for (let i = 0; i < 5; i++) {
+                ctx.strokeStyle = `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255}, 0.3)`;
+                ctx.beginPath();
+                ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
+                ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height);
+                ctx.stroke();
+            }
+            
+            // Draw text
+            ctx.font = 'bold 40px Arial';
+            ctx.textBaseline = 'middle';
+            
+            for (let i = 0; i < currentCaptcha.length; i++) {
+                const char = currentCaptcha[i];
+                const x = 30 + (i * 42);
+                const y = 50 + (Math.random() * 10 - 5);
+                const angle = (Math.random() * 0.4 - 0.2);
+                
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle);
+                
+                // Random color
+                ctx.fillStyle = `rgb(${Math.random() * 100}, ${Math.random() * 100}, ${Math.random() * 100})`;
+                ctx.fillText(char, 0, 0);
+                
+                ctx.restore();
+            }
+            
+            // Add dots
+            for (let i = 0; i < 50; i++) {
+                ctx.fillStyle = `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255}, 0.5)`;
+                ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 2, 2);
+            }
+            
+            document.getElementById('captchaInput').value = '';
+            document.getElementById('captchaInput').focus();
+        }
+
+        async function submitVerification() {
+            const input = document.getElementById('captchaInput').value.toUpperCase();
+            const btn = document.querySelector('.btn:not(.btn-refresh)');
+            const status = document.getElementById('status');
+            
+            if (!input) {
+                status.style.display = 'block';
+                status.className = 'status error';
+                status.textContent = '❌ Please enter the CAPTCHA';
+                return;
+            }
+            
+            if (input !== currentCaptcha) {
+                status.style.display = 'block';
+                status.className = 'status error';
+                status.textContent = '❌ Incorrect CAPTCHA. Please try again.';
+                generateCaptcha();
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = 'Verifying...';
+            
+            try {
+                const response = await fetch('/verify/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        captcha: input,
+                        guildId: '<%= guildId || "" %>'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                status.style.display = 'block';
+                if (response.ok) {
+                    status.className = 'status success';
+                    status.textContent = '✅ ' + data.message;
+                    btn.textContent = '✅ Verified';
+                    
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 2000);
+                } else {
+                    status.className = 'status error';
+                    status.textContent = '❌ ' + data.error;
+                    btn.disabled = false;
+                    btn.textContent = 'Verify Account';
+                    generateCaptcha();
+                }
+            } catch (error) {
+                status.style.display = 'block';
+                status.className = 'status error';
+                status.textContent = '❌ An error occurred. Please try again.';
+                btn.disabled = false;
+                btn.textContent = 'Verify Account';
+                generateCaptcha();
+            }
+        }
+        
+        // Generate initial captcha
+        generateCaptcha();
+        
+        // Allow Enter key to submit
+        document.getElementById('captchaInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') submitVerification();
+        });
+    </script>
+    <% } %>
+</body>
+</html>

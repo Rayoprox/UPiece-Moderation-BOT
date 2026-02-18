@@ -7,6 +7,7 @@ const path = require('path');
 const db = require('./utils/db.js'); 
 const { startScheduler, resumePunishmentsOnStart } = require('./utils/temporary_punishment_handler.js');
 const { initLogger } = require('./utils/logger.js');
+const { startDeletionScheduler } = require('./utils/deletionScheduler.js');
 
 if (!process.env.DISCORD_TOKEN) {
     console.error("❌ Discord Token missing");
@@ -135,6 +136,7 @@ async function deployCommandsBackground() {
         deployCommandsBackground(); 
         startScheduler(client);
         resumePunishmentsOnStart(client);
+        startDeletionScheduler(client);
 
     } catch (error) {
         console.error('❌ CRITICAL ERROR during startup:', error);

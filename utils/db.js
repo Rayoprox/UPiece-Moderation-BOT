@@ -190,6 +190,56 @@ const db = {
         try { await db.query(`ALTER TABLE custom_commands ADD COLUMN allowed_roles TEXT`, [], true); } catch (e) {}
         try { await db.query(`ALTER TABLE ban_appeals ADD COLUMN source TEXT DEFAULT 'DISCORD'`, [], true); } catch (e) {}
 
+        // Verification system tables
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS verification_config (
+                guildid TEXT PRIMARY KEY,
+                enabled BOOLEAN DEFAULT FALSE,
+                channel_id TEXT,
+                verified_role_id TEXT,
+                unverified_role_id TEXT,
+                dm_message TEXT DEFAULT 'Welcome! Please verify your account to access the server.',
+                require_captcha BOOLEAN DEFAULT TRUE
+            );
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS user_ips (
+                id SERIAL PRIMARY KEY,
+                userid TEXT NOT NULL,
+                guildid TEXT NOT NULL,
+                ip_address TEXT,
+                fingerprint TEXT,
+                user_agent TEXT,
+                timestamp BIGINT NOT NULL,
+                verified BOOLEAN DEFAULT FALSE,
+                risk_score INTEGER DEFAULT 0
+            );
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS data_deletion_requests (
+                id SERIAL PRIMARY KEY,
+                userid TEXT NOT NULL,
+                username TEXT,
+                request_timestamp BIGINT NOT NULL,
+                status TEXT DEFAULT 'PENDING',
+                notified_devs BOOLEAN DEFAULT FALSE,
+                auto_delete_at BIGINT,
+                deleted_at BIGINT
+            );
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS verification_status (
+                userid TEXT NOT NULL,
+                guildid TEXT NOT NULL,
+                verified BOOLEAN DEFAULT FALSE,
+                verified_at BIGINT,
+                PRIMARY KEY (userid, guildid)
+            );
+        `);
+
         // Fin de ensureTables
     }
 };

@@ -1,0 +1,182 @@
+<div id="verification" class="section">
+    <h2>🛡️ Verification System</h2>
+    <p class="muted">Configure user verification settings to protect your server from bots and ban evaders.</p>
+    
+    <% 
+    const vConfig = typeof verificationConfig !== 'undefined' ? verificationConfig : {
+        enabled: false,
+        channel_id: null,
+        verified_role_id: null,
+        unverified_role_id: null,
+        dm_message: 'Welcome! Please verify your account to access the server.',
+        require_captcha: true
+    };
+    %>
+    
+    <div class="config-block" style="margin-top: 1.5rem">
+        <div class="item-row">
+            <div class="item-info">
+                <span style="font-weight:bold">Enable Verification</span>
+                <div class="muted">Require new members to verify before accessing the server</div>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="verification_enabled" <%= vConfig.enabled ? 'checked' : '' %>>
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <div class="config-block" style="margin-top: 1.5rem">
+        <h3>📋 Channel Configuration</h3>
+        <div style="margin-top: 1rem">
+            <label>Warnings Channel</label>
+            <select id="verification_channel" class="config-input">
+                <option value="">None</option>
+                <% if (typeof guildChannels !== 'undefined' && guildChannels) {
+                    guildChannels.filter(c => c.type === 0).forEach(channel => { %>
+                    <option value="<%= channel.id %>" <%= vConfig.channel_id === channel.id ? 'selected' : '' %>>
+                        #<%= channel.name %>
+                    </option>
+                <% }); } %>
+            </select>
+            <p class="muted">Channel where suspicious user alerts will be sent</p>
+        </div>
+    </div>
+
+    <div class="config-block" style="margin-top: 1.5rem">
+        <h3>👥 Role Configuration</h3>
+        <div class="role-config-grid">
+            <div>
+                <label>Verified Role</label>
+                <select id="verification_verified_role" class="config-input">
+                    <option value="">None</option>
+                    <% if (typeof guildRoles !== 'undefined' && guildRoles) {
+                        guildRoles.filter(r => r.name !== '@everyone').forEach(role => { %>
+                        <option value="<%= role.id %>" <%= vConfig.verified_role_id === role.id ? 'selected' : '' %>>
+                            <%= role.name %>
+                        </option>
+                    <% }); } %>
+                </select>
+                <p class="muted">Role given to users after successful verification</p>
+            </div>
+            <div>
+                <label>Unverified Role</label>
+                <select id="verification_unverified_role" class="config-input">
+                    <option value="">None</option>
+                    <% if (typeof guildRoles !== 'undefined' && guildRoles) {
+                        guildRoles.filter(r => r.name !== '@everyone').forEach(role => { %>
+                        <option value="<%= role.id %>" <%= vConfig.unverified_role_id === role.id ? 'selected' : '' %>>
+                            <%= role.name %>
+                        </option>
+                    <% }); } %>
+                </select>
+                <p class="muted">Role given to new members before verification</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="config-block" style="margin-top: 1.5rem">
+        <h3>✉️ DM Message Configuration</h3>
+        <div style="margin-top: 1rem">
+            <label>Welcome Message</label>
+            <textarea id="verification_dm_message" class="config-textarea" rows="4" placeholder="Welcome! Please verify your account to access the server."><%= vConfig.dm_message || 'Welcome! Please verify your account to access the server.' %></textarea>
+            <p class="muted">Message sent to new members when they join (sent via DM with verification link)</p>
+        </div>
+    </div>
+
+    <div class="config-block" style="margin-top: 1.5rem">
+        <h3>🔐 Captcha Settings</h3>
+        <div class="item-row">
+            <div class="item-info">
+                <span style="font-weight:bold">Require CAPTCHA</span>
+                <div class="muted">Users must solve a visual captcha to verify</div>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="verification_require_captcha" <%= vConfig.require_captcha !== false ? 'checked' : '' %>>
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <div class="info-box" style="margin-top: 2rem">
+        <h4>ℹ️ How It Works</h4>
+        <ul style="margin-left: 20px; margin-top: 10px">
+            <li><strong>New Member Joins:</strong> Bot sends them a DM with a verification link</li>
+            <li><strong>User Clicks Link:</strong> They're taken to the verification page</li>
+            <li><strong>Solve CAPTCHA:</strong> User completes the visual captcha</li>
+            <li><strong>Suspicion Check:</strong> Bot analyzes account age, IP address, and previous bans</li>
+            <li><strong>Alert if Suspicious:</strong> If risk score is high, moderators are notified in the warnings channel</li>
+            <li><strong>Role Assignment:</strong> Verified role is added, unverified role is removed</li>
+        </ul>
+    </div>
+
+    <div class="info-box" style="margin-top: 1rem; background: rgba(231, 76, 60, 0.1); border-color: #e74c3c">
+        <h4>🔒 Privacy & Data</h4>
+        <p>This system collects IP addresses and browser fingerprints to detect ban evaders. Users can request data deletion from the Privacy Policy page.</p>
+        <p style="margin-top: 10px"><strong>Links:</strong></p>
+        <ul style="margin-left: 20px">
+            <li><a href="/privacy" target="_blank" style="color: #3b82f6">Privacy Policy</a></li>
+            <li><a href="/verify" target="_blank" style="color: #3b82f6">Verification Page</a></li>
+        </ul>
+    </div>
+
+    <div id="verification-status" class="status-msg"></div>
+</div>
+
+<style>
+.role-config-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+    .role-config-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.config-textarea {
+    width: 100%;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #e0e0e0;
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+}
+
+.config-textarea:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.info-box {
+    background: rgba(102, 126, 234, 0.1);
+    border: 1px solid #667eea;
+    border-radius: 8px;
+    padding: 20px;
+    color: #e0e0e0;
+}
+
+.info-box h4 {
+    margin-bottom: 10px;
+    color: #a8dadc;
+}
+
+.info-box ul {
+    color: #e0e0e0;
+    line-height: 1.8;
+}
+
+.info-box a {
+    text-decoration: none;
+}
+
+.info-box a:hover {
+    text-decoration: underline;
+}
+</style>

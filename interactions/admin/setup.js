@@ -12,6 +12,7 @@ const setupPermissions = require('./setup_sections/permissions.js');
 const setupAntinuke = require('./setup_sections/antinuke.js');
 const setupReset = require('./setup_sections/reset.js');
 const setupPrefix = require('./setup_sections/prefix.js');
+const setupVerification = require('./setup_sections/verification.js');
 const ticketSetup = require('../tickets/ticketSetup.js');
 const setupAutomod = require('./automod.js'); 
 const setupAutomodMain = require('./automod_main.js'); 
@@ -84,6 +85,10 @@ module.exports = {
 
         if (customId === 'delete_all_data' || customId === 'confirm_delete_data') {
             return await setupReset(interaction);
+        }
+
+        if (customId.startsWith('setup_verification') || customId.startsWith('verification_')) {
+            return await setupVerification(interaction);
         }
     },
 };
